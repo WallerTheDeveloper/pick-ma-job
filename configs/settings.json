@@ -1,0 +1,23 @@
+{
+  "model": "claude-haiku-4-5-20251001",
+  "temperature": 0,
+  "alert_threshold": 7,
+  "dedup_db_path": "data/seen_jobs.db",
+  "pre_filters": {
+    "exclude_title_keywords": [
+      "unreal",
+      "godot",
+      "react native",
+      "flutter",
+      "devops",
+      "data science",
+      "machine learning",
+      "data engineer",
+      "android developer",
+      "ios developer"
+    ]
+  },
+  "sheets": {
+    "spreadsheet_id": "$GOOGLE_SPREADSHEET_ID"
+  }
+}

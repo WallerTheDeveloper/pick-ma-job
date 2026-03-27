@@ -1,0 +1,51 @@
+{
+  "platform": "upwork",
+  "enabled": true,
+  "scraper": {
+    "actor_id": "apify/upwork-scraper",
+    "input": {
+      "query": "unity developer",
+      "experienceLevel": ["entry", "intermediate"],
+      "jobType": ["fixed", "hourly"],
+      "paymentVerified": true,
+      "customFilters": [],
+      "perPage": 50,
+      "sort": "newest",
+      "maxJobAge": { "value": 24, "unit": "hours" }
+    }
+  },
+  "schedule": {
+    "cron": "0 */6 * * *"
+  },
+  "field_mappings": {
+    "id": "id",
+    "title": "title",
+    "description": "description",
+    "url": "url",
+    "skills": "skills",
+    "budget": "budget",
+    "job_type": "jobType",
+    "experience_level": "experienceLevel",
+    "extras": {
+      "client_rating": "clientRating",
+      "client_location": "clientLocation",
+      "proposals": "proposals"
+    }
+  },
+  "sheet": {
+    "worksheet_name": "Upwork",
+    "columns": [
+      "relevancy_score",
+      "title",
+      "budget",
+      "summary",
+      "recommendation",
+      "evaluation",
+      "flags",
+      "skills",
+      "client_rating",
+      "client_location",
+      "url"
+    ]
+  }
+}

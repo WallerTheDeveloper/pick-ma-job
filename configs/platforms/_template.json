@@ -1,0 +1,35 @@
+{
+  "_comment": "Copy this file to configs/platforms/<platform>.json to add a new platform.",
+  "platform": "platform_name",
+  "enabled": false,
+  "scraper": {
+    "actor_id": "apify/actor-name",
+    "input": {}
+  },
+  "schedule": {
+    "cron": "0 */6 * * *"
+  },
+  "field_mappings": {
+    "id": "id",
+    "title": "title",
+    "description": "description",
+    "url": "url",
+    "skills": null,
+    "budget": null,
+    "job_type": null,
+    "experience_level": null,
+    "extras": {}
+  },
+  "sheet": {
+    "worksheet_name": "PlatformName",
+    "columns": [
+      "relevancy_score",
+      "title",
+      "summary",
+      "recommendation",
+      "evaluation",
+      "flags",
+      "url"
+    ]
+  }
+}

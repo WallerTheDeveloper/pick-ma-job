@@ -1,0 +1,17 @@
+[Unit]
+Description=Job Scraping & Evaluation Pipeline
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/pick-ma-job
+EnvironmentFile=/opt/pick-ma-job/.env
+ExecStart=/opt/pick-ma-job/.venv/bin/python main.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,44 @@
+{
+  "platform": "linkedin",
+  "enabled": false,
+  "scraper": {
+    "actor_id": "apify/linkedin-jobs-scraper",
+    "input": {
+      "queries": ["unity developer"],
+      "location": "Remote",
+      "maxResults": 50
+    }
+  },
+  "schedule": {
+    "cron": "0 */12 * * *"
+  },
+  "field_mappings": {
+    "id": "id",
+    "title": "title",
+    "description": "description",
+    "url": "url",
+    "skills": "skills",
+    "budget": null,
+    "job_type": "jobType",
+    "experience_level": "experienceLevel",
+    "extras": {
+      "company_name": "companyName",
+      "company_size": "companySize"
+    }
+  },
+  "sheet": {
+    "worksheet_name": "LinkedIn",
+    "columns": [
+      "relevancy_score",
+      "title",
+      "summary",
+      "recommendation",
+      "evaluation",
+      "flags",
+      "skills",
+      "company_name",
+      "company_size",
+      "url"
+    ]
+  }
+}
