@@ -22,7 +22,7 @@
     "title": "title",
     "description": "description",
     "url": "url",
-    "skills": "skills",
+    "skills": "tags",
     "budget": "budget",
     "job_type": "jobType",
     "experience_level": "experienceLevel",
