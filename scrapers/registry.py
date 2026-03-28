@@ -33,9 +33,12 @@ def get_scraper(platform: str) -> BaseScraper:
     Raises:
         ValueError: If no scraper is registered for the given platform.
     """
-    ...
+    cls = _SCRAPERS.get(platform)
+    if cls is None:
+        raise ValueError(f"No scraper registered for platform: {platform!r}. Known: {list(_SCRAPERS)}")
+    return cls()
 
 
 def list_platforms() -> list[str]:
     """Return all registered platform slugs."""
-    ...
+    return list(_SCRAPERS.keys())
