@@ -18,6 +18,8 @@ Message format uses Telegram Markdown (parse_mode=Markdown):
 
 import logging
 
+import requests
+
 from core.evaluator import EvaluationResult
 from scrapers.base import NormalizedJob
 
@@ -41,7 +43,9 @@ class Notifier:
         chat_id: str,
         alert_threshold: int,
     ) -> None:
-        ...
+        self._bot_token = bot_token
+        self._chat_id = chat_id
+        self._alert_threshold = alert_threshold
 
     def notify(self, job: NormalizedJob, result: EvaluationResult) -> None:
         """Send a Telegram alert if the job meets the score threshold.
@@ -52,7 +56,18 @@ class Notifier:
             job: The normalized job.
             result: The Claude evaluation result.
         """
-        ...
+        if result.relevancy_score < self._alert_threshold:
+            logger.debug(
+                "Job %s scored %d — below threshold %d, skipping alert",
+                job.id,
+                result.relevancy_score,
+                self._alert_threshold,
+            )
+            return
+
+        text = self._format_message(job, result)
+        self._send(text)
+        logger.info("Telegram alert sent for job %s (score=%d)", job.id, result.relevancy_score)
 
     def _format_message(
         self,
@@ -60,7 +75,30 @@ class Notifier:
         result: EvaluationResult,
     ) -> str:
         """Build the Markdown-formatted Telegram message string."""
-        ...
+        # First line of recommendation (e.g. "Yes apply" before the dash)
+        rec_short = result.recommendation.split("—")[0].strip()
+
+        lines = [
+            f"🎯 *Score: {result.relevancy_score}/10* — {rec_short}",
+            "",
+            f"*{_escape(job.title)}*",
+        ]
+
+        if job.budget:
+            lines.append(f"💰 {_escape(job.budget)}")
+
+        client_location = job.extras.get("client_location")
+        if client_location:
+            lines.append(f"📍 Client: {_escape(str(client_location))}")
+
+        lines += [
+            "",
+            f"_{_escape(result.summary)}_",
+            "",
+            f"🔗 {job.url}",
+        ]
+
+        return "\n".join(lines)
 
     def _send(self, text: str) -> None:
         """POST the message to the Telegram Bot API.
@@ -68,4 +106,20 @@ class Notifier:
         Raises:
             requests.HTTPError: If the API returns a non-2xx status.
         """
-        ...
+        url = _TELEGRAM_API_URL.format(token=self._bot_token)
+        payload = {
+            "chat_id": self._chat_id,
+            "text": text,
+            "parse_mode": "Markdown",
+            "disable_web_page_preview": True,
+        }
+        response = requests.post(url, json=payload, timeout=10)
+        response.raise_for_status()
+
+
+def _escape(text: str) -> str:
+    """Escape Telegram Markdown special characters in a string."""
+    # In Telegram's legacy Markdown, only * _ ` [ need escaping
+    for char in ("*", "_", "`", "["):
+        text = text.replace(char, f"\\{char}")
+    return text
