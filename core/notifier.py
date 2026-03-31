@@ -95,7 +95,7 @@ class Notifier:
             "",
             f"_{_escape(result.summary)}_",
             "",
-            f"🔗 {job.url}",
+            f"🔗 {_escape(job.url)}",
         ]
 
         return "\n".join(lines)

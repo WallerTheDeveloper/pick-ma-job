@@ -2,7 +2,7 @@
   "platform": "upwork",
   "enabled": true,
   "scraper": {
-    "actor_id": "apify/upwork-scraper",
+    "actor_id": "XYTgO05GT5qAoSlxy",
     "input": {
       "query": "unity developer",
       "experienceLevel": ["entry", "intermediate"],

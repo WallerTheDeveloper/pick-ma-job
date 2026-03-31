@@ -34,7 +34,6 @@ class EvaluationResult:
     """
 
     def __init__(self, raw: dict[str, Any]) -> None:
-        self.scratchpad: str = raw.get("scratchpad", "")
         self.evaluation: str = raw.get("evaluation", "")
         self.relevancy_score: int = int(raw.get("relevancy_score", 0))
         self.recommendation: str = raw.get("recommendation", "")
@@ -89,7 +88,7 @@ class Evaluator:
 
         response = self._client.messages.create(
             model=self._model,
-            max_tokens=1024,
+            max_tokens=2048,
             temperature=self._temperature,
             system=system_prompt,
             messages=[{"role": "user", "content": user_message}],
