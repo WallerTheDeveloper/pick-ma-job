@@ -7,9 +7,11 @@ import asyncpg
 from fastapi import Depends, HTTPException, Request, status
 
 from repositories.magic_link import MagicLinkRepository
+from repositories.profile import ProfileRepository
 from repositories.session import SessionRepository
 from repositories.user import UserRepository, UserRow
 from services.auth import AuthService
+from services.profile import ProfileService
 
 _SESSION_COOKIE = "session_token"
 
@@ -48,6 +50,13 @@ async def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
 
     return user
+
+
+async def get_profile_service(
+    pool: Annotated[asyncpg.Pool, Depends(get_db_pool)],
+) -> ProfileService:
+    """Construct a ProfileService with a per-request repository instance."""
+    return ProfileService(profile_repo=ProfileRepository(pool))
 
 
 async def get_current_user_optional(
