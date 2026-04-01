@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Log in — pick-ma-job{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="card">
+    <h1>pick-ma-job</h1>
+    <p class="subtitle">Enter your email to receive a login link.</p>
+
+    <div id="result">
+      {% if error == "invalid_or_expired" %}
+        <p class="error">That link is invalid or has expired. Please request a new one.</p>
+      {% elif error %}
+        <p class="error">{{ error }}</p>
+      {% endif %}
+    </div>
+
+    <form
+      hx-post="/auth/magic-link"
+      hx-target="#result"
+      hx-swap="innerHTML"
+      hx-indicator="#form-wrap"
+      id="form-wrap"
+    >
+      <label for="email">Email address</label>
+      <input
+        type="email"
+        id="email"
+        name="email"
+        placeholder="you@example.com"
+        required
+        autofocus
+      />
+      <button type="submit">
+        <span class="htmx-indicator">Sending…</span>
+        <span>Send login link</span>
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

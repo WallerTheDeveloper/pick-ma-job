@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Check your email — pick-ma-job{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="card">
+    <h1>Check your email</h1>
+    <p class="subtitle">
+      We sent a login link to <strong>{{ email }}</strong>.
+      Click the link in the email to log in.
+    </p>
+    <p style="color: #6b7280; font-size: 0.875rem;">
+      Didn't receive it? Check your spam folder, or
+      <a href="/auth/login">request a new link</a>.
+    </p>
+  </div>
+</div>
+{% endblock %}
