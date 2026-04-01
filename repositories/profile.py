@@ -1,6 +1,5 @@
 """ProfileRepository — all database access for the profiles table."""
 
-import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
@@ -128,9 +127,9 @@ class ProfileRepository:
                 tertiary_skills or [],
                 not_a_good_fit or [],
                 background or [],
-                json.dumps(notable_projects or []),
+                notable_projects or [],
                 languages or [],
-                json.dumps(rubric or {}),
+                rubric or {},
             )
         logger.debug("Upserted profile user_id=%s", user_id)
         return _row_to_profile(row)
