@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block title %}Profile — pick-ma-job{% endblock %}
+
+{% block head %}
+<style>
+  .page-wrap {
+    width: 100%;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 2rem 1rem 4rem;
+  }
+
+  .page-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+  }
+
+  .page-header h1 { font-size: 1.5rem; font-weight: 700; }
+
+  .page-header a {
+    font-size: 0.875rem;
+    color: #6b7280;
+  }
+
+  .section {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .section h2 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+    margin-bottom: 1rem;
+  }
+
+  .field { margin-bottom: 1rem; }
+  .field:last-child { margin-bottom: 0; }
+
+  .field label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 0.375rem;
+  }
+
+  .field .hint {
+    font-size: 0.8rem;
+    color: #9ca3af;
+    margin-bottom: 0.375rem;
+    display: block;
+  }
+
+  .field input[type="text"],
+  .field textarea {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.9375rem;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+    resize: vertical;
+  }
+
+  .field input[type="text"]:focus,
+  .field textarea:focus { border-color: #2563eb; }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .three-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .save-bar {
+    position: sticky;
+    bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem 1.5rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    margin-top: 1rem;
+  }
+
+  .save-bar button[type="submit"] {
+    width: auto;
+    margin-top: 0;
+    padding: 0.5rem 1.5rem;
+  }
+
+  #flash { flex: 1; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-wrap">
+
+  <div class="page-header">
+    <h1>Your Profile</h1>
+    <a href="/auth/logout" hx-post="/auth/logout" hx-push-url="/auth/login">Log out</a>
+  </div>
+
+  <form
+    id="profile-form"
+    hx-post="/profile"
+    hx-target="#profile-form"
+    hx-swap="outerHTML"
+    hx-indicator="#profile-form"
+  >
+
+    {# ── Flash banner ───────────────────────────────────────────────────── #}
+    <div id="flash">
+      {% if saved %}
+        <p class="success">Profile saved.</p>
+      {% elif error %}
+        <p class="error">{{ error }}</p>
+      {% endif %}
+    </div>
+
+    {# ── Identity ───────────────────────────────────────────────────────── #}
+    <div class="section">
+      <h2>Identity</h2>
+      <div class="three-col">
+        <div class="field">
+          <label for="role">Role</label>
+          <input type="text" id="role" name="role"
+            placeholder="e.g. Unity Developer"
+            value="{{ profile.role or '' }}">
+        </div>
+        <div class="field">
+          <label for="experience">Experience level</label>
+          <input type="text" id="experience" name="experience"
+            placeholder="e.g. mid-level, 4 years"
+            value="{{ profile.experience or '' }}">
+        </div>
+        <div class="field">
+          <label for="rate">Rate / Salary</label>
+          <input type="text" id="rate" name="rate"
+            placeholder="e.g. €10–30/hr"
+            value="{{ profile.rate or '' }}">
+        </div>
+      </div>
+    </div>
+
+    {# ── Skills ─────────────────────────────────────────────────────────── #}
+    <div class="section">
+      <h2>Skills</h2>
+      <span class="hint" style="display:block; margin-bottom:1rem; font-size:0.8rem; color:#9ca3af;">
+        One skill per line. Primary skills are weighted highest by the evaluator.
+      </span>
+      <div class="three-col">
+        <div class="field">
+          <label for="primary_skills">Primary</label>
+          <textarea id="primary_skills" name="primary_skills" rows="7"
+            placeholder="Unity Engine (C#)&#10;AR Foundation&#10;ARKit / ARCore">{{ (profile.primary_skills | join('\n')) if profile else '' }}</textarea>
+        </div>
+        <div class="field">
+          <label for="secondary_skills">Secondary</label>
+          <textarea id="secondary_skills" name="secondary_skills" rows="7"
+            placeholder="Rust&#10;C++ / OpenGL&#10;Python">{{ (profile.secondary_skills | join('\n')) if profile else '' }}</textarea>
+        </div>
+        <div class="field">
+          <label for="tertiary_skills">Tertiary</label>
+          <textarea id="tertiary_skills" name="tertiary_skills" rows="7"
+            placeholder="Vue.js&#10;Blender&#10;WordPress">{{ (profile.tertiary_skills | join('\n')) if profile else '' }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    {# ── Not a good fit ─────────────────────────────────────────────────── #}
+    <div class="section">
+      <h2>Not a good fit for</h2>
+      <div class="field">
+        <span class="hint">One item per line. Jobs matching these are scored lower.</span>
+        <textarea id="not_a_good_fit" name="not_a_good_fit" rows="4"
+          placeholder="Pure frontend / web development&#10;Native Android / iOS without Unity&#10;Data science or ML engineering">{{ (profile.not_a_good_fit | join('\n')) if profile else '' }}</textarea>
+      </div>
+    </div>
+
+    {# ── Background ─────────────────────────────────────────────────────── #}
+    <div class="section">
+      <h2>Background</h2>
+      <div class="field">
+        <span class="hint">One bullet per line. Summarise past roles and education.</span>
+        <textarea id="background" name="background" rows="4"
+          placeholder="2 years as AR Developer at ZAUBAR — AR SDK, mobile apps, CI/CD&#10;BSc Computer Science, Lublin University of Technology">{{ (profile.background | join('\n')) if profile else '' }}</textarea>
+      </div>
+    </div>
+
+    {# ── Notable projects ───────────────────────────────────────────────── #}
+    <div class="section">
+      <h2>Notable projects</h2>
+      <span class="hint" style="display:block; margin-bottom:1rem; font-size:0.8rem; color:#9ca3af;">
+        One project per line. Keep names and descriptions in sync — row 1 in Names matches row 1 in Descriptions.
+      </span>
+      <div class="two-col">
+        <div class="field">
+          <label for="project_names">Names</label>
+          <textarea id="project_names" name="project_names" rows="5"
+            placeholder="Rust Multiplayer Game&#10;Solar System Simulation&#10;VR Tower Defense">{% if profile %}{% for p in profile.notable_projects %}{{ p.name }}
+{% endfor %}{% endif %}</textarea>
+        </div>
+        <div class="field">
+          <label for="project_descriptions">Descriptions</label>
+          <textarea id="project_descriptions" name="project_descriptions" rows="5"
+            placeholder="Authoritative server in Rust, 200+ concurrent players&#10;C++17 + OpenGL 3.3, custom rendering engine&#10;Unity + XR Interaction Toolkit, spatial tower placement">{% if profile %}{% for p in profile.notable_projects %}{{ p.description }}
+{% endfor %}{% endif %}</textarea>
+        </div>
+      </div>
+    </div>
+
+    {# ── Languages ──────────────────────────────────────────────────────── #}
+    <div class="section">
+      <h2>Languages</h2>
+      <div class="field">
+        <span class="hint">One language per line.</span>
+        <textarea id="languages" name="languages" rows="3"
+          placeholder="English&#10;Ukrainian&#10;German (actively studying)">{{ (profile.languages | join('\n')) if profile else '' }}</textarea>
+      </div>
+    </div>
+
+    {# ── Save bar ───────────────────────────────────────────────────────── #}
+    <div class="save-bar">
+      <div id="flash-sticky">
+        {% if saved %}<p class="success">Profile saved.</p>{% endif %}
+        {% if error %}<p class="error">{{ error }}</p>{% endif %}
+      </div>
+      <button type="submit">
+        <span class="htmx-indicator">Saving…</span>
+        <span>Save profile</span>
+      </button>
+    </div>
+
+  </form>
+</div>
+{% endblock %}
