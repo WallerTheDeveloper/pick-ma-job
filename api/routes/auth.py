@@ -41,8 +41,9 @@ async def login_page(
     if user is not None:
         return RedirectResponse(url="/", status_code=302)
     return _templates(request).TemplateResponse(
+        request,
         "login.html",
-        {"request": request, "error": error},
+        {"error": error},
     )
 
 
@@ -69,14 +70,16 @@ async def request_magic_link(
                 status_code=422,
             )
         return _templates(request).TemplateResponse(
+            request,
             "login.html",
-            {"request": request, "error": str(exc)},
+            {"error": str(exc)},
             status_code=422,
         )
 
     return _templates(request).TemplateResponse(
+        request,
         "check_email.html",
-        {"request": request, "email": email.strip().lower()},
+        {"email": email.strip().lower()},
     )
 
 
