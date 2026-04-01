@@ -188,14 +188,17 @@ async def test_profile_upsert_creates(conn_pool):
     user = await user_repo.create(f"test-{uuid4().hex[:8]}@example.com")
     profile = await profile_repo.upsert(
         user.id,
-        skills=["Unity", "C#"],
+        role="Unity Developer",
+        primary_skills=["Unity", "C#"],
         experience="4 years",
         rate="€20/hr",
         rubric={"min_score": 7},
     )
 
     assert profile.user_id == user.id
-    assert profile.skills == ["Unity", "C#"]
+    assert profile.role == "Unity Developer"
+    assert profile.primary_skills == ["Unity", "C#"]
+    assert profile.secondary_skills == []
     assert profile.experience == "4 years"
     assert profile.rate == "€20/hr"
 
@@ -205,10 +208,18 @@ async def test_profile_upsert_updates(conn_pool):
     profile_repo = ProfileRepository(conn_pool)
 
     user = await user_repo.create(f"test-{uuid4().hex[:8]}@example.com")
-    await profile_repo.upsert(user.id, skills=["Unity"], experience="2 years", rate=None, rubric={})
-    updated = await profile_repo.upsert(user.id, skills=["Unity", "Rust"], experience="4 years", rate="€25/hr", rubric={})
+    await profile_repo.upsert(user.id, primary_skills=["Unity"], experience="2 years", rate=None, rubric={})
+    updated = await profile_repo.upsert(
+        user.id,
+        primary_skills=["Unity", "Rust"],
+        secondary_skills=["C++", "Python"],
+        experience="4 years",
+        rate="€25/hr",
+        rubric={},
+    )
 
-    assert updated.skills == ["Unity", "Rust"]
+    assert updated.primary_skills == ["Unity", "Rust"]
+    assert updated.secondary_skills == ["C++", "Python"]
     assert updated.experience == "4 years"
     assert updated.rate == "€25/hr"
 

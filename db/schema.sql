@@ -42,13 +42,25 @@ CREATE INDEX IF NOT EXISTS idx_magic_links_user_id ON magic_links(user_id);
 -- ── Profiles ──────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS profiles (
-    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id    UUID        UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    skills     JSONB       NOT NULL DEFAULT '[]',
-    experience TEXT,
-    rate       TEXT,
-    rubric     JSONB       NOT NULL DEFAULT '{}',
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id           UUID        UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    -- Identity
+    role              TEXT,
+    experience        TEXT,
+    rate              TEXT,
+    -- Skills (tiered)
+    primary_skills    TEXT[]      NOT NULL DEFAULT '{}',
+    secondary_skills  TEXT[]      NOT NULL DEFAULT '{}',
+    tertiary_skills   TEXT[]      NOT NULL DEFAULT '{}',
+    -- Fit criteria
+    not_a_good_fit    TEXT[]      NOT NULL DEFAULT '{}',
+    -- Background
+    background        TEXT[]      NOT NULL DEFAULT '{}',
+    notable_projects  JSONB       NOT NULL DEFAULT '[]',
+    languages         TEXT[]      NOT NULL DEFAULT '{}',
+    -- Evaluator config
+    rubric            JSONB       NOT NULL DEFAULT '{}',
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ── Search Configs ────────────────────────────────────────────────────────────
