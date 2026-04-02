@@ -23,6 +23,7 @@ from fastapi.templating import Jinja2Templates
 
 from api.routes.auth import router as auth_router
 from api.routes.profile import router as profile_router
+from api.routes.search_config import router as search_config_router
 from db.pool import close_pool, create_pool
 
 load_dotenv()
@@ -76,6 +77,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(profile_router)
+    app.include_router(search_config_router)
 
     static_dir = Path(__file__).parent / "static"
     if static_dir.exists():
