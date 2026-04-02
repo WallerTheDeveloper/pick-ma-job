@@ -1,0 +1,54 @@
+<div id="run-widget"
+  {% if status in ("pending", "running") %}
+    hx-get="/run/{{ run_id }}/status"
+    hx-trigger="every 2s"
+    hx-swap="outerHTML"
+    hx-target="this"
+  {% endif %}
+>
+  {% if status == "pending" %}
+    <p class="run-badge run-badge--pending">Queued — waiting to start…</p>
+
+  {% elif status == "running" %}
+    <p class="run-badge run-badge--running">Running — evaluating jobs…</p>
+
+  {% elif status == "completed" %}
+    <div class="run-result run-result--success">
+      <p class="run-badge run-badge--completed">Completed</p>
+      {% if result %}
+        <p class="run-summary">
+          Found <strong>{{ result.jobs_found }}</strong> jobs —
+          evaluated <strong>{{ result.jobs_evaluated }}</strong>,
+          stored <strong>{{ result.jobs_stored }}</strong>
+          ({{ result.jobs_skipped_dedup }} duplicate{{ "s" if result.jobs_skipped_dedup != 1 }},
+           {{ result.jobs_skipped_filter }} filtered out).
+        </p>
+        {% if result.errors %}
+          <p class="run-errors">{{ result.errors|length }} evaluation error(s) occurred.</p>
+        {% endif %}
+      {% endif %}
+    </div>
+    <form hx-post="/run" hx-target="#run-widget" hx-swap="outerHTML" class="run-again-form">
+      <button type="submit" class="run-btn run-btn--secondary">Run again</button>
+    </form>
+
+  {% elif status == "failed" %}
+    <div class="run-result run-result--error">
+      <p class="run-badge run-badge--failed">Failed</p>
+      {% if error %}<p class="run-error-msg">{{ error }}</p>{% endif %}
+    </div>
+    <form hx-post="/run" hx-target="#run-widget" hx-swap="outerHTML" class="run-again-form">
+      <button type="submit" class="run-btn run-btn--secondary">Retry</button>
+    </form>
+
+  {% elif status == "error" %}
+    <div class="run-result run-result--error">
+      <p class="run-badge run-badge--failed">Could not start</p>
+      {% if error %}<p class="run-error-msg">{{ error }}</p>{% endif %}
+    </div>
+    <form hx-post="/run" hx-target="#run-widget" hx-swap="outerHTML" class="run-again-form">
+      <button type="submit" class="run-btn run-btn--secondary">Try again</button>
+    </form>
+
+  {% endif %}
+</div>

@@ -437,3 +437,166 @@ async def test_get_status_failed_includes_error_message(test_app):
     assert body["status"] == "failed"
     assert body["error"] == "Profile not configured."
     assert body["result"] is None
+
+
+# ---------------------------------------------------------------------------
+# HTMX — POST /run returns HTML partial
+# ---------------------------------------------------------------------------
+
+_HX_HEADERS = {"HX-Request": "true"}
+
+
+@pytest.mark.asyncio
+async def test_post_run_htmx_returns_html_on_success(test_app):
+    user = _make_user()
+    run_id = uuid4()
+    profile_svc = _mock_profile_svc(profile=_make_profile(user.id))
+    search_svc = _mock_search_config_svc(all_configs=[_make_search_config(user.id)])
+    mgr = _mock_run_manager(run_id=run_id)
+
+    async with _build_client(test_app, user, profile_svc, search_svc, mgr) as c:
+        resp = await c.post("/run", cookies={"session_token": "valid"}, headers=_HX_HEADERS)
+
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert str(run_id) in resp.text
+    assert "run-widget" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_post_run_htmx_returns_error_partial_on_missing_profile(test_app):
+    user = _make_user()
+    profile_svc = _mock_profile_svc(profile=None)
+    search_svc = _mock_search_config_svc()
+    mgr = _mock_run_manager()
+
+    async with _build_client(test_app, user, profile_svc, search_svc, mgr) as c:
+        resp = await c.post("/run", cookies={"session_token": "valid"}, headers=_HX_HEADERS)
+
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert "Profile not configured" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_post_run_htmx_returns_error_partial_on_conflict(test_app):
+    user = _make_user()
+    profile_svc = _mock_profile_svc(profile=_make_profile(user.id))
+    search_svc = _mock_search_config_svc(all_configs=[_make_search_config(user.id)])
+    mgr = _mock_run_manager(active_error=RunActiveError("Already running."))
+
+    async with _build_client(test_app, user, profile_svc, search_svc, mgr) as c:
+        resp = await c.post("/run", cookies={"session_token": "valid"}, headers=_HX_HEADERS)
+
+    assert resp.status_code == 200
+    assert "Already running" in resp.text
+
+
+# ---------------------------------------------------------------------------
+# HTMX — GET /run/{run_id}/status returns HTML partial
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_get_status_htmx_returns_html(test_app):
+    user = _make_user()
+    snapshot = _make_snapshot(user_id=user.id, status="running")
+    mgr = _mock_run_manager(snapshot=snapshot)
+    profile_svc = _mock_profile_svc(None)
+    search_svc = _mock_search_config_svc()
+
+    async with _build_client(test_app, user, profile_svc, search_svc, mgr) as c:
+        resp = await c.get(
+            f"/run/{snapshot.run_id}/status",
+            cookies={"session_token": "valid"},
+            headers=_HX_HEADERS,
+        )
+
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert "run-widget" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_get_status_htmx_completed_has_no_poll_trigger(test_app):
+    user = _make_user()
+    result = _make_result()
+    snapshot = _make_snapshot(user_id=user.id, status="completed", result=result)
+    mgr = _mock_run_manager(snapshot=snapshot)
+    profile_svc = _mock_profile_svc(None)
+    search_svc = _mock_search_config_svc()
+
+    async with _build_client(test_app, user, profile_svc, search_svc, mgr) as c:
+        resp = await c.get(
+            f"/run/{snapshot.run_id}/status",
+            cookies={"session_token": "valid"},
+            headers=_HX_HEADERS,
+        )
+
+    assert resp.status_code == 200
+    assert "hx-trigger" not in resp.text
+
+
+@pytest.mark.asyncio
+async def test_get_status_htmx_running_has_poll_trigger(test_app):
+    user = _make_user()
+    snapshot = _make_snapshot(user_id=user.id, status="running")
+    mgr = _mock_run_manager(snapshot=snapshot)
+    profile_svc = _mock_profile_svc(None)
+    search_svc = _mock_search_config_svc()
+
+    async with _build_client(test_app, user, profile_svc, search_svc, mgr) as c:
+        resp = await c.get(
+            f"/run/{snapshot.run_id}/status",
+            cookies={"session_token": "valid"},
+            headers=_HX_HEADERS,
+        )
+
+    assert "hx-trigger" in resp.text
+    assert "every 2s" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_get_status_htmx_404_returns_error_partial(test_app):
+    user = _make_user()
+    mgr = _mock_run_manager(snapshot=None)
+    profile_svc = _mock_profile_svc(None)
+    search_svc = _mock_search_config_svc()
+
+    async with _build_client(test_app, user, profile_svc, search_svc, mgr) as c:
+        resp = await c.get(
+            f"/run/{uuid4()}/status",
+            cookies={"session_token": "valid"},
+            headers=_HX_HEADERS,
+        )
+
+    assert resp.status_code == 200
+    assert "Run not found" in resp.text
+
+
+# ---------------------------------------------------------------------------
+# GET / — dashboard
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_dashboard_redirects_unauthenticated(test_app):
+    test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth(None)
+    async with AsyncClient(
+        transport=ASGITransport(app=test_app), base_url="http://test", follow_redirects=False
+    ) as c:
+        resp = await c.get("/")
+    assert resp.status_code == 302
+    assert "/auth/login" in resp.headers["location"]
+
+
+@pytest.mark.asyncio
+async def test_dashboard_renders_for_authenticated_user(test_app):
+    user = _make_user()
+    test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth(user)
+    async with AsyncClient(
+        transport=ASGITransport(app=test_app), base_url="http://test"
+    ) as c:
+        resp = await c.get("/", cookies={"session_token": "valid"})
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert "Dashboard" in resp.text
+    assert "run-widget" in resp.text
