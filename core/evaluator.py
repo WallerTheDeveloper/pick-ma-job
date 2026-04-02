@@ -11,6 +11,7 @@ doesn't, a single retry is attempted after stripping backtick fences.
 
 import json
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 import anthropic
@@ -20,6 +21,7 @@ from scrapers.base import NormalizedJob
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
 class EvaluationResult:
     """Structured result from a Claude evaluation.
 
@@ -30,16 +32,29 @@ class EvaluationResult:
         recommendation: Apply / Consider / Do not apply + justification.
         flags: Comma-separated red/green flags.
         summary: One-sentence job-fit summary.
-        raw: The original parsed dict from Claude.
+        raw: The original parsed dict from Claude (defensive copy).
     """
 
-    def __init__(self, raw: dict[str, Any]) -> None:
-        self.evaluation: str = raw.get("evaluation", "")
-        self.relevancy_score: int = int(raw.get("relevancy_score", 0))
-        self.recommendation: str = raw.get("recommendation", "")
-        self.flags: str = raw.get("flags", "")
-        self.summary: str = raw.get("summary", "")
-        self.raw = raw
+    scratchpad: str
+    evaluation: str
+    relevancy_score: int
+    recommendation: str
+    flags: str
+    summary: str
+    raw: dict
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any]) -> "EvaluationResult":
+        """Build an EvaluationResult from Claude's parsed JSON response."""
+        return cls(
+            scratchpad=raw.get("scratchpad", ""),
+            evaluation=raw.get("evaluation", ""),
+            relevancy_score=int(raw.get("relevancy_score", 0)),
+            recommendation=raw.get("recommendation", ""),
+            flags=raw.get("flags", ""),
+            summary=raw.get("summary", ""),
+            raw=dict(raw),
+        )
 
 
 class Evaluator:
@@ -60,7 +75,7 @@ class Evaluator:
         self._base_profile = base_profile
         self._model: str = settings["model"]
         self._temperature: float = settings.get("temperature", 0)
-        self._client = anthropic.Anthropic(api_key=api_key)
+        self._client = anthropic.AsyncAnthropic(api_key=api_key)
 
     async def evaluate(
         self,
@@ -86,7 +101,7 @@ class Evaluator:
         system_prompt = self._assemble_system_prompt(platform_context)
         user_message = self._assemble_user_message(job, platform_context)
 
-        response = self._client.messages.create(
+        response = await self._client.messages.create(
             model=self._model,
             max_tokens=2048,
             temperature=self._temperature,
@@ -96,7 +111,7 @@ class Evaluator:
 
         content = response.content[0].text
         raw = self._parse_response(content)
-        return EvaluationResult(raw)
+        return EvaluationResult.from_dict(raw)
 
     def _assemble_system_prompt(self, platform_context: dict) -> str:
         """Merge base_profile and platform_context into a system prompt string."""

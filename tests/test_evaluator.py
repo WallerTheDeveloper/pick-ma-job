@@ -1,7 +1,7 @@
 """Unit tests for core.evaluator — Anthropic client is mocked throughout."""
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -53,16 +53,16 @@ VALID_RESPONSE = {
 
 
 def _make_client_mock(response_text: str) -> MagicMock:
-    """Return a mock Anthropic client whose messages.create() returns response_text."""
+    """Return a mock AsyncAnthropic client whose messages.create() returns response_text."""
     mock_message = MagicMock()
     mock_message.content = [MagicMock(text=response_text)]
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = mock_message
+    mock_client.messages.create = AsyncMock(return_value=mock_message)
     return mock_client
 
 
 def _make_evaluator(mock_client: MagicMock) -> Evaluator:
-    with patch("core.evaluator.anthropic.Anthropic", return_value=mock_client):
+    with patch("core.evaluator.anthropic.AsyncAnthropic", return_value=mock_client):
         return Evaluator(BASE_PROFILE, SETTINGS, api_key="test-key")
 
 
@@ -72,7 +72,7 @@ def _make_evaluator(mock_client: MagicMock) -> Evaluator:
 
 
 def test_evaluation_result_fields_populated():
-    result = EvaluationResult(VALID_RESPONSE)
+    result = EvaluationResult.from_dict(VALID_RESPONSE)
     assert result.scratchpad == "Checking skills..."
     assert result.evaluation == "Strong Unity AR match."
     assert result.relevancy_score == 8
@@ -83,15 +83,28 @@ def test_evaluation_result_fields_populated():
 
 
 def test_evaluation_result_missing_fields_default_to_empty():
-    result = EvaluationResult({})
+    result = EvaluationResult.from_dict({})
     assert result.scratchpad == ""
     assert result.relevancy_score == 0
 
 
 def test_evaluation_result_score_cast_to_int():
-    result = EvaluationResult({"relevancy_score": "7"})
+    result = EvaluationResult.from_dict({"relevancy_score": "7"})
     assert result.relevancy_score == 7
     assert isinstance(result.relevancy_score, int)
+
+
+def test_evaluation_result_is_immutable():
+    result = EvaluationResult.from_dict(VALID_RESPONSE)
+    with pytest.raises(Exception):
+        result.relevancy_score = 99  # type: ignore[misc]
+
+
+def test_evaluation_result_raw_is_defensive_copy():
+    original = {"relevancy_score": 5, "evaluation": "ok"}
+    result = EvaluationResult.from_dict(original)
+    original["relevancy_score"] = 99
+    assert result.raw["relevancy_score"] == 5
 
 
 # ---------------------------------------------------------------------------

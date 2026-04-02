@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 
-@dataclass
+@dataclass(frozen=True)
 class NormalizedJob:
     """Universal job representation produced by every scraper adapter.
 
