@@ -22,9 +22,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from api.routes.auth import router as auth_router
+from api.routes.pipeline import router as pipeline_router
 from api.routes.profile import router as profile_router
 from api.routes.search_config import router as search_config_router
 from db.pool import close_pool, create_pool
+from services.run_manager import RunManager
 
 load_dotenv()
 
@@ -39,6 +41,8 @@ _REQUIRED_ENV_VARS = [
     "MAGIC_LINK_SECRET",
     "RESEND_API_KEY",
     "EMAIL_FROM",
+    "ANTHROPIC_API_KEY",
+    "APIFY_API_TOKEN",
 ]
 
 
@@ -60,6 +64,7 @@ async def lifespan(app: FastAPI):
     app.state.templates = Jinja2Templates(
         directory=str(Path(__file__).parent / "templates")
     )
+    app.state.run_manager = RunManager(anthropic_api_key=os.environ["ANTHROPIC_API_KEY"])
     logger.info("Application started")
 
     yield
@@ -78,6 +83,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(profile_router)
     app.include_router(search_config_router)
+    app.include_router(pipeline_router)
 
     static_dir = Path(__file__).parent / "static"
     if static_dir.exists():
