@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Search Config — pick-ma-job{% endblock %}
+
+{% block content %}
+<div class="page-wrap">
+
+  <div class="page-header">
+    <h1>Search Configuration</h1>
+    <a href="/auth/logout" hx-post="/auth/logout" hx-push-url="/auth/login">Log out</a>
+  </div>
+
+  {# ── Flash ────────────────────────────────────────────────────────────── #}
+  {% if saved %}
+    <p class="success">Search config saved.</p>
+  {% elif error %}
+    <p class="error">{{ error }}</p>
+  {% endif %}
+
+  {# ── Existing configs ─────────────────────────────────────────────────── #}
+  {% if configs %}
+  <div class="section">
+    <h2>Your platforms</h2>
+    {% for cfg in configs %}
+    <div class="config-row" id="config-{{ cfg.id }}">
+      <strong>{{ cfg.platform }}</strong>
+      {% if cfg.query %} — {{ cfg.query }}{% endif %}
+      <button
+        hx-delete="/search-config/{{ cfg.id }}"
+        hx-target="#config-{{ cfg.id }}"
+        hx-swap="outerHTML"
+        hx-confirm="Delete this config?"
+      >Delete</button>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ── Add / edit form ──────────────────────────────────────────────────── #}
+  <form
+    id="search-config-form"
+    hx-post="/search-config"
+    hx-target="#search-config-form"
+    hx-swap="outerHTML"
+  >
+
+    <div class="section">
+      <h2>Add / update platform</h2>
+
+      <div class="field">
+        <label for="platform">Platform</label>
+        <select id="platform" name="platform">
+          {% for p in platforms %}
+          <option value="{{ p }}">{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="query">Search query</label>
+        <input type="text" id="query" name="query" placeholder="e.g. unity developer">
+      </div>
+
+      <div class="field">
+        <label for="filters_json">Filters (JSON)</label>
+        <textarea id="filters_json" name="filters_json" rows="8"
+          placeholder='{"jobType": ["fixed", "hourly"], "paymentVerified": true}'></textarea>
+      </div>
+    </div>
+
+    <button type="submit">Save config</button>
+
+  </form>
+</div>
+{% endblock %}
