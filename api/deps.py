@@ -8,10 +8,12 @@ from fastapi import Depends, HTTPException, Request, status
 
 from repositories.magic_link import MagicLinkRepository
 from repositories.profile import ProfileRepository
+from repositories.search_config import SearchConfigRepository
 from repositories.session import SessionRepository
 from repositories.user import UserRepository, UserRow
 from services.auth import AuthService
 from services.profile import ProfileService
+from services.search_config import SearchConfigService
 
 _SESSION_COOKIE = "session_token"
 
@@ -57,6 +59,13 @@ async def get_profile_service(
 ) -> ProfileService:
     """Construct a ProfileService with a per-request repository instance."""
     return ProfileService(profile_repo=ProfileRepository(pool))
+
+
+async def get_search_config_service(
+    pool: Annotated[asyncpg.Pool, Depends(get_db_pool)],
+) -> SearchConfigService:
+    """Construct a SearchConfigService with a per-request repository instance."""
+    return SearchConfigService(search_config_repo=SearchConfigRepository(pool))
 
 
 async def get_current_user_optional(
