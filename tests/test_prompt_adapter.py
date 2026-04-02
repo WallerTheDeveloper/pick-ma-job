@@ -7,6 +7,7 @@ load_platform_context tests which hit the real config files on disk.
 import pytest
 
 from core.prompt_adapter import (
+    _DEFAULT_SCORING_RUBRIC,
     _DEFAULT_SYSTEM_INSTRUCTIONS,
     load_platform_context,
     profile_row_to_prompt_dict,
@@ -182,9 +183,9 @@ def test_empty_skills_produce_empty_lists():
     assert result["skills"] == {"primary": [], "secondary": [], "tertiary": []}
 
 
-def test_empty_rubric_produces_empty_scoring_and_factors():
+def test_empty_rubric_uses_default_scoring_rubric_and_empty_factors():
     result = profile_row_to_prompt_dict(_make_profile(rubric={}))
-    assert result["scoring_rubric"] == {}
+    assert result["scoring_rubric"] == _DEFAULT_SCORING_RUBRIC
     assert result["evaluation_factors"] == []
 
 

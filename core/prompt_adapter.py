@@ -28,8 +28,18 @@ _DEFAULT_SYSTEM_INSTRUCTIONS = (
     "backticks, no explanation outside the JSON. The JSON must include exactly "
     "these fields: scratchpad, evaluation, relevancy_score, recommendation, "
     "flags, summary. All fields except relevancy_score must be plain strings — "
-    "no nested objects or arrays."
+    "no nested objects or arrays. "
+    "relevancy_score MUST be an integer between 1 and 10 (inclusive). "
+    "Do not use any other scale."
 )
+
+_DEFAULT_SCORING_RUBRIC = {
+    "9-10": "Excellent match — hits primary strengths, appropriate level and budget, apply immediately",
+    "7-8": "Good match — primarily relevant with minor gaps, likely worth applying",
+    "5-6": "Moderate match — touches secondary/tertiary skills or notable mismatches, apply cautiously",
+    "3-4": "Poor match — only tangential overlap or significant red flags, probably not worth it",
+    "1-2": "Very poor match — outside domain entirely, do not apply",
+}
 
 
 def profile_row_to_prompt_dict(profile: ProfileRow) -> dict[str, Any]:
@@ -65,7 +75,7 @@ def profile_row_to_prompt_dict(profile: ProfileRow) -> dict[str, Any]:
         "not_a_good_fit": list(profile.not_a_good_fit),
         "notable_projects": list(profile.notable_projects),
         "languages": list(profile.languages),
-        "scoring_rubric": dict(rubric.get("scoring", {})),
+        "scoring_rubric": dict(rubric.get("scoring", {})) or _DEFAULT_SCORING_RUBRIC,
         "evaluation_factors": list(rubric.get("evaluation_factors", [])),
     }
 
