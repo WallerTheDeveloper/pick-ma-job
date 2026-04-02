@@ -1,0 +1,557 @@
+"""Unit tests for services.pipeline.PipelineService.
+
+All external I/O is mocked:
+- ProfileRepository, SearchConfigRepository, JobResultRepository → AsyncMock
+- Evaluator → patched at services.pipeline.Evaluator
+- get_scraper → patched at services.pipeline.get_scraper
+The static config files (configs/platforms/, configs/settings.json) are loaded
+for real since they exist on disk and drive real behaviour.
+"""
+
+import json
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID, uuid4
+
+import pytest
+
+from repositories.job_result import JobResultRow
+from repositories.profile import ProfileRow
+from repositories.search_config import SearchConfigRow
+from scrapers.base import NormalizedJob
+from services.pipeline import PipelineError, PipelineRunResult, PipelineService, _merge_config
+
+# ---------------------------------------------------------------------------
+# Factories
+# ---------------------------------------------------------------------------
+
+_USER_ID = uuid4()
+_RUBRIC = {
+    "scoring": {"9-10": "Excellent"},
+    "evaluation_factors": ["Skills Match"],
+    "system_instructions": "Evaluate the job.",
+}
+
+
+def _make_profile(**overrides) -> ProfileRow:
+    defaults = dict(
+        id=uuid4(),
+        user_id=_USER_ID,
+        role="Unity Developer",
+        experience="mid-level — 4 years",
+        rate="€20/hr",
+        primary_skills=["Unity"],
+        secondary_skills=["Rust"],
+        tertiary_skills=["Vue.js"],
+        not_a_good_fit=["Pure frontend"],
+        background=["2 years at ZAUBAR"],
+        notable_projects=[],
+        languages=["English"],
+        rubric=_RUBRIC,
+        updated_at=datetime(2026, 1, 1),
+    )
+    defaults.update(overrides)
+    return ProfileRow(**defaults)
+
+
+def _make_search_config(**overrides) -> SearchConfigRow:
+    defaults = dict(
+        id=uuid4(),
+        user_id=_USER_ID,
+        platform="upwork",
+        query="unity developer",
+        filters={},
+        updated_at=datetime(2026, 1, 1),
+    )
+    defaults.update(overrides)
+    return SearchConfigRow(**defaults)
+
+
+def _make_job(**overrides) -> NormalizedJob:
+    defaults = dict(
+        id="job-001",
+        platform="upwork",
+        title="Unity AR Developer",
+        description="Build an AR app in Unity.",
+        url="https://upwork.com/jobs/job-001",
+        budget="$2,000",
+        job_type="Fixed",
+        experience_level="Intermediate",
+        skills=["Unity", "ARCore"],
+        extras={"client_rating": "4.9"},
+    )
+    defaults.update(overrides)
+    return NormalizedJob(**defaults)
+
+
+def _make_job_result_row(**overrides) -> JobResultRow:
+    defaults = dict(
+        id=uuid4(),
+        user_id=_USER_ID,
+        platform="upwork",
+        job_id="job-001",
+        title="Unity AR Developer",
+        url="https://upwork.com/jobs/job-001",
+        score=8,
+        evaluation={"relevancy_score": 8},
+        status="new",
+        created_at=datetime(2026, 1, 1),
+    )
+    defaults.update(overrides)
+    return JobResultRow(**defaults)
+
+
+def _make_evaluation_result(score: int = 8):
+    from core.evaluator import EvaluationResult
+    return EvaluationResult.from_dict({
+        "scratchpad": "...",
+        "evaluation": "Good fit.",
+        "relevancy_score": score,
+        "recommendation": "Yes apply",
+        "flags": "clear scope",
+        "summary": "Good AR fit.",
+    })
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def profile_repo():
+    repo = AsyncMock()
+    repo.find_by_user_id.return_value = _make_profile()
+    return repo
+
+
+@pytest.fixture
+def search_config_repo():
+    repo = AsyncMock()
+    repo.find_by_user_id.return_value = [_make_search_config()]
+    repo.find_by_user_and_platform.return_value = _make_search_config()
+    return repo
+
+
+@pytest.fixture
+def job_result_repo():
+    repo = AsyncMock()
+    repo.exists.return_value = False
+    repo.insert.return_value = _make_job_result_row()
+    return repo
+
+
+@pytest.fixture
+def mock_scraper():
+    scraper = AsyncMock()
+    scraper.fetch_jobs.return_value = [_make_job()]
+    return scraper
+
+
+@pytest.fixture
+def mock_evaluator():
+    evaluator = AsyncMock()
+    evaluator.evaluate.return_value = _make_evaluation_result()
+    return evaluator
+
+
+def _make_service(profile_repo, search_config_repo, job_result_repo) -> PipelineService:
+    return PipelineService(
+        profile_repo=profile_repo,
+        search_config_repo=search_config_repo,
+        job_result_repo=job_result_repo,
+        anthropic_api_key="test-key",
+    )
+
+
+# ---------------------------------------------------------------------------
+# PipelineError cases
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_run_pipeline_raises_if_profile_missing(
+    search_config_repo, job_result_repo
+):
+    profile_repo = AsyncMock()
+    profile_repo.find_by_user_id.return_value = None
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo)
+
+    with pytest.raises(PipelineError, match="Profile not configured"):
+        await svc.run_pipeline(_USER_ID)
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_raises_if_no_search_configs(
+    profile_repo, job_result_repo
+):
+    search_config_repo = AsyncMock()
+    search_config_repo.find_by_user_id.return_value = []
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo)
+
+    with pytest.raises(PipelineError, match="No search configurations"):
+        await svc.run_pipeline(_USER_ID)
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_single_platform_not_found_raises(
+    profile_repo, job_result_repo
+):
+    search_config_repo = AsyncMock()
+    search_config_repo.find_by_user_and_platform.return_value = None
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo)
+
+    with pytest.raises(PipelineError, match="No search configurations"):
+        await svc.run_pipeline(_USER_ID, platform="upwork")
+
+
+# ---------------------------------------------------------------------------
+# Happy path — correct counts
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_run_pipeline_returns_pipeline_run_result(
+    profile_repo, search_config_repo, job_result_repo, mock_scraper, mock_evaluator
+):
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo)
+
+    with patch("services.pipeline.get_scraper", return_value=mock_scraper), \
+         patch("services.pipeline.Evaluator", return_value=mock_evaluator):
+        result = await svc.run_pipeline(_USER_ID)
+
+    assert isinstance(result, PipelineRunResult)
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_counts_found_evaluated_stored(
+    profile_repo, search_config_repo, job_result_repo, mock_scraper, mock_evaluator
+):
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo)
+
+    with patch("services.pipeline.get_scraper", return_value=mock_scraper), \
+         patch("services.pipeline.Evaluator", return_value=mock_evaluator):
+        result = await svc.run_pipeline(_USER_ID)
+
+    assert result.jobs_found == 1
+    assert result.jobs_evaluated == 1
+    assert result.jobs_stored == 1
+    assert result.jobs_skipped_dedup == 0
+    assert result.jobs_skipped_filter == 0
+    assert result.errors == ()
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_single_platform(
+    profile_repo, search_config_repo, job_result_repo, mock_scraper, mock_evaluator
+):
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo)
+
+    with patch("services.pipeline.get_scraper", return_value=mock_scraper), \
+         patch("services.pipeline.Evaluator", return_value=mock_evaluator):
+        result = await svc.run_pipeline(_USER_ID, platform="upwork")
+
+    search_config_repo.find_by_user_and_platform.assert_called_once_with(_USER_ID, "upwork")
+    assert result.jobs_found == 1
+
+
+# ---------------------------------------------------------------------------
+# Deduplication
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_dedup_skips_already_seen_jobs(
+    profile_repo, search_config_repo, mock_scraper, mock_evaluator
+):
+    job_result_repo = AsyncMock()
+    job_result_repo.exists.return_value = True  # job already in DB
+
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo)
+
+    with patch("services.pipeline.get_scraper", return_value=mock_scraper), \
+         patch("services.pipeline.Evaluator", return_value=mock_evaluator):
+        result = await svc.run_pipeline(_USER_ID)
+
+    assert result.jobs_skipped_dedup == 1
+    assert result.jobs_evaluated == 0
+    mock_evaluator.evaluate.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_dedup_stores_new_job_when_not_seen(
+    profile_repo, search_config_repo, job_result_repo, mock_scraper, mock_evaluator
+):
+    job_result_repo.exists.return_value = False
+
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo)
+
+    with patch("services.pipeline.get_scraper", return_value=mock_scraper), \
+         patch("services.pipeline.Evaluator", return_value=mock_evaluator):
+        result = await svc.run_pipeline(_USER_ID)
+
+    assert result.jobs_skipped_dedup == 0
+    assert result.jobs_stored == 1
+
+
+# ---------------------------------------------------------------------------
+# Pre-filter
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_filter_skips_excluded_title_keyword(
+    profile_repo, search_config_repo, job_result_repo, mock_evaluator
+):
+    filtered_job = _make_job(title="Unreal Engine Developer")
+    scraper = AsyncMock()
+    scraper.fetch_jobs.return_value = [filtered_job]
+
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo)
+
+    with patch("services.pipeline.get_scraper", return_value=scraper), \
+         patch("services.pipeline.Evaluator", return_value=mock_evaluator):
+        result = await svc.run_pipeline(_USER_ID)
+
+    assert result.jobs_skipped_filter == 1
+    assert result.jobs_evaluated == 0
+    mock_evaluator.evaluate.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_filter_is_case_insensitive(
+    profile_repo, search_config_repo, job_result_repo, mock_evaluator
+):
+    filtered_job = _make_job(title="FLUTTER Developer Needed")
+    scraper = AsyncMock()
+    scraper.fetch_jobs.return_value = [filtered_job]
+
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo)
+
+    with patch("services.pipeline.get_scraper", return_value=scraper), \
+         patch("services.pipeline.Evaluator", return_value=mock_evaluator):
+        result = await svc.run_pipeline(_USER_ID)
+
+    assert result.jobs_skipped_filter == 1
+
+
+@pytest.mark.asyncio
+async def test_filter_does_not_skip_clean_title(
+    profile_repo, search_config_repo, job_result_repo, mock_scraper, mock_evaluator
+):
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo)
+
+    with patch("services.pipeline.get_scraper", return_value=mock_scraper), \
+         patch("services.pipeline.Evaluator", return_value=mock_evaluator):
+        result = await svc.run_pipeline(_USER_ID)
+
+    assert result.jobs_skipped_filter == 0
+    assert result.jobs_evaluated == 1
+
+
+# ---------------------------------------------------------------------------
+# Error resilience
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_evaluation_error_does_not_abort_run(
+    profile_repo, search_config_repo, job_result_repo
+):
+    job_a = _make_job(id="job-a", title="Unity AR Dev")
+    job_b = _make_job(id="job-b", title="Unity VR Dev")
+    scraper = AsyncMock()
+    scraper.fetch_jobs.return_value = [job_a, job_b]
+
+    evaluator = AsyncMock()
+    evaluator.evaluate.side_effect = [
+        ValueError("Claude error"),
+        _make_evaluation_result(),
+    ]
+
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo)
+
+    with patch("services.pipeline.get_scraper", return_value=scraper), \
+         patch("services.pipeline.Evaluator", return_value=evaluator):
+        result = await svc.run_pipeline(_USER_ID)
+
+    assert result.jobs_found == 2
+    assert result.jobs_evaluated == 1
+    assert result.jobs_stored == 1
+    assert len(result.errors) == 1
+    assert "Claude error" in result.errors[0]
+
+
+@pytest.mark.asyncio
+async def test_scraper_error_recorded_in_errors(
+    profile_repo, search_config_repo, job_result_repo
+):
+    scraper = AsyncMock()
+    scraper.fetch_jobs.side_effect = RuntimeError("Apify timeout")
+
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo)
+
+    with patch("services.pipeline.get_scraper", return_value=scraper), \
+         patch("services.pipeline.Evaluator", return_value=AsyncMock()):
+        result = await svc.run_pipeline(_USER_ID)
+
+    assert len(result.errors) == 1
+    assert "Apify timeout" in result.errors[0]
+    assert result.jobs_found == 0
+
+
+@pytest.mark.asyncio
+async def test_insert_error_recorded_but_run_continues(
+    profile_repo, search_config_repo, mock_scraper, mock_evaluator
+):
+    job_result_repo = AsyncMock()
+    job_result_repo.exists.return_value = False
+    job_result_repo.insert.side_effect = RuntimeError("DB connection lost")
+
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo)
+
+    with patch("services.pipeline.get_scraper", return_value=mock_scraper), \
+         patch("services.pipeline.Evaluator", return_value=mock_evaluator):
+        result = await svc.run_pipeline(_USER_ID)
+
+    assert result.jobs_evaluated == 1
+    assert result.jobs_stored == 0
+    assert len(result.errors) == 1
+
+
+@pytest.mark.asyncio
+async def test_db_dedup_via_insert_returning_none(
+    profile_repo, search_config_repo, mock_scraper, mock_evaluator
+):
+    """insert() returning None (ON CONFLICT DO NOTHING) should not count as stored."""
+    job_result_repo = AsyncMock()
+    job_result_repo.exists.return_value = False
+    job_result_repo.insert.return_value = None  # conflict, row not inserted
+
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo)
+
+    with patch("services.pipeline.get_scraper", return_value=mock_scraper), \
+         patch("services.pipeline.Evaluator", return_value=mock_evaluator):
+        result = await svc.run_pipeline(_USER_ID)
+
+    assert result.jobs_evaluated == 1
+    assert result.jobs_stored == 0
+
+
+# ---------------------------------------------------------------------------
+# PipelineRunResult — immutability
+# ---------------------------------------------------------------------------
+
+def test_pipeline_run_result_is_frozen():
+    r = PipelineRunResult(
+        jobs_found=5,
+        jobs_skipped_dedup=1,
+        jobs_skipped_filter=1,
+        jobs_evaluated=3,
+        jobs_stored=3,
+        errors=(),
+    )
+    with pytest.raises(Exception):
+        r.jobs_found = 99  # type: ignore[misc]
+
+
+def test_pipeline_run_result_errors_is_tuple():
+    r = PipelineRunResult(
+        jobs_found=1,
+        jobs_skipped_dedup=0,
+        jobs_skipped_filter=0,
+        jobs_evaluated=1,
+        jobs_stored=1,
+        errors=("some error",),
+    )
+    assert isinstance(r.errors, tuple)
+
+
+# ---------------------------------------------------------------------------
+# _merge_config (pure function)
+# ---------------------------------------------------------------------------
+
+def _static_config() -> dict:
+    return {
+        "platform": "upwork",
+        "scraper": {
+            "actor_id": "abc123",
+            "input": {
+                "query": "unity developer",
+                "experienceLevel": ["entry", "intermediate"],
+                "perPage": 50,
+            },
+        },
+        "field_mappings": {"id": "id", "title": "title"},
+    }
+
+
+def test_merge_config_preserves_actor_id_and_field_mappings():
+    config_row = _make_search_config(query=None, filters={})
+    merged = _merge_config(_static_config(), config_row)
+    assert merged["scraper"]["actor_id"] == "abc123"
+    assert merged["field_mappings"] == {"id": "id", "title": "title"}
+
+
+def test_merge_config_user_filters_replace_scraper_input():
+    user_filters = {"experienceLevel": ["intermediate"], "perPage": 10}
+    config_row = _make_search_config(query=None, filters=user_filters)
+    merged = _merge_config(_static_config(), config_row)
+    assert merged["scraper"]["input"] == user_filters
+
+
+def test_merge_config_query_overrides_scraper_input_query():
+    config_row = _make_search_config(query="rust game developer", filters={})
+    merged = _merge_config(_static_config(), config_row)
+    assert merged["scraper"]["input"]["query"] == "rust game developer"
+
+
+def test_merge_config_query_override_with_user_filters():
+    user_filters = {"experienceLevel": ["entry"], "perPage": 20}
+    config_row = _make_search_config(query="ar developer", filters=user_filters)
+    merged = _merge_config(_static_config(), config_row)
+    assert merged["scraper"]["input"]["query"] == "ar developer"
+    assert merged["scraper"]["input"]["experienceLevel"] == ["entry"]
+
+
+def test_merge_config_empty_filters_keeps_static_input():
+    config_row = _make_search_config(query=None, filters={})
+    merged = _merge_config(_static_config(), config_row)
+    assert merged["scraper"]["input"]["experienceLevel"] == ["entry", "intermediate"]
+    assert merged["scraper"]["input"]["perPage"] == 50
+
+
+def test_merge_config_does_not_mutate_static_config():
+    static = _static_config()
+    config_row = _make_search_config(query="different query", filters={"perPage": 99})
+    _merge_config(static, config_row)
+    assert static["scraper"]["input"]["query"] == "unity developer"
+    assert static["scraper"]["input"]["perPage"] == 50
+
+
+# ---------------------------------------------------------------------------
+# _is_filtered (via PipelineService instance)
+# ---------------------------------------------------------------------------
+
+def _make_service_no_repos() -> PipelineService:
+    return PipelineService(
+        profile_repo=AsyncMock(),
+        search_config_repo=AsyncMock(),
+        job_result_repo=AsyncMock(),
+        anthropic_api_key="test-key",
+    )
+
+
+def test_is_filtered_matches_excluded_keyword():
+    svc = _make_service_no_repos()
+    assert svc._is_filtered("Unreal Engine AR Developer") is True
+
+
+def test_is_filtered_case_insensitive():
+    svc = _make_service_no_repos()
+    assert svc._is_filtered("GODOT Game Developer") is True
+
+
+def test_is_filtered_returns_false_for_clean_title():
+    svc = _make_service_no_repos()
+    assert svc._is_filtered("Unity AR Developer — Mobile App") is False
+
+
+def test_is_filtered_partial_word_match():
+    svc = _make_service_no_repos()
+    # "flutter" is in the exclude list
+    assert svc._is_filtered("Flutter/Unity Hybrid App") is True
