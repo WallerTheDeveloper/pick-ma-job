@@ -13,6 +13,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from api.csrf import require_csrf
 from api.deps import (
     get_current_user,
     get_db_pool,
@@ -58,6 +59,7 @@ def _status_partial(
 async def start_run(
     request: Request,
     user: Annotated[UserRow, Depends(get_current_user)],
+    _csrf: Annotated[None, Depends(require_csrf)],
     run_manager: Annotated[RunManager, Depends(get_run_manager)],
     profile_svc: Annotated[ProfileService, Depends(get_profile_service)],
     search_config_svc: Annotated[SearchConfigService, Depends(get_search_config_service)],

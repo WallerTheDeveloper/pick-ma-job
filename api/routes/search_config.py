@@ -8,6 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
+from api.csrf import require_csrf
 from api.deps import get_current_user, get_search_config_service
 from repositories.user import UserRow
 from scrapers.registry import list_platforms
@@ -58,6 +59,7 @@ async def search_config_page(
 async def save_search_config(
     request: Request,
     user: Annotated[UserRow, Depends(get_current_user)],
+    _csrf: Annotated[None, Depends(require_csrf)],
     svc: Annotated[SearchConfigService, Depends(get_search_config_service)],
     platform: Annotated[str, Form()],
     query: Annotated[str | None, Form()] = None,
@@ -124,6 +126,7 @@ async def save_search_config(
 async def delete_search_config(
     config_id: UUID,
     user: Annotated[UserRow, Depends(get_current_user)],
+    _csrf: Annotated[None, Depends(require_csrf)],
     svc: Annotated[SearchConfigService, Depends(get_search_config_service)],
 ) -> HTMLResponse:
     """Delete a search config by id. Returns empty body — HTMX removes the row."""

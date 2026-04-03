@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from api.csrf import require_csrf
 from api.deps import get_current_user, get_profile_service
 from repositories.user import UserRow
 from services.profile import ProfileData, ProfileError, ProfileService
@@ -60,6 +61,7 @@ async def profile_page(
 async def save_profile(
     request: Request,
     user: Annotated[UserRow, Depends(get_current_user)],
+    _csrf: Annotated[None, Depends(require_csrf)],
     profile_service: Annotated[ProfileService, Depends(get_profile_service)],
     role: Annotated[str | None, Form()] = None,
     experience: Annotated[str | None, Form()] = None,

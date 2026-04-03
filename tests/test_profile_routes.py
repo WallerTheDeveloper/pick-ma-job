@@ -13,6 +13,7 @@ import pytest
 from fastapi.templating import Jinja2Templates
 from httpx import ASGITransport, AsyncClient
 
+from api.csrf import require_csrf
 from api.deps import get_auth_service, get_profile_service
 from repositories.profile import ProfileRow
 from repositories.user import UserRow
@@ -36,6 +37,7 @@ def test_app(monkeypatch):
     app.state.templates = Jinja2Templates(
         directory=str(Path(__file__).parent.parent / "templates")
     )
+    app.dependency_overrides[require_csrf] = lambda: None
     return app
 
 

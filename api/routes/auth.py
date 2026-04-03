@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from api.csrf import CSRF_COOKIE, derive_csrf_token
 from api.deps import get_auth_service, get_current_user_optional
 from repositories.user import UserRow
 from services.auth import AuthError, AuthService
@@ -107,6 +108,14 @@ async def verify_magic_link(
         secure=_is_secure(),
         samesite="lax",
     )
+    redirect.set_cookie(
+        key=CSRF_COOKIE,
+        value=derive_csrf_token(session_token),
+        max_age=_SESSION_TTL_SECONDS,
+        httponly=False,
+        secure=_is_secure(),
+        samesite="lax",
+    )
     return redirect
 
 
@@ -122,4 +131,5 @@ async def logout(
 
     redirect = RedirectResponse(url="/auth/login", status_code=302)
     redirect.delete_cookie(key=_SESSION_COOKIE)
+    redirect.delete_cookie(key=CSRF_COOKIE)
     return redirect
