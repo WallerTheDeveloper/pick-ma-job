@@ -25,3 +25,4 @@ Thumbs.db
 
 # Google service account key (if placed locally)
 service_account*.json
+pick-ma-job-*.json
