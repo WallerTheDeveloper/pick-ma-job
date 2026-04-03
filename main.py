@@ -25,6 +25,7 @@ from api.routes.auth import router as auth_router
 from api.routes.dashboard import router as dashboard_router
 from api.routes.pipeline import router as pipeline_router
 from api.routes.profile import router as profile_router
+from api.routes.results import router as results_router
 from api.routes.search_config import router as search_config_router
 from db.pool import close_pool, create_pool
 from services.run_manager import RunManager
@@ -86,6 +87,7 @@ def create_app() -> FastAPI:
     app.include_router(profile_router)
     app.include_router(search_config_router)
     app.include_router(pipeline_router)
+    app.include_router(results_router)
 
     static_dir = Path(__file__).parent / "static"
     if static_dir.exists():

@@ -1,0 +1,440 @@
+{% extends "base.html" %}
+
+{% block title %}Results — pick-ma-job{% endblock %}
+
+{% block head %}
+<style>
+  .page-wrap {
+    width: 100%;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 2rem 1rem 4rem;
+  }
+
+  .page-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+  }
+
+  .page-header h1 { font-size: 1.5rem; font-weight: 700; }
+
+  .nav-links { display: flex; gap: 1.25rem; }
+  .nav-links a { font-size: 0.875rem; color: #6b7280; }
+
+  .section {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .section h2 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+    margin-bottom: 1rem;
+  }
+
+  /* Filter bar */
+  .filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: flex-end;
+  }
+
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .filter-group label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #6b7280;
+  }
+
+  .filter-group select,
+  .filter-group input {
+    padding: 0.5rem 0.625rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    outline: none;
+  }
+
+  .filter-group select:focus,
+  .filter-group input:focus {
+    border-color: #2563eb;
+  }
+
+  .filter-btn {
+    padding: 0.5rem 1rem;
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .filter-btn:hover { background: #1d4ed8; }
+
+  .filter-clear {
+    padding: 0.5rem 1rem;
+    background: #f3f4f6;
+    color: #374151;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  .filter-clear:hover { background: #e5e7eb; text-decoration: none; }
+
+  /* Results table */
+  .results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+
+  .results-table th {
+    text-align: left;
+    padding: 0.75rem 0.5rem;
+    border-bottom: 2px solid #e5e7eb;
+    font-weight: 600;
+    color: #6b7280;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .results-table td {
+    padding: 0.75rem 0.5rem;
+    border-bottom: 1px solid #f3f4f6;
+    vertical-align: top;
+  }
+
+  .results-table tr:hover { background: #fafafa; }
+
+  /* Score badge */
+  .score-badge {
+    display: inline-block;
+    min-width: 2rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 99px;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .score-green  { background: #dcfce7; color: #166534; }
+  .score-blue   { background: #dbeafe; color: #1e40af; }
+  .score-yellow { background: #fef9c3; color: #854d0e; }
+  .score-orange { background: #ffedd5; color: #9a3412; }
+  .score-red    { background: #fee2e2; color: #991b1b; }
+  .score-gray   { background: #f3f4f6; color: #6b7280; }
+
+  /* Status badge */
+  .status-badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: capitalize;
+  }
+
+  .status-new       { background: #dbeafe; color: #1e40af; }
+  .status-applied   { background: #dcfce7; color: #166534; }
+  .status-dismissed { background: #f3f4f6; color: #6b7280; }
+
+  .job-title-link {
+    color: #1a1a1a;
+    font-weight: 500;
+  }
+
+  .job-title-link:hover { color: #2563eb; }
+
+  .platform-label {
+    font-size: 0.75rem;
+    color: #6b7280;
+    text-transform: capitalize;
+  }
+
+  .recommendation-text {
+    font-size: 0.8125rem;
+    color: #374151;
+    max-width: 240px;
+    line-height: 1.4;
+  }
+
+  .date-text {
+    font-size: 0.8125rem;
+    color: #6b7280;
+    white-space: nowrap;
+  }
+
+  /* Detail toggle */
+  .detail-toggle {
+    background: none;
+    border: none;
+    color: #2563eb;
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 0;
+    margin-top: 0.25rem;
+  }
+
+  .detail-toggle:hover { text-decoration: underline; }
+
+  .eval-detail {
+    display: none;
+    padding: 1rem;
+    background: #f9fafb;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .eval-detail.open { display: table-row; }
+
+  .eval-detail td {
+    padding: 1rem;
+    font-size: 0.8125rem;
+    line-height: 1.6;
+  }
+
+  .eval-section { margin-bottom: 0.75rem; }
+  .eval-section:last-child { margin-bottom: 0; }
+
+  .eval-label {
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.25rem;
+  }
+
+  .eval-text {
+    color: #4b5563;
+    white-space: pre-wrap;
+  }
+
+  /* Pagination */
+  .pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    font-size: 0.875rem;
+  }
+
+  .pagination a {
+    padding: 0.5rem 1rem;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    color: #374151;
+    text-decoration: none;
+  }
+
+  .pagination a:hover { background: #f3f4f6; text-decoration: none; }
+  .pagination .disabled { pointer-events: none; opacity: 0.4; }
+  .pagination .page-info { color: #6b7280; }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #6b7280;
+  }
+
+  .empty-state p { margin-bottom: 0.75rem; }
+
+  .empty-state a {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    background: #2563eb;
+    color: #fff;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    text-decoration: none;
+  }
+
+  .empty-state a:hover { background: #1d4ed8; text-decoration: none; }
+
+  .total-count {
+    font-size: 0.8125rem;
+    color: #6b7280;
+    margin-bottom: 1rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-wrap">
+  <div class="page-header">
+    <h1>Results</h1>
+    <nav class="nav-links">
+      <a href="/">Dashboard</a>
+      <a href="/profile">Profile</a>
+      <a href="/search-config">Search Config</a>
+      <a href="/auth/logout">Logout</a>
+    </nav>
+  </div>
+
+  <!-- Filters -->
+  <div class="section">
+    <h2>Filters</h2>
+    <form method="get" action="/results" class="filter-bar">
+      <div class="filter-group">
+        <label for="status">Status</label>
+        <select name="status" id="status">
+          <option value="">All</option>
+          <option value="new" {% if filters.status == "new" %}selected{% endif %}>New</option>
+          <option value="applied" {% if filters.status == "applied" %}selected{% endif %}>Applied</option>
+          <option value="dismissed" {% if filters.status == "dismissed" %}selected{% endif %}>Dismissed</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="min_score">Min Score</label>
+        <input type="number" name="min_score" id="min_score" min="1" max="10" placeholder="1-10"
+               value="{{ filters.min_score if filters.min_score is not none else '' }}" style="width: 5rem;">
+      </div>
+      <div class="filter-group">
+        <label for="platform">Platform</label>
+        <select name="platform" id="platform">
+          <option value="">All</option>
+          <option value="upwork" {% if filters.platform == "upwork" %}selected{% endif %}>Upwork</option>
+          <option value="linkedin" {% if filters.platform == "linkedin" %}selected{% endif %}>LinkedIn</option>
+        </select>
+      </div>
+      <button type="submit" class="filter-btn">Apply</button>
+      {% if filters.status or filters.min_score is not none or filters.platform %}
+      <a href="/results" class="filter-clear">Clear</a>
+      {% endif %}
+    </form>
+  </div>
+
+  <!-- Results -->
+  <div class="section">
+    {% if results %}
+    <p class="total-count">{{ total }} result{{ "s" if total != 1 else "" }} found</p>
+    <table class="results-table">
+      <thead>
+        <tr>
+          <th>Score</th>
+          <th>Title</th>
+          <th>Platform</th>
+          <th>Recommendation</th>
+          <th>Status</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in results %}
+        <tr>
+          <td>
+            {% if r.score is not none %}
+            <span class="score-badge {% if r.score >= 9 %}score-green{% elif r.score >= 7 %}score-blue{% elif r.score >= 5 %}score-yellow{% elif r.score >= 3 %}score-orange{% else %}score-red{% endif %}">
+              {{ r.score }}
+            </span>
+            {% else %}
+            <span class="score-badge score-gray">-</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ r.url }}" target="_blank" rel="noopener" class="job-title-link">{{ r.title }}</a>
+            {% if r.evaluation %}
+            <br>
+            <button type="button" class="detail-toggle" onclick="toggleDetail('detail-{{ r.id }}')">Show details</button>
+            {% endif %}
+          </td>
+          <td><span class="platform-label">{{ r.platform }}</span></td>
+          <td>
+            <span class="recommendation-text">
+              {{ r.evaluation.recommendation if r.evaluation and r.evaluation.recommendation else "-" }}
+            </span>
+          </td>
+          <td><span class="status-badge status-{{ r.status }}">{{ r.status }}</span></td>
+          <td><span class="date-text">{{ r.created_at.strftime("%Y-%m-%d") }}</span></td>
+        </tr>
+        {% if r.evaluation %}
+        <tr id="detail-{{ r.id }}" class="eval-detail">
+          <td colspan="6">
+            {% if r.evaluation.summary %}
+            <div class="eval-section">
+              <div class="eval-label">Summary</div>
+              <div class="eval-text">{{ r.evaluation.summary }}</div>
+            </div>
+            {% endif %}
+            {% if r.evaluation.evaluation %}
+            <div class="eval-section">
+              <div class="eval-label">Evaluation</div>
+              <div class="eval-text">{{ r.evaluation.evaluation }}</div>
+            </div>
+            {% endif %}
+            {% if r.evaluation.flags %}
+            <div class="eval-section">
+              <div class="eval-label">Flags</div>
+              <div class="eval-text">{{ r.evaluation.flags }}</div>
+            </div>
+            {% endif %}
+            {% if r.evaluation.scratchpad %}
+            <div class="eval-section">
+              <div class="eval-label">Scratchpad</div>
+              <div class="eval-text">{{ r.evaluation.scratchpad }}</div>
+            </div>
+            {% endif %}
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div class="pagination">
+      <a href="/results?page={{ page - 1 }}{% if filters.status %}&status={{ filters.status }}{% endif %}{% if filters.min_score is not none %}&min_score={{ filters.min_score }}{% endif %}{% if filters.platform %}&platform={{ filters.platform }}{% endif %}"
+         class="{% if page <= 1 %}disabled{% endif %}">Prev</a>
+      <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
+      <a href="/results?page={{ page + 1 }}{% if filters.status %}&status={{ filters.status }}{% endif %}{% if filters.min_score is not none %}&min_score={{ filters.min_score }}{% endif %}{% if filters.platform %}&platform={{ filters.platform }}{% endif %}"
+         class="{% if page >= total_pages %}disabled{% endif %}">Next</a>
+    </div>
+    {% endif %}
+
+    {% elif total == 0 and (filters.status or filters.min_score is not none or filters.platform) %}
+    <div class="empty-state">
+      <p>No results match your filters.</p>
+      <a href="/results">Clear filters</a>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <p>No results yet. Run the pipeline to evaluate job postings.</p>
+      <a href="/">Go to Dashboard</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+function toggleDetail(id) {
+  var row = document.getElementById(id);
+  if (row) {
+    row.classList.toggle("open");
+    var btn = row.previousElementSibling.querySelector(".detail-toggle");
+    if (btn) {
+      btn.textContent = row.classList.contains("open") ? "Hide details" : "Show details";
+    }
+  }
+}
+</script>
+{% endblock %}
