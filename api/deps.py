@@ -82,6 +82,16 @@ async def get_run_manager(request: Request) -> RunManager:
     return request.app.state.run_manager
 
 
+async def get_admin_user(
+    user: Annotated[UserRow, Depends(get_current_user)],
+) -> UserRow:
+    """Require an authenticated admin user. Raises HTTP 403 if user is not the admin."""
+    admin_email = os.environ.get("ADMIN_EMAIL", "").strip()
+    if not admin_email or user.email != admin_email:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return user
+
+
 async def get_current_user_optional(
     request: Request,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],

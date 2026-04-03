@@ -18,6 +18,15 @@ class UserRow:
     last_login: datetime | None
 
 
+@dataclass(frozen=True)
+class UserStatsRow:
+    id: UUID
+    email: str
+    created_at: datetime
+    last_login: datetime | None
+    job_count: int
+
+
 def _row_to_user(row: asyncpg.Record) -> UserRow:
     return UserRow(
         id=row["id"],
@@ -62,6 +71,30 @@ class UserRepository:
             )
         logger.info("Created user email=%s id=%s", email, row["id"])
         return _row_to_user(row)
+
+    async def list_users_with_stats(self) -> list[UserStatsRow]:
+        """Return all users with their job_results count."""
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT u.id, u.email, u.created_at, u.last_login,
+                       COALESCE(COUNT(jr.id), 0)::int AS job_count
+                FROM users u
+                LEFT JOIN job_results jr ON jr.user_id = u.id
+                GROUP BY u.id
+                ORDER BY u.created_at DESC
+                """,
+            )
+        return [
+            UserStatsRow(
+                id=r["id"],
+                email=r["email"],
+                created_at=r["created_at"],
+                last_login=r["last_login"],
+                job_count=r["job_count"],
+            )
+            for r in rows
+        ]
 
     async def update_last_login(self, user_id: UUID) -> None:
         """Set last_login to now() for the given user."""

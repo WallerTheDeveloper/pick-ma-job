@@ -21,6 +21,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from api.routes.admin import router as admin_router
 from api.routes.auth import router as auth_router
 from api.routes.dashboard import router as dashboard_router
 from api.routes.pipeline import router as pipeline_router
@@ -88,6 +89,7 @@ def create_app() -> FastAPI:
     app.include_router(search_config_router)
     app.include_router(pipeline_router)
     app.include_router(results_router)
+    app.include_router(admin_router)
 
     static_dir = Path(__file__).parent / "static"
     if static_dir.exists():

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Admin — Users — pick-ma-job{% endblock %}
+
+{% block head %}
+<style>
+  .page-wrap {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1rem 4rem;
+  }
+
+  .page-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+  }
+
+  .page-header h1 { font-size: 1.5rem; font-weight: 700; }
+
+  .nav-links { display: flex; gap: 1.25rem; }
+  .nav-links a { font-size: 0.875rem; color: #6b7280; }
+
+  .section {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.5rem;
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  th { text-align: left; color: #6b7280; font-weight: 500; padding: 0.5rem 0.75rem; border-bottom: 2px solid #e5e7eb; }
+  td { padding: 0.625rem 0.75rem; border-bottom: 1px solid #f3f4f6; }
+  tr:last-child td { border-bottom: none; }
+
+  .empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #6b7280;
+  }
+
+  .count-badge {
+    display: inline-block;
+    background: #e5e7eb;
+    border-radius: 9999px;
+    padding: 0.125rem 0.625rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-wrap">
+  <div class="page-header">
+    <h1>Admin — Users</h1>
+    <nav class="nav-links">
+      <a href="/">Dashboard</a>
+      <a href="/results">Results</a>
+    </nav>
+  </div>
+
+  <div class="section">
+    {% if users %}
+    <table>
+      <thead>
+        <tr>
+          <th>Email</th>
+          <th>Registered</th>
+          <th>Last Login</th>
+          <th>Jobs Evaluated</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>{{ u.email }}</td>
+          <td>{{ u.created_at.strftime('%Y-%m-%d') }}</td>
+          <td>{{ u.last_login.strftime('%Y-%m-%d %H:%M') if u.last_login else '—' }}</td>
+          <td><span class="count-badge">{{ u.job_count }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <p>No users registered yet.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
