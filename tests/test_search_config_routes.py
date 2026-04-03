@@ -78,10 +78,11 @@ def _mock_search_config_service(
     configs: list[SearchConfigRow] | None = None,
     upsert_result: SearchConfigRow | None = None,
     upsert_error: SearchConfigError | None = None,
+    delete_result: bool = True,
 ) -> MagicMock:
     svc = MagicMock()
     svc.get_all = AsyncMock(return_value=configs or [])
-    svc.delete = AsyncMock(return_value=None)
+    svc.delete = AsyncMock(return_value=delete_result)
     if upsert_error:
         svc.upsert = AsyncMock(side_effect=upsert_error)
     else:
@@ -336,4 +337,20 @@ async def test_delete_calls_service_and_returns_empty_body(client, test_app):
 
     assert resp.status_code == 200
     assert resp.content == b""
-    svc.delete.assert_awaited_once_with(config_id)
+    svc.delete.assert_awaited_once_with(config_id, user.id)
+
+
+async def test_delete_another_users_config_returns_404(client, test_app):
+    user = _make_user()
+    config_id = uuid4()
+    svc = _mock_search_config_service(delete_result=False)
+
+    test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service(user=user)
+    test_app.dependency_overrides[get_search_config_service] = lambda: svc
+
+    client.cookies.set("session_token", "valid-token")
+    resp = await client.delete(f"/search-config/{config_id}")
+    client.cookies.clear()
+    test_app.dependency_overrides.clear()
+
+    assert resp.status_code == 404

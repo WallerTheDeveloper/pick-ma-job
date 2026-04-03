@@ -49,10 +49,12 @@ class SearchConfigService:
         logger.info("Search config upserted user_id=%s platform=%s", user_id, data.platform)
         return row
 
-    async def delete(self, config_id: UUID) -> None:
-        """Delete a search config by id."""
-        await self._repo.delete(config_id)
-        logger.info("Search config deleted id=%s", config_id)
+    async def delete(self, config_id: UUID, user_id: UUID) -> bool:
+        """Delete a search config by id, scoped to user_id. Returns True if deleted."""
+        deleted = await self._repo.delete(config_id, user_id)
+        if deleted:
+            logger.info("Search config deleted id=%s user_id=%s", config_id, user_id)
+        return deleted
 
 
 def _validate(data: SearchConfigData) -> None:

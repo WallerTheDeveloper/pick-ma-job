@@ -92,10 +92,12 @@ class SearchConfigRepository:
         logger.debug("Upserted search config user_id=%s platform=%s", user_id, platform)
         return _row_to_search_config(row)
 
-    async def delete(self, config_id: UUID) -> None:
-        """Delete a search config by id."""
+    async def delete(self, config_id: UUID, user_id: UUID) -> bool:
+        """Delete a search config by id and user_id. Returns True if a row was deleted."""
         async with self._pool.acquire() as conn:
-            await conn.execute(
-                "DELETE FROM search_configs WHERE id = $1",
+            row = await conn.fetchrow(
+                "DELETE FROM search_configs WHERE id = $1 AND user_id = $2 RETURNING id",
                 config_id,
+                user_id,
             )
+        return row is not None

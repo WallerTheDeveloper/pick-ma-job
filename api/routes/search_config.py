@@ -5,7 +5,7 @@ import logging
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from api.deps import get_current_user, get_search_config_service
@@ -127,6 +127,8 @@ async def delete_search_config(
     svc: Annotated[SearchConfigService, Depends(get_search_config_service)],
 ) -> HTMLResponse:
     """Delete a search config by id. Returns empty body — HTMX removes the row."""
-    await svc.delete(config_id)
+    deleted = await svc.delete(config_id, user.id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Search config not found.")
     logger.info("Search config deleted id=%s by user_id=%s", config_id, user.id)
     return HTMLResponse(content="", status_code=200)
