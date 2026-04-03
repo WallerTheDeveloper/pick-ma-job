@@ -163,10 +163,11 @@ async def test_upsert_accepts_none_query():
 
 async def test_delete_delegates_to_repo():
     repo = MagicMock()
-    repo.delete = AsyncMock(return_value=None)
+    repo.delete = AsyncMock(return_value=True)
     config_id = uuid4()
+    user_id = uuid4()
 
     svc = _make_service(repo)
-    await svc.delete(config_id)
+    await svc.delete(config_id, user_id)
 
-    repo.delete.assert_awaited_once_with(config_id)
+    repo.delete.assert_awaited_once_with(config_id, user_id)

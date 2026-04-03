@@ -13,7 +13,7 @@ import pytest
 from fastapi.templating import Jinja2Templates
 from httpx import ASGITransport, AsyncClient
 
-from api.deps import get_auth_service, get_job_result_repo
+from api.deps import get_auth_service, get_job_result_repo, get_profile_service, get_search_config_service
 from repositories.job_result import JobResultRow
 from repositories.user import UserRow
 
@@ -86,6 +86,32 @@ def _mock_repo(
     return repo
 
 
+def _mock_profile_service(has_profile: bool = True) -> MagicMock:
+    svc = MagicMock()
+    svc.get_or_default = AsyncMock(return_value=MagicMock() if has_profile else None)
+    return svc
+
+
+def _mock_search_config_service(has_configs: bool = True) -> MagicMock:
+    svc = MagicMock()
+    svc.get_all = AsyncMock(return_value=[MagicMock()] if has_configs else [])
+    return svc
+
+
+def _setup_get_overrides(
+    test_app,
+    user: UserRow,
+    repo: MagicMock | None = None,
+    has_profile: bool = True,
+    has_search_config: bool = True,
+) -> None:
+    """Set dependency overrides for GET /results tests."""
+    test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service(user=user)
+    test_app.dependency_overrides[get_job_result_repo] = lambda: (repo or _mock_repo())
+    test_app.dependency_overrides[get_profile_service] = lambda: _mock_profile_service(has_profile)
+    test_app.dependency_overrides[get_search_config_service] = lambda: _mock_search_config_service(has_search_config)
+
+
 # ── GET /results ──────────────────────────────────────────────────────────────
 
 async def test_results_redirects_to_login_for_unauthenticated(client, test_app):
@@ -101,8 +127,7 @@ async def test_results_redirects_to_login_for_unauthenticated(client, test_app):
 
 async def test_results_returns_200_for_authenticated_user(client, test_app):
     user = _make_user()
-    test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service(user=user)
-    test_app.dependency_overrides[get_job_result_repo] = lambda: _mock_repo()
+    _setup_get_overrides(test_app, user)
 
     client.cookies.set("session_token", "valid-token")
     resp = await client.get("/results")
@@ -116,8 +141,7 @@ async def test_results_returns_200_for_authenticated_user(client, test_app):
 async def test_results_renders_job_results(client, test_app):
     user = _make_user()
     results = [_make_result(user.id, title="AR Developer Role", score=9)]
-    test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service(user=user)
-    test_app.dependency_overrides[get_job_result_repo] = lambda: _mock_repo(results=results, total=1)
+    _setup_get_overrides(test_app, user, repo=_mock_repo(results=results, total=1))
 
     client.cookies.set("session_token", "valid-token")
     resp = await client.get("/results")
@@ -132,8 +156,7 @@ async def test_results_renders_job_results(client, test_app):
 async def test_results_filters_by_status(client, test_app):
     user = _make_user()
     repo = _mock_repo(results=[], total=0)
-    test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service(user=user)
-    test_app.dependency_overrides[get_job_result_repo] = lambda: repo
+    _setup_get_overrides(test_app, user, repo=repo)
 
     client.cookies.set("session_token", "valid-token")
     resp = await client.get("/results?status=new")
@@ -149,8 +172,7 @@ async def test_results_filters_by_status(client, test_app):
 async def test_results_filters_by_min_score(client, test_app):
     user = _make_user()
     repo = _mock_repo(results=[], total=0)
-    test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service(user=user)
-    test_app.dependency_overrides[get_job_result_repo] = lambda: repo
+    _setup_get_overrides(test_app, user, repo=repo)
 
     client.cookies.set("session_token", "valid-token")
     resp = await client.get("/results?min_score=7")
@@ -165,8 +187,7 @@ async def test_results_filters_by_min_score(client, test_app):
 async def test_results_filters_by_platform(client, test_app):
     user = _make_user()
     repo = _mock_repo(results=[], total=0)
-    test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service(user=user)
-    test_app.dependency_overrides[get_job_result_repo] = lambda: repo
+    _setup_get_overrides(test_app, user, repo=repo)
 
     client.cookies.set("session_token", "valid-token")
     resp = await client.get("/results?platform=upwork")
@@ -180,8 +201,7 @@ async def test_results_filters_by_platform(client, test_app):
 
 async def test_results_empty_state_no_filters(client, test_app):
     user = _make_user()
-    test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service(user=user)
-    test_app.dependency_overrides[get_job_result_repo] = lambda: _mock_repo(results=[], total=0)
+    _setup_get_overrides(test_app, user, repo=_mock_repo(results=[], total=0))
 
     client.cookies.set("session_token", "valid-token")
     resp = await client.get("/results")
@@ -194,8 +214,7 @@ async def test_results_empty_state_no_filters(client, test_app):
 
 async def test_results_empty_state_with_filters(client, test_app):
     user = _make_user()
-    test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service(user=user)
-    test_app.dependency_overrides[get_job_result_repo] = lambda: _mock_repo(results=[], total=0)
+    _setup_get_overrides(test_app, user, repo=_mock_repo(results=[], total=0))
 
     client.cookies.set("session_token", "valid-token")
     resp = await client.get("/results?status=applied")
@@ -206,11 +225,36 @@ async def test_results_empty_state_with_filters(client, test_app):
     assert b"No results match your filters" in resp.content
 
 
+async def test_results_empty_state_no_profile(client, test_app):
+    user = _make_user()
+    _setup_get_overrides(test_app, user, repo=_mock_repo(results=[], total=0), has_profile=False)
+
+    client.cookies.set("session_token", "valid-token")
+    resp = await client.get("/results")
+    client.cookies.clear()
+    test_app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    assert b"Set up your Profile" in resp.content
+
+
+async def test_results_empty_state_no_search_config(client, test_app):
+    user = _make_user()
+    _setup_get_overrides(test_app, user, repo=_mock_repo(results=[], total=0), has_search_config=False)
+
+    client.cookies.set("session_token", "valid-token")
+    resp = await client.get("/results")
+    client.cookies.clear()
+    test_app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    assert b"Add a Search Config" in resp.content
+
+
 async def test_results_shows_pagination_when_needed(client, test_app):
     user = _make_user()
     results = [_make_result(user.id) for _ in range(50)]
-    test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service(user=user)
-    test_app.dependency_overrides[get_job_result_repo] = lambda: _mock_repo(results=results, total=75)
+    _setup_get_overrides(test_app, user, repo=_mock_repo(results=results, total=75))
 
     client.cookies.set("session_token", "valid-token")
     resp = await client.get("/results")
@@ -230,8 +274,7 @@ async def test_results_score_badge_colors(client, test_app):
         _make_result(user.id, score=3, title="Orange Job"),
         _make_result(user.id, score=1, title="Red Job"),
     ]
-    test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service(user=user)
-    test_app.dependency_overrides[get_job_result_repo] = lambda: _mock_repo(results=results, total=5)
+    _setup_get_overrides(test_app, user, repo=_mock_repo(results=results, total=5))
 
     client.cookies.set("session_token", "valid-token")
     resp = await client.get("/results")

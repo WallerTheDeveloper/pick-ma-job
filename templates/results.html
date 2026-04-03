@@ -371,13 +371,25 @@
 
     {% elif total == 0 and (filters.status or filters.min_score is not none or filters.platform) %}
     <div class="empty-state">
-      <p>No results match your filters.</p>
+      <p>No results match your filters. Try adjusting filters.</p>
       <a href="/results">Clear filters</a>
     </div>
     {% else %}
     <div class="empty-state">
+      {% if not has_profile or not has_search_config %}
+      <p>Before running the pipeline, finish your setup:</p>
+      <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+        {% if not has_profile %}
+        <a href="/profile">Set up your Profile</a>
+        {% endif %}
+        {% if not has_search_config %}
+        <a href="/search-config">Add a Search Config</a>
+        {% endif %}
+      </div>
+      {% else %}
       <p>No results yet. Run the pipeline to evaluate job postings.</p>
       <a href="/">Go to Dashboard</a>
+      {% endif %}
     </div>
     {% endif %}
   </div>

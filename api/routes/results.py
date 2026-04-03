@@ -8,9 +8,17 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, sta
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from api.csrf import require_csrf
-from api.deps import get_current_user, get_current_user_optional, get_job_result_repo
+from api.deps import (
+    get_current_user,
+    get_current_user_optional,
+    get_job_result_repo,
+    get_profile_service,
+    get_search_config_service,
+)
 from repositories.job_result import JobResultRepository, VALID_STATUSES
 from repositories.user import UserRow
+from services.profile import ProfileService
+from services.search_config import SearchConfigService
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +38,8 @@ async def results_page(
     request: Request,
     user: Annotated[UserRow | None, Depends(get_current_user_optional)],
     repo: Annotated[JobResultRepository, Depends(get_job_result_repo)],
+    profile_svc: Annotated[ProfileService, Depends(get_profile_service)],
+    search_config_svc: Annotated[SearchConfigService, Depends(get_search_config_service)],
     status_filter: Annotated[str | None, Query(alias="status")] = None,
     min_score: Annotated[int | None, Query()] = None,
     platform: Annotated[str | None, Query()] = None,
@@ -62,6 +72,10 @@ async def results_page(
 
     total_pages = max(1, (total + _PAGE_SIZE - 1) // _PAGE_SIZE)
 
+    # Check setup state for empty-state banners
+    has_profile = await profile_svc.get_or_default(user.id) is not None
+    has_search_config = len(await search_config_svc.get_all(user.id)) > 0
+
     filters = {
         "status": status_filter,
         "min_score": min_score,
@@ -79,6 +93,8 @@ async def results_page(
             "total_pages": total_pages,
             "filters": filters,
             "page_size": _PAGE_SIZE,
+            "has_profile": has_profile,
+            "has_search_config": has_search_config,
         },
     )
 
