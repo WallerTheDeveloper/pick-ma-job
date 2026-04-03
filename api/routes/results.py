@@ -40,34 +40,39 @@ async def results_page(
     repo: Annotated[JobResultRepository, Depends(get_job_result_repo)],
     profile_svc: Annotated[ProfileService, Depends(get_profile_service)],
     search_config_svc: Annotated[SearchConfigService, Depends(get_search_config_service)],
-    status_filter: Annotated[str | None, Query(alias="status")] = None,
-    min_score: Annotated[int | None, Query()] = None,
-    platform: Annotated[str | None, Query()] = None,
+    status_filter: Annotated[str, Query(alias="status")] = "",
+    min_score: Annotated[str, Query()] = "",
+    platform: Annotated[str, Query()] = "",
     page: Annotated[int, Query(ge=1)] = 1,
 ) -> HTMLResponse | RedirectResponse:
     """Render the results dashboard with filtering and pagination."""
     if user is None:
         return RedirectResponse(url="/auth/login", status_code=302)
 
+    # Normalize empty query params to None
+    parsed_status: str | None = status_filter if status_filter else None
+    parsed_min_score: int | None = int(min_score) if min_score else None
+    parsed_platform: str | None = platform if platform else None
+
     # Validate status filter
-    if status_filter is not None and status_filter not in VALID_STATUSES:
-        status_filter = None
+    if parsed_status is not None and parsed_status not in VALID_STATUSES:
+        parsed_status = None
 
     offset = (page - 1) * _PAGE_SIZE
 
     results = await repo.find_by_user(
         user_id=user.id,
-        status=status_filter,
-        min_score=min_score,
-        platform=platform,
+        status=parsed_status,
+        min_score=parsed_min_score,
+        platform=parsed_platform,
         limit=_PAGE_SIZE,
         offset=offset,
     )
     total = await repo.count_by_user(
         user_id=user.id,
-        status=status_filter,
-        min_score=min_score,
-        platform=platform,
+        status=parsed_status,
+        min_score=parsed_min_score,
+        platform=parsed_platform,
     )
 
     total_pages = max(1, (total + _PAGE_SIZE - 1) // _PAGE_SIZE)
@@ -77,9 +82,9 @@ async def results_page(
     has_search_config = len(await search_config_svc.get_all(user.id)) > 0
 
     filters = {
-        "status": status_filter,
-        "min_score": min_score,
-        "platform": platform,
+        "status": parsed_status,
+        "min_score": parsed_min_score,
+        "platform": parsed_platform,
     }
 
     return _templates(request).TemplateResponse(
