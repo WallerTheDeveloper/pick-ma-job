@@ -14,9 +14,6 @@
       "maxJobAge": { "value": 24, "unit": "hours" }
     }
   },
-  "schedule": {
-    "cron": "0 */6 * * *"
-  },
   "field_mappings": {
     "id": "id",
     "title": "title",
@@ -31,21 +28,5 @@
       "client_location": "clientLocation",
       "proposals": "proposals"
     }
-  },
-  "sheet": {
-    "worksheet_name": "Upwork",
-    "columns": [
-      "relevancy_score",
-      "title",
-      "budget",
-      "summary",
-      "recommendation",
-      "evaluation",
-      "flags",
-      "skills",
-      "client_rating",
-      "client_location",
-      "url"
-    ]
   }
 }
