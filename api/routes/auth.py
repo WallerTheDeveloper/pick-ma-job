@@ -68,13 +68,13 @@ async def request_magic_link(
         if is_htmx:
             return HTMLResponse(
                 content=f'<p class="error">{exc}</p>',
-                status_code=422,
+                status_code=200,
             )
         return _templates(request).TemplateResponse(
             request,
             "login.html",
             {"error": str(exc)},
-            status_code=422,
+            status_code=429,
         )
 
     return _templates(request).TemplateResponse(
@@ -123,13 +123,14 @@ async def verify_magic_link(
 async def logout(
     request: Request,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
-) -> RedirectResponse:
+) -> Response:
     """Invalidate the current session and clear the session cookie."""
     token = request.cookies.get(_SESSION_COOKIE)
     if token:
         await auth_service.logout(token)
 
-    redirect = RedirectResponse(url="/auth/login", status_code=302)
-    redirect.delete_cookie(key=_SESSION_COOKIE)
-    redirect.delete_cookie(key=CSRF_COOKIE)
-    return redirect
+    response = Response(status_code=200)
+    response.headers["HX-Redirect"] = "/auth/login"
+    response.delete_cookie(key=_SESSION_COOKIE)
+    response.delete_cookie(key=CSRF_COOKIE)
+    return response

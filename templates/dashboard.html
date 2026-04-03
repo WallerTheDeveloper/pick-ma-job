@@ -115,7 +115,7 @@
       <a href="/results">Results</a>
       <a href="/profile">Profile</a>
       <a href="/search-config">Search Config</a>
-      <a href="/auth/logout">Logout</a>
+      <a href="/auth/logout" hx-post="/auth/logout" hx-push-url="/auth/login">Logout</a>
     </nav>
   </div>
 
