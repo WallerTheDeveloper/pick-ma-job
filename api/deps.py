@@ -6,6 +6,7 @@ from typing import Annotated
 import asyncpg
 from fastapi import Depends, HTTPException, Request, status
 
+from repositories.job_result import JobResultRepository
 from repositories.magic_link import MagicLinkRepository
 from repositories.profile import ProfileRepository
 from repositories.search_config import SearchConfigRepository
@@ -67,6 +68,13 @@ async def get_search_config_service(
 ) -> SearchConfigService:
     """Construct a SearchConfigService with a per-request repository instance."""
     return SearchConfigService(search_config_repo=SearchConfigRepository(pool))
+
+
+async def get_job_result_repo(
+    pool: Annotated[asyncpg.Pool, Depends(get_db_pool)],
+) -> JobResultRepository:
+    """Construct a JobResultRepository with a per-request pool."""
+    return JobResultRepository(pool)
 
 
 async def get_run_manager(request: Request) -> RunManager:

@@ -131,16 +131,26 @@ class JobResultRepository:
             )
         return [_row_to_job_result(r) for r in rows]
 
-    async def update_status(self, result_id: UUID, status: str) -> None:
-        """Update the status of a job result. Raises ValueError for invalid statuses."""
+    async def update_status(self, result_id: UUID, user_id: UUID, status: str) -> JobResultRow | None:
+        """Update the status of a job result scoped to user_id.
+
+        Returns the updated row, or None if no row matched (wrong id or not owned by user).
+        Raises ValueError for invalid statuses.
+        """
         if status not in VALID_STATUSES:
             raise ValueError(f"Invalid status '{status}'. Must be one of: {VALID_STATUSES}")
         async with self._pool.acquire() as conn:
-            await conn.execute(
-                "UPDATE job_results SET status = $1 WHERE id = $2",
+            row = await conn.fetchrow(
+                """
+                UPDATE job_results SET status = $1
+                WHERE id = $2 AND user_id = $3
+                RETURNING id, user_id, platform, job_id, title, url, score, evaluation, status, created_at
+                """,
                 status,
                 result_id,
+                user_id,
             )
+        return _row_to_job_result(row) if row is not None else None
 
     async def count_by_user(self, user_id: UUID, status: str | None = None) -> int:
         """Return the total count of job results for a user, optionally filtered by status."""

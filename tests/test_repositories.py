@@ -341,17 +341,35 @@ async def test_job_result_update_status(conn_pool):
     user = await user_repo.create(f"test-{uuid4().hex[:8]}@example.com")
     result = await jr_repo.insert(user.id, "upwork", "job-s", "Title", "https://example.com", 6, None)
 
-    await jr_repo.update_status(result.id, "applied")
+    updated = await jr_repo.update_status(result.id, user.id, "applied")
 
+    assert updated is not None
+    assert updated.status == "applied"
     rows = await jr_repo.find_by_user(user.id, status="applied")
     assert len(rows) == 1
     assert rows[0].status == "applied"
 
 
+async def test_job_result_update_status_wrong_owner_returns_none(conn_pool):
+    user_repo = UserRepository(conn_pool)
+    jr_repo = JobResultRepository(conn_pool)
+
+    owner = await user_repo.create(f"test-{uuid4().hex[:8]}@example.com")
+    other = await user_repo.create(f"test-{uuid4().hex[:8]}@example.com")
+    result = await jr_repo.insert(owner.id, "upwork", "job-own", "Title", "https://example.com", 7, None)
+
+    updated = await jr_repo.update_status(result.id, other.id, "applied")
+
+    assert updated is None
+    # Original row must remain unchanged
+    rows = await jr_repo.find_by_user(owner.id)
+    assert rows[0].status == "new"
+
+
 async def test_job_result_update_status_invalid_raises(conn_pool):
     jr_repo = JobResultRepository(conn_pool)
     with pytest.raises(ValueError, match="Invalid status"):
-        await jr_repo.update_status(uuid4(), "pending")
+        await jr_repo.update_status(uuid4(), uuid4(), "pending")
 
 
 async def test_job_result_find_by_user_filters(conn_pool):
