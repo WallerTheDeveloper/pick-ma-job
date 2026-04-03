@@ -398,3 +398,65 @@ async def test_job_result_count_by_user(conn_pool):
 
     new_count = await jr_repo.count_by_user(user.id, status="new")
     assert new_count == 2
+
+
+async def test_job_result_find_by_user_platform_filter(conn_pool):
+    user_repo = UserRepository(conn_pool)
+    jr_repo = JobResultRepository(conn_pool)
+
+    user = await user_repo.create(f"test-{uuid4().hex[:8]}@example.com")
+    await jr_repo.insert(user.id, "upwork", "p1", "Upwork Job", "https://upwork.com/1", 8, None)
+    await jr_repo.insert(user.id, "linkedin", "p2", "LinkedIn Job", "https://linkedin.com/2", 7, None)
+
+    upwork_rows = await jr_repo.find_by_user(user.id, platform="upwork")
+    assert len(upwork_rows) == 1
+    assert upwork_rows[0].platform == "upwork"
+
+    linkedin_rows = await jr_repo.find_by_user(user.id, platform="linkedin")
+    assert len(linkedin_rows) == 1
+    assert linkedin_rows[0].platform == "linkedin"
+
+    all_rows = await jr_repo.find_by_user(user.id)
+    assert len(all_rows) == 2
+
+
+async def test_job_result_count_by_user_platform_filter(conn_pool):
+    user_repo = UserRepository(conn_pool)
+    jr_repo = JobResultRepository(conn_pool)
+
+    user = await user_repo.create(f"test-{uuid4().hex[:8]}@example.com")
+    await jr_repo.insert(user.id, "upwork", "cp1", "Title", "https://upwork.com/1", 8, None)
+    await jr_repo.insert(user.id, "upwork", "cp2", "Title", "https://upwork.com/2", 6, None)
+    await jr_repo.insert(user.id, "linkedin", "cp3", "Title", "https://linkedin.com/3", 7, None)
+
+    assert await jr_repo.count_by_user(user.id) == 3
+    assert await jr_repo.count_by_user(user.id, platform="upwork") == 2
+    assert await jr_repo.count_by_user(user.id, platform="linkedin") == 1
+
+
+async def test_job_result_count_by_user_min_score_filter(conn_pool):
+    user_repo = UserRepository(conn_pool)
+    jr_repo = JobResultRepository(conn_pool)
+
+    user = await user_repo.create(f"test-{uuid4().hex[:8]}@example.com")
+    await jr_repo.insert(user.id, "upwork", "ms1", "High", "https://example.com/1", 9, None)
+    await jr_repo.insert(user.id, "upwork", "ms2", "Mid", "https://example.com/2", 6, None)
+    await jr_repo.insert(user.id, "upwork", "ms3", "Low", "https://example.com/3", 3, None)
+
+    assert await jr_repo.count_by_user(user.id, min_score=7) == 1
+    assert await jr_repo.count_by_user(user.id, min_score=5) == 2
+    assert await jr_repo.count_by_user(user.id, min_score=1) == 3
+
+
+async def test_job_result_count_by_user_combined_filters(conn_pool):
+    user_repo = UserRepository(conn_pool)
+    jr_repo = JobResultRepository(conn_pool)
+
+    user = await user_repo.create(f"test-{uuid4().hex[:8]}@example.com")
+    await jr_repo.insert(user.id, "upwork", "cf1", "Good Upwork", "https://upwork.com/1", 8, None)
+    await jr_repo.insert(user.id, "upwork", "cf2", "Low Upwork", "https://upwork.com/2", 4, None)
+    await jr_repo.insert(user.id, "linkedin", "cf3", "Good LinkedIn", "https://linkedin.com/3", 9, None)
+
+    # platform + min_score combined
+    assert await jr_repo.count_by_user(user.id, platform="upwork", min_score=7) == 1
+    assert await jr_repo.count_by_user(user.id, platform="linkedin", min_score=7) == 1

@@ -97,10 +97,11 @@ class JobResultRepository:
         user_id: UUID,
         status: str | None = None,
         min_score: int | None = None,
+        platform: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[JobResultRow]:
-        """Return paginated job results for a user, optionally filtered by status and min score."""
+        """Return paginated job results for a user, optionally filtered by status, min score, and platform."""
         conditions = ["user_id = $1"]
         params: list = [user_id]
         idx = 2
@@ -113,6 +114,11 @@ class JobResultRepository:
         if min_score is not None:
             conditions.append(f"score >= ${idx}")
             params.append(min_score)
+            idx += 1
+
+        if platform is not None:
+            conditions.append(f"platform = ${idx}")
+            params.append(platform)
             idx += 1
 
         where = " AND ".join(conditions)
@@ -152,19 +158,36 @@ class JobResultRepository:
             )
         return _row_to_job_result(row) if row is not None else None
 
-    async def count_by_user(self, user_id: UUID, status: str | None = None) -> int:
-        """Return the total count of job results for a user, optionally filtered by status."""
+    async def count_by_user(
+        self,
+        user_id: UUID,
+        status: str | None = None,
+        min_score: int | None = None,
+        platform: str | None = None,
+    ) -> int:
+        """Return the total count of job results for a user, optionally filtered by status, min score, and platform."""
+        conditions = ["user_id = $1"]
+        params: list = [user_id]
+        idx = 2
+
         if status is not None:
-            async with self._pool.acquire() as conn:
-                row = await conn.fetchrow(
-                    "SELECT COUNT(*) AS cnt FROM job_results WHERE user_id = $1 AND status = $2",
-                    user_id,
-                    status,
-                )
-        else:
-            async with self._pool.acquire() as conn:
-                row = await conn.fetchrow(
-                    "SELECT COUNT(*) AS cnt FROM job_results WHERE user_id = $1",
-                    user_id,
-                )
+            conditions.append(f"status = ${idx}")
+            params.append(status)
+            idx += 1
+
+        if min_score is not None:
+            conditions.append(f"score >= ${idx}")
+            params.append(min_score)
+            idx += 1
+
+        if platform is not None:
+            conditions.append(f"platform = ${idx}")
+            params.append(platform)
+
+        where = " AND ".join(conditions)
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                f"SELECT COUNT(*) AS cnt FROM job_results WHERE {where}",
+                *params,
+            )
         return row["cnt"]
