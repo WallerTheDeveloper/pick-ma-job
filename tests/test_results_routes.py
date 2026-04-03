@@ -74,10 +74,15 @@ def _mock_auth_service(user: UserRow | None = None) -> MagicMock:
     return svc
 
 
-def _mock_repo(results: list[JobResultRow] | None = None, total: int = 0) -> MagicMock:
+def _mock_repo(
+    results: list[JobResultRow] | None = None,
+    total: int = 0,
+    update_result: JobResultRow | None = None,
+) -> MagicMock:
     repo = MagicMock()
     repo.find_by_user = AsyncMock(return_value=results or [])
     repo.count_by_user = AsyncMock(return_value=total)
+    repo.update_status = AsyncMock(return_value=update_result)
     return repo
 
 
@@ -239,3 +244,98 @@ async def test_results_score_badge_colors(client, test_app):
     assert "score-yellow" in content
     assert "score-orange" in content
     assert "score-red" in content
+
+
+# ── PATCH /results/{id} ─────────────────────────────────────────────────────
+
+def _setup_csrf(client, test_app):
+    """Set session cookie and derive a valid CSRF token for test requests."""
+    import hashlib
+    import hmac as _hmac
+    import os
+
+    session_token = "valid-token"
+    secret = os.environ["MAGIC_LINK_SECRET"].encode()
+    csrf_token = _hmac.new(secret, session_token.encode(), hashlib.sha256).hexdigest()
+    client.cookies.set("session_token", session_token)
+    client.cookies.set("csrf_token", csrf_token)
+    return csrf_token
+
+
+async def test_patch_result_updates_status_for_owner(client, test_app):
+    user = _make_user()
+    result = _make_result(user.id)
+    updated = _make_result(user.id, id=result.id, status="applied")
+    repo = _mock_repo(update_result=updated)
+
+    test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service(user=user)
+    test_app.dependency_overrides[get_job_result_repo] = lambda: repo
+
+    csrf_token = _setup_csrf(client, test_app)
+    resp = await client.patch(
+        f"/results/{result.id}",
+        data={"status": "applied"},
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    client.cookies.clear()
+    test_app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    assert b"applied" in resp.content
+    repo.update_status.assert_called_once_with(result.id, user.id, "applied")
+
+
+async def test_patch_result_returns_404_for_non_owner(client, test_app):
+    user = _make_user()
+    repo = _mock_repo(update_result=None)  # repo returns None → not found / not owned
+
+    test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service(user=user)
+    test_app.dependency_overrides[get_job_result_repo] = lambda: repo
+
+    csrf_token = _setup_csrf(client, test_app)
+    resp = await client.patch(
+        f"/results/{uuid4()}",
+        data={"status": "applied"},
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    client.cookies.clear()
+    test_app.dependency_overrides.clear()
+
+    assert resp.status_code == 404
+
+
+async def test_patch_result_returns_422_for_invalid_status(client, test_app):
+    user = _make_user()
+    repo = _mock_repo()
+
+    test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service(user=user)
+    test_app.dependency_overrides[get_job_result_repo] = lambda: repo
+
+    csrf_token = _setup_csrf(client, test_app)
+    resp = await client.patch(
+        f"/results/{uuid4()}",
+        data={"status": "invalid_status"},
+        headers={"X-CSRF-Token": csrf_token},
+    )
+    client.cookies.clear()
+    test_app.dependency_overrides.clear()
+
+    assert resp.status_code == 422
+
+
+async def test_patch_result_returns_403_without_csrf(client, test_app):
+    user = _make_user()
+    repo = _mock_repo()
+
+    test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service(user=user)
+    test_app.dependency_overrides[get_job_result_repo] = lambda: repo
+
+    client.cookies.set("session_token", "valid-token")
+    resp = await client.patch(
+        f"/results/{uuid4()}",
+        data={"status": "applied"},
+    )
+    client.cookies.clear()
+    test_app.dependency_overrides.clear()
+
+    assert resp.status_code == 403

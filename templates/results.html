@@ -275,6 +275,19 @@
     color: #6b7280;
     margin-bottom: 1rem;
   }
+
+  /* Status select */
+  .status-select {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 0.8125rem;
+    cursor: pointer;
+    outline: none;
+    background: #fff;
+  }
+
+  .status-select:focus { border-color: #2563eb; }
 </style>
 {% endblock %}
 
@@ -340,62 +353,7 @@
       </thead>
       <tbody>
         {% for r in results %}
-        <tr>
-          <td>
-            {% if r.score is not none %}
-            <span class="score-badge {% if r.score >= 9 %}score-green{% elif r.score >= 7 %}score-blue{% elif r.score >= 5 %}score-yellow{% elif r.score >= 3 %}score-orange{% else %}score-red{% endif %}">
-              {{ r.score }}
-            </span>
-            {% else %}
-            <span class="score-badge score-gray">-</span>
-            {% endif %}
-          </td>
-          <td>
-            <a href="{{ r.url }}" target="_blank" rel="noopener" class="job-title-link">{{ r.title }}</a>
-            {% if r.evaluation %}
-            <br>
-            <button type="button" class="detail-toggle" onclick="toggleDetail('detail-{{ r.id }}')">Show details</button>
-            {% endif %}
-          </td>
-          <td><span class="platform-label">{{ r.platform }}</span></td>
-          <td>
-            <span class="recommendation-text">
-              {{ r.evaluation.recommendation if r.evaluation and r.evaluation.recommendation else "-" }}
-            </span>
-          </td>
-          <td><span class="status-badge status-{{ r.status }}">{{ r.status }}</span></td>
-          <td><span class="date-text">{{ r.created_at.strftime("%Y-%m-%d") }}</span></td>
-        </tr>
-        {% if r.evaluation %}
-        <tr id="detail-{{ r.id }}" class="eval-detail">
-          <td colspan="6">
-            {% if r.evaluation.summary %}
-            <div class="eval-section">
-              <div class="eval-label">Summary</div>
-              <div class="eval-text">{{ r.evaluation.summary }}</div>
-            </div>
-            {% endif %}
-            {% if r.evaluation.evaluation %}
-            <div class="eval-section">
-              <div class="eval-label">Evaluation</div>
-              <div class="eval-text">{{ r.evaluation.evaluation }}</div>
-            </div>
-            {% endif %}
-            {% if r.evaluation.flags %}
-            <div class="eval-section">
-              <div class="eval-label">Flags</div>
-              <div class="eval-text">{{ r.evaluation.flags }}</div>
-            </div>
-            {% endif %}
-            {% if r.evaluation.scratchpad %}
-            <div class="eval-section">
-              <div class="eval-label">Scratchpad</div>
-              <div class="eval-text">{{ r.evaluation.scratchpad }}</div>
-            </div>
-            {% endif %}
-          </td>
-        </tr>
-        {% endif %}
+        {% include "partials/result_row.html" %}
         {% endfor %}
       </tbody>
     </table>
