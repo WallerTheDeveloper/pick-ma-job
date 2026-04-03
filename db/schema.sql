@@ -96,3 +96,18 @@ CREATE TABLE IF NOT EXISTS job_results (
 
 CREATE INDEX IF NOT EXISTS idx_job_results_user_status ON job_results(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_job_results_user_score  ON job_results(user_id, score DESC);
+
+-- ── Pipeline Runs ────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS pipeline_runs (
+    id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id      UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status       TEXT        NOT NULL DEFAULT 'pending'
+                             CHECK (status IN ('pending', 'running', 'completed', 'failed')),
+    result       JSONB,
+    error        TEXT,
+    started_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_pipeline_runs_user_id ON pipeline_runs(user_id);

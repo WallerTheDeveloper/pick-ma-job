@@ -67,7 +67,10 @@ async def lifespan(app: FastAPI):
     app.state.templates = Jinja2Templates(
         directory=str(Path(__file__).parent / "templates")
     )
-    app.state.run_manager = RunManager(anthropic_api_key=os.environ["ANTHROPIC_API_KEY"])
+    app.state.run_manager = RunManager(
+        anthropic_api_key=os.environ["ANTHROPIC_API_KEY"],
+        pool=app.state.db_pool,
+    )
     logger.info("Application started")
 
     yield

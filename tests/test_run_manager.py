@@ -44,7 +44,7 @@ def _make_result(**overrides) -> PipelineRunResult:
 
 
 def _make_manager() -> RunManager:
-    return RunManager(anthropic_api_key="test-key")
+    return RunManager(anthropic_api_key="test-key", pool=MagicMock())
 
 
 def _mock_pool() -> MagicMock:
@@ -108,7 +108,8 @@ def test_start_run_spawns_asyncio_task():
     manager = _make_manager()
     with patch("asyncio.create_task") as mock_create:
         manager.start_run(_USER_A, _mock_pool())
-    mock_create.assert_called_once()
+    # Two tasks: _persist_insert (DB write) and _execute (pipeline run)
+    assert mock_create.call_count == 2
 
 
 # ---------------------------------------------------------------------------

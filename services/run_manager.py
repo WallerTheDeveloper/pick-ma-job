@@ -22,7 +22,10 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from dataclasses import asdict
+
 from repositories.job_result import JobResultRepository
+from repositories.pipeline_run import PipelineRunRepository
 from repositories.profile import ProfileRepository
 from repositories.search_config import SearchConfigRepository
 from services.pipeline import PipelineRunResult, PipelineService
@@ -59,10 +62,13 @@ class RunManager:
 
     Args:
         anthropic_api_key: Passed through to each ``PipelineService``.
+        pool: asyncpg connection pool for persisting run state to the
+              ``pipeline_runs`` table.
     """
 
-    def __init__(self, anthropic_api_key: str) -> None:
+    def __init__(self, anthropic_api_key: str, pool: asyncpg.Pool) -> None:
         self._api_key = anthropic_api_key
+        self._pool = pool
         self._runs: dict[UUID, PipelineRunSnapshot] = {}
 
     def start_run(
@@ -95,13 +101,15 @@ class RunManager:
             )
 
         run_id = uuid4()
+        now = datetime.now(timezone.utc)
         snapshot = PipelineRunSnapshot(
             run_id=run_id,
             user_id=user_id,
             status="pending",
-            started_at=datetime.now(timezone.utc),
+            started_at=now,
         )
         self._runs[run_id] = snapshot
+        asyncio.create_task(self._persist_insert(run_id, user_id, now))
         asyncio.create_task(self._execute(run_id, user_id, pool, platform))
         return run_id
 
@@ -118,6 +126,7 @@ class RunManager:
     ) -> None:
         """Background coroutine — runs the pipeline and updates snapshot state."""
         self._update(run_id, status="running")
+        await self._persist_status(run_id, status="running")
 
         service = PipelineService(
             profile_repo=ProfileRepository(pool),
@@ -128,11 +137,19 @@ class RunManager:
 
         try:
             result = await service.run_pipeline(user_id, platform)
+            completed_at = datetime.now(timezone.utc)
             self._update(
                 run_id,
                 status="completed",
                 result=result,
-                completed_at=datetime.now(timezone.utc),
+                completed_at=completed_at,
+            )
+            result_dict = asdict(result)
+            await self._persist_status(
+                run_id,
+                status="completed",
+                result=result_dict,
+                completed_at=completed_at,
             )
             logger.info(
                 "Run %s completed: found=%d evaluated=%d stored=%d errors=%d",
@@ -144,11 +161,18 @@ class RunManager:
             )
         except Exception as exc:
             logger.error("Run %s failed: %s", run_id, exc, exc_info=True)
+            completed_at = datetime.now(timezone.utc)
             self._update(
                 run_id,
                 status="failed",
                 error=str(exc),
-                completed_at=datetime.now(timezone.utc),
+                completed_at=completed_at,
+            )
+            await self._persist_status(
+                run_id,
+                status="failed",
+                error=str(exc),
+                completed_at=completed_at,
             )
 
     def _update(self, run_id: UUID, **fields) -> None:
@@ -173,3 +197,39 @@ class RunManager:
         for run_id in to_evict:
             del self._runs[run_id]
             logger.debug("Evicted run %s", run_id)
+
+    # ── DB persistence helpers ─────────────────────────────────────────────
+
+    async def _persist_insert(
+        self,
+        run_id: UUID,
+        user_id: UUID,
+        started_at: datetime,
+    ) -> None:
+        """Insert a new row into pipeline_runs. Errors are logged, not raised."""
+        try:
+            repo = PipelineRunRepository(self._pool)
+            await repo.insert(run_id, user_id, started_at)
+        except Exception as exc:
+            logger.error("Failed to persist run %s insert: %s", run_id, exc)
+
+    async def _persist_status(
+        self,
+        run_id: UUID,
+        status: str,
+        result: dict | None = None,
+        error: str | None = None,
+        completed_at: datetime | None = None,
+    ) -> None:
+        """Update pipeline_runs row. Errors are logged, not raised."""
+        try:
+            repo = PipelineRunRepository(self._pool)
+            await repo.update_status(
+                run_id,
+                status=status,
+                result=result,
+                error=error,
+                completed_at=completed_at,
+            )
+        except Exception as exc:
+            logger.error("Failed to persist run %s status=%s: %s", run_id, status, exc)
