@@ -18,10 +18,17 @@ from pathlib import Path
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from api.routes.admin import router as admin_router
+from api.routes.api_admin import router as api_admin_router
+from api.routes.api_dashboard import router as api_dashboard_router
+from api.routes.api_pipeline import router as api_pipeline_router
+from api.routes.api_profile import router as api_profile_router
+from api.routes.api_results import router as api_results_router
+from api.routes.api_search_config import router as api_search_config_router
 from api.routes.auth import router as auth_router
 from api.routes.dashboard import router as dashboard_router
 from api.routes.pipeline import router as pipeline_router
@@ -86,6 +93,16 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # CORS — allow the Vite dev server to talk to the API
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:5173"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # ── Old Jinja/HTMX routes (kept alive for coexistence) ───────────────
     app.include_router(dashboard_router)
     app.include_router(auth_router)
     app.include_router(profile_router)
@@ -93,6 +110,14 @@ def create_app() -> FastAPI:
     app.include_router(pipeline_router)
     app.include_router(results_router)
     app.include_router(admin_router)
+
+    # ── New JSON API routes (React SPA) ──────────────────────────────────
+    app.include_router(api_dashboard_router)
+    app.include_router(api_results_router)
+    app.include_router(api_profile_router)
+    app.include_router(api_search_config_router)
+    app.include_router(api_pipeline_router)
+    app.include_router(api_admin_router)
 
     static_dir = Path(__file__).parent / "static"
     if static_dir.exists():
