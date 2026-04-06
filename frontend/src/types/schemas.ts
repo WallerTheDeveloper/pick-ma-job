@@ -61,6 +61,50 @@ export const runStatusResponseSchema = z.object({
 
 export type RunStatusResponse = z.infer<typeof runStatusResponseSchema>;
 
+// ── Results ────────────────────────────────────────────────────────────────
+
+export const jobResultSchema = z.object({
+  id: z.string().uuid(),
+  platform: z.string(),
+  job_id: z.string(),
+  title: z.string(),
+  url: z.string(),
+  score: z.number().nullable(),
+  evaluation: z
+    .object({
+      scratchpad: z.string().optional(),
+      evaluation: z.string().optional(),
+      relevancy_score: z.number().optional(),
+      recommendation: z.string().optional(),
+      flags: z.string().optional(),
+      summary: z.string().optional(),
+    })
+    .nullable(),
+  status: z.string(),
+  created_at: z.string(),
+});
+
+export type JobResult = z.infer<typeof jobResultSchema>;
+
+export const paginationMetaSchema = z.object({
+  total: z.number(),
+  page: z.number(),
+  limit: z.number(),
+  total_pages: z.number(),
+});
+
+export type PaginationMeta = z.infer<typeof paginationMetaSchema>;
+
+export const resultsListResponseSchema = z.object({
+  results: z.array(jobResultSchema),
+  pagination: paginationMetaSchema,
+});
+
+export type ResultsListResponse = z.infer<typeof resultsListResponseSchema>;
+
+export const resultStatusValues = ["new", "applied", "dismissed"] as const;
+export type ResultStatus = (typeof resultStatusValues)[number];
+
 // ── Dashboard ───────────────────────────────────────────────────────────────
 
 export const pipelineRunInfoSchema = z.object({

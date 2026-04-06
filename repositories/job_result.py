@@ -92,12 +92,20 @@ class JobResultRepository:
             )
         return row is not None
 
+    _SORT_CLAUSES: dict[str, str] = {
+        "score_desc": "score DESC NULLS LAST, created_at DESC",
+        "score_asc": "score ASC NULLS LAST, created_at DESC",
+        "date_desc": "created_at DESC",
+        "date_asc": "created_at ASC",
+    }
+
     async def find_by_user(
         self,
         user_id: UUID,
         status: str | None = None,
         min_score: int | None = None,
         platform: str | None = None,
+        sort: str = "score_desc",
         limit: int = 50,
         offset: int = 0,
     ) -> list[JobResultRow]:
@@ -122,6 +130,7 @@ class JobResultRepository:
             idx += 1
 
         where = " AND ".join(conditions)
+        order = self._SORT_CLAUSES.get(sort, self._SORT_CLAUSES["score_desc"])
         params.extend([limit, offset])
 
         async with self._pool.acquire() as conn:
@@ -130,7 +139,7 @@ class JobResultRepository:
                 SELECT id, user_id, platform, job_id, title, url, score, evaluation, status, created_at
                 FROM job_results
                 WHERE {where}
-                ORDER BY score DESC NULLS LAST, created_at DESC
+                ORDER BY {order}
                 LIMIT ${idx} OFFSET ${idx + 1}
                 """,
                 *params,

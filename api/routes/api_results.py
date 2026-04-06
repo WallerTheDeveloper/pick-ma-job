@@ -31,6 +31,7 @@ async def api_list_results(
     status_filter: Annotated[str, Query(alias="status")] = "",
     min_score: Annotated[str, Query()] = "",
     platform: Annotated[str, Query()] = "",
+    sort: Annotated[str, Query()] = "score_desc",
     page: Annotated[int, Query(ge=1)] = 1,
 ) -> ResultsListResponse:
     """Return paginated job results with optional filtering."""
@@ -41,6 +42,9 @@ async def api_list_results(
     if parsed_status is not None and parsed_status not in VALID_STATUSES:
         parsed_status = None
 
+    valid_sorts = {"score_desc", "score_asc", "date_desc", "date_asc"}
+    parsed_sort = sort if sort in valid_sorts else "score_desc"
+
     offset = (page - 1) * _PAGE_SIZE
 
     results = await repo.find_by_user(
@@ -48,6 +52,7 @@ async def api_list_results(
         status=parsed_status,
         min_score=parsed_min_score,
         platform=parsed_platform,
+        sort=parsed_sort,
         limit=_PAGE_SIZE,
         offset=offset,
     )

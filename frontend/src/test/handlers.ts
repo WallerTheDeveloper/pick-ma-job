@@ -10,6 +10,80 @@ const TEST_USER = {
 
 const TEST_RUN_ID = "00000000-0000-0000-0000-000000000099";
 
+function makeJobResult(overrides?: Record<string, unknown>) {
+  return {
+    id: "00000000-0000-0000-0000-000000000010",
+    platform: "upwork",
+    job_id: "job-001",
+    title: "Unity AR Developer Needed",
+    url: "https://upwork.com/jobs/1",
+    score: 9,
+    evaluation: {
+      scratchpad: "Strong AR/VR match",
+      evaluation: "Excellent fit for Unity AR work",
+      relevancy_score: 9,
+      recommendation: "Yes apply",
+      flags: "AR, Unity, Mobile",
+      summary: "Perfect match for Unity AR developer",
+    },
+    status: "new",
+    created_at: "2026-04-06T10:00:00Z",
+    ...overrides,
+  };
+}
+
+function makeResultsList(
+  results?: Record<string, unknown>[],
+  pagination?: Record<string, unknown>,
+) {
+  const items = results ?? [
+    makeJobResult(),
+    makeJobResult({
+      id: "00000000-0000-0000-0000-000000000011",
+      job_id: "job-002",
+      title: "React Frontend Developer",
+      score: 3,
+      status: "dismissed",
+      platform: "linkedin",
+      evaluation: {
+        scratchpad: "Pure frontend role",
+        evaluation: "Not a good fit — pure React role",
+        relevancy_score: 3,
+        recommendation: "Do not apply",
+        flags: "React only, No Unity",
+        summary: "Pure frontend web role, not relevant",
+      },
+    }),
+    makeJobResult({
+      id: "00000000-0000-0000-0000-000000000012",
+      job_id: "job-003",
+      title: "Rust Game Server Engineer",
+      score: 8,
+      status: "applied",
+      evaluation: {
+        scratchpad: "Rust multiplayer match",
+        evaluation: "Good fit for Rust game server work",
+        relevancy_score: 8,
+        recommendation: "Yes apply",
+        flags: "Rust, Multiplayer, Networking",
+        summary: "Strong match for Rust game server role",
+      },
+    }),
+  ];
+  return {
+    results: items,
+    pagination: {
+      total: items.length,
+      page: 1,
+      limit: 50,
+      total_pages: 1,
+      ...pagination,
+    },
+  };
+}
+
+export { makeJobResult, makeResultsList };
+
 export function makeDashboardResponse(overrides?: Record<string, unknown>) {
   return {
     user: TEST_USER,
@@ -42,6 +116,44 @@ export const handlers = [
   http.post("/api/run", () =>
     HttpResponse.json({ run_id: TEST_RUN_ID }, { status: 202 }),
   ),
+
+  // Results list
+  http.get("/api/results", ({ request }) => {
+    const url = new URL(request.url);
+    const statusFilter = url.searchParams.get("status");
+    const minScore = url.searchParams.get("min_score");
+    const platform = url.searchParams.get("platform");
+    const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+
+    let results = makeResultsList().results;
+
+    if (statusFilter) {
+      results = results.filter((r) => r.status === statusFilter);
+    }
+    if (minScore) {
+      results = results.filter((r) => (r.score ?? 0) >= parseInt(minScore, 10));
+    }
+    if (platform) {
+      results = results.filter((r) => r.platform === platform);
+    }
+
+    return HttpResponse.json({
+      results,
+      pagination: {
+        total: results.length,
+        page,
+        limit: 50,
+        total_pages: Math.max(1, Math.ceil(results.length / 50)),
+      },
+    });
+  }),
+
+  // Update result status
+  http.patch("/api/results/:resultId", async ({ request, params }) => {
+    const body = (await request.json()) as { status: string };
+    const base = makeJobResult({ id: params.resultId });
+    return HttpResponse.json({ ...base, status: body.status });
+  }),
 
   // Run status — transitions from running → completed after 2 polls
   http.get(`/api/run/:runId/status`, () => {
