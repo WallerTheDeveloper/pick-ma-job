@@ -3,26 +3,21 @@
 Startup sequence:
 1. Validate required environment variables (fail fast if any are missing).
 2. Create the asyncpg connection pool and run the DB schema (idempotent).
-3. Mount the Jinja2 template engine on app.state.
-4. Register all API routers.
+3. Register all API routers.
 
-The old single-user pipeline routes (/run, /status) are removed in this version.
-They will be re-implemented as authenticated, per-user background tasks in Phase 4.
+The React SPA is served by nginx in production. In development, Vite's dev
+server proxies API calls to this backend.
 """
 
 import logging
 import os
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 
-from api.routes.admin import router as admin_router
 from api.routes.api_admin import router as api_admin_router
 from api.routes.api_dashboard import router as api_dashboard_router
 from api.routes.api_pipeline import router as api_pipeline_router
@@ -30,11 +25,6 @@ from api.routes.api_profile import router as api_profile_router
 from api.routes.api_results import router as api_results_router
 from api.routes.api_search_config import router as api_search_config_router
 from api.routes.auth import router as auth_router
-from api.routes.dashboard import router as dashboard_router
-from api.routes.pipeline import router as pipeline_router
-from api.routes.profile import router as profile_router
-from api.routes.results import router as results_router
-from api.routes.search_config import router as search_config_router
 from db.pool import close_pool, create_pool
 from services.run_manager import RunManager
 
@@ -71,9 +61,6 @@ async def lifespan(app: FastAPI):
     validate_env()
 
     app.state.db_pool = await create_pool(os.environ["DATABASE_URL"])
-    app.state.templates = Jinja2Templates(
-        directory=str(Path(__file__).parent / "templates")
-    )
     app.state.run_manager = RunManager(
         anthropic_api_key=os.environ["ANTHROPIC_API_KEY"],
         pool=app.state.db_pool,
@@ -89,7 +76,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(
         title="pick-ma-job",
-        version="0.2.0",
+        version="0.3.0",
         lifespan=lifespan,
     )
 
@@ -102,26 +89,16 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # ── Old Jinja/HTMX routes (kept alive for coexistence) ───────────────
-    app.include_router(dashboard_router)
+    # ── Auth routes (/auth/*) ────────────────────────────────────────────
     app.include_router(auth_router)
-    app.include_router(profile_router)
-    app.include_router(search_config_router)
-    app.include_router(pipeline_router)
-    app.include_router(results_router)
-    app.include_router(admin_router)
 
-    # ── New JSON API routes (React SPA) ──────────────────────────────────
+    # ── JSON API routes (/api/*) ─────────────────────────────────────────
     app.include_router(api_dashboard_router)
     app.include_router(api_results_router)
     app.include_router(api_profile_router)
     app.include_router(api_search_config_router)
     app.include_router(api_pipeline_router)
     app.include_router(api_admin_router)
-
-    static_dir = Path(__file__).parent / "static"
-    if static_dir.exists():
-        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     return app
 

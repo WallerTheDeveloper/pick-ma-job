@@ -8,10 +8,8 @@ mock FastAPI dependencies (patch() bypasses the DI container).
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
-from pathlib import Path
 
 import pytest
-from fastapi.templating import Jinja2Templates
 from httpx import ASGITransport, AsyncClient
 
 from api.deps import get_auth_service
@@ -33,9 +31,6 @@ def test_app(monkeypatch):
     from main import create_app
     app = create_app()
     app.state.db_pool = MagicMock()
-    app.state.templates = Jinja2Templates(
-        directory=str(Path(__file__).parent.parent / "templates")
-    )
     return app
 
 
@@ -59,101 +54,77 @@ def _make_user(email: str = "user@example.com") -> UserRow:
     return UserRow(id=uuid4(), email=email, created_at=datetime.now(timezone.utc), last_login=None)
 
 
-# ── GET /auth/login ───────────────────────────────────────────────────────────
+# ── GET /auth/me ─────────────────────────────────────────────────────────────
 
-async def test_login_page_renders(client, test_app):
-    test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service()
-    resp = await client.get("/auth/login")
-    test_app.dependency_overrides.clear()
-
-    assert resp.status_code == 200
-    assert b"pick-ma-job" in resp.content
-    assert b'type="email"' in resp.content
-
-
-async def test_login_page_shows_error_param(client, test_app):
-    test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service()
-    resp = await client.get("/auth/login?error=invalid_or_expired")
-    test_app.dependency_overrides.clear()
-
-    assert resp.status_code == 200
-    assert b"invalid or has expired" in resp.content
-
-
-async def test_login_page_redirects_when_logged_in(client, test_app):
+async def test_auth_me_returns_user_when_authenticated(client, test_app):
     user = _make_user()
     svc = _mock_auth_service(get_user_from_session=AsyncMock(return_value=user))
     test_app.dependency_overrides[get_auth_service] = lambda: svc
 
-    # Set a session cookie so get_current_user_optional finds it
-    client.cookies.set("session_token", "some-valid-token")
-    resp = await client.get("/auth/login", follow_redirects=False)
+    client.cookies.set("session_token", "valid-token")
+    resp = await client.get("/auth/me")
     client.cookies.clear()
     test_app.dependency_overrides.clear()
 
-    assert resp.status_code == 302
-    assert resp.headers["location"] == "/"
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["user"]["email"] == "user@example.com"
+    assert data["user"]["id"] is not None
+
+
+async def test_auth_me_returns_401_when_not_authenticated(client, test_app):
+    svc = _mock_auth_service(get_user_from_session=AsyncMock(return_value=None))
+    test_app.dependency_overrides[get_auth_service] = lambda: svc
+
+    resp = await client.get("/auth/me")
+    test_app.dependency_overrides.clear()
+
+    assert resp.status_code == 401
 
 
 # ── POST /auth/magic-link ─────────────────────────────────────────────────────
 
-async def test_magic_link_post_valid_email_returns_check_email(client, test_app):
+async def test_magic_link_post_valid_email_returns_ok(client, test_app):
     svc = _mock_auth_service(request_magic_link=AsyncMock())
     test_app.dependency_overrides[get_auth_service] = lambda: svc
 
-    resp = await client.post("/auth/magic-link", data={"email": "user@example.com"})
+    resp = await client.post(
+        "/auth/magic-link",
+        json={"email": "user@example.com"},
+    )
     test_app.dependency_overrides.clear()
 
     assert resp.status_code == 200
-    assert b"Check your email" in resp.content
-    assert b"user@example.com" in resp.content
+    assert resp.json()["ok"] is True
 
 
-async def test_magic_link_post_invalid_email_shows_error(client, test_app):
-    svc = _mock_auth_service(
-        request_magic_link=AsyncMock(side_effect=AuthError("Invalid email address."))
-    )
+async def test_magic_link_post_empty_email_returns_422(client, test_app):
+    svc = _mock_auth_service()
     test_app.dependency_overrides[get_auth_service] = lambda: svc
 
-    resp = await client.post("/auth/magic-link", data={"email": "not-valid"})
+    resp = await client.post("/auth/magic-link", json={"email": ""})
     test_app.dependency_overrides.clear()
 
     assert resp.status_code == 422
-    assert b"Invalid email" in resp.content
+    assert resp.json()["ok"] is False
 
 
-async def test_magic_link_post_rate_limited_shows_error(client, test_app):
+async def test_magic_link_post_rate_limited_returns_429(client, test_app):
     svc = _mock_auth_service(
         request_magic_link=AsyncMock(
-            side_effect=AuthError("Too many login attempts. Please wait a few minutes and try again.")
+            side_effect=AuthError("Too many login attempts.")
         )
-    )
-    test_app.dependency_overrides[get_auth_service] = lambda: svc
-
-    resp = await client.post("/auth/magic-link", data={"email": "user@example.com"})
-    test_app.dependency_overrides.clear()
-
-    assert resp.status_code == 422
-    assert b"Too many" in resp.content
-
-
-async def test_magic_link_post_htmx_error_is_partial(client, test_app):
-    """HTMX requests get an inline error snippet, not a full page."""
-    svc = _mock_auth_service(
-        request_magic_link=AsyncMock(side_effect=AuthError("Invalid email address."))
     )
     test_app.dependency_overrides[get_auth_service] = lambda: svc
 
     resp = await client.post(
         "/auth/magic-link",
-        data={"email": "bad"},
-        headers={"HX-Request": "true"},
+        json={"email": "user@example.com"},
     )
     test_app.dependency_overrides.clear()
 
-    assert resp.status_code == 422
-    assert b"<p" in resp.content
-    assert b"<!DOCTYPE" not in resp.content
+    assert resp.status_code == 429
+    assert resp.json()["ok"] is False
 
 
 # ── GET /auth/verify ──────────────────────────────────────────────────────────
@@ -170,7 +141,7 @@ async def test_verify_valid_token_sets_cookie_and_redirects(client, test_app):
     assert "session_token" in resp.cookies
 
 
-async def test_verify_invalid_token_redirects_to_login_with_error(client, test_app):
+async def test_verify_invalid_token_redirects_with_error(client, test_app):
     svc = _mock_auth_service(
         verify_magic_link=AsyncMock(side_effect=AuthError("Invalid or expired."))
     )
@@ -185,31 +156,29 @@ async def test_verify_invalid_token_redirects_to_login_with_error(client, test_a
 
 # ── POST /auth/logout ─────────────────────────────────────────────────────────
 
-async def test_logout_clears_cookie_and_redirects(client, test_app):
+async def test_logout_returns_json_ok(client, test_app):
     svc = _mock_auth_service(logout=AsyncMock())
     test_app.dependency_overrides[get_auth_service] = lambda: svc
 
     resp = await client.post(
         "/auth/logout",
         cookies={"session_token": "some-token"},
-        follow_redirects=False,
     )
     test_app.dependency_overrides.clear()
 
-    assert resp.status_code == 302
-    assert resp.headers["location"] == "/auth/login"
-    assert "session_token" in resp.headers.get("set-cookie", "")
+    assert resp.status_code == 200
+    assert resp.json()["ok"] is True
 
 
-async def test_logout_without_session_still_redirects(client, test_app):
+async def test_logout_without_session_still_returns_ok(client, test_app):
     svc = _mock_auth_service(logout=AsyncMock())
     test_app.dependency_overrides[get_auth_service] = lambda: svc
 
-    resp = await client.post("/auth/logout", follow_redirects=False)
+    resp = await client.post("/auth/logout")
     test_app.dependency_overrides.clear()
 
-    assert resp.status_code == 302
-    assert resp.headers["location"] == "/auth/login"
+    assert resp.status_code == 200
+    assert resp.json()["ok"] is True
 
 
 # ── get_current_user dependency ───────────────────────────────────────────────

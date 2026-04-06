@@ -54,7 +54,19 @@ def test_create_app_includes_auth_routes():
     from main import create_app
     app = create_app()
     routes = [r.path for r in app.routes]
-    assert "/auth/login" in routes
+    assert "/auth/me" in routes
     assert "/auth/magic-link" in routes
     assert "/auth/verify" in routes
     assert "/auth/logout" in routes
+
+
+def test_create_app_includes_api_routes():
+    from main import create_app
+    app = create_app()
+    routes = [r.path for r in app.routes]
+    assert "/api/dashboard" in routes
+    assert "/api/results" in routes
+    assert "/api/profile" in routes
+    assert "/api/search-configs" in routes
+    assert "/api/run" in routes
+    assert "/api/admin/users" in routes

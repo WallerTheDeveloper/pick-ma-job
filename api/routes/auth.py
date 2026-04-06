@@ -1,20 +1,18 @@
-"""Auth routes — login page, magic link request, verify, logout.
+"""Auth routes — magic link request, verify, logout, and session check.
 
-Supports both HTML (Jinja2/HTMX) and JSON (React SPA) responses.
-JSON mode is activated when Content-Type is application/json or the request
-accepts JSON but not HTML.
+All responses are JSON except /verify which redirects (works for both SPA and direct visits).
 """
 
 import logging
 import os
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, Request, Response
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi import APIRouter, Depends, Request, Response
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from api.csrf import CSRF_COOKIE, derive_csrf_token
-from api.deps import get_auth_service, get_current_user, get_current_user_optional
-from api.schemas import AuthMeResponse, OkResponse, UserInfo
+from api.deps import get_auth_service, get_current_user
+from api.schemas import AuthMeResponse, UserInfo
 from repositories.user import UserRow
 from services.auth import AuthError, AuthService
 
@@ -32,19 +30,6 @@ def _is_secure() -> bool:
     return not base_url.startswith("http://localhost")
 
 
-def _templates(request: Request):
-    return request.app.state.templates
-
-
-def _wants_json(request: Request) -> bool:
-    """Return True if the request is from a JSON client (React SPA)."""
-    content_type = request.headers.get("content-type", "")
-    accept = request.headers.get("accept", "")
-    return "application/json" in content_type or (
-        "application/json" in accept and "text/html" not in accept
-    )
-
-
 def _make_user_info(user: UserRow) -> UserInfo:
     """Build a UserInfo response from a UserRow."""
     admin_email = os.environ.get("ADMIN_EMAIL", "").strip()
@@ -52,7 +37,7 @@ def _make_user_info(user: UserRow) -> UserInfo:
     return UserInfo(id=user.id, email=user.email, is_admin=is_admin)
 
 
-# ── JSON API ─────────────────────────────────────────────────────────────────
+# ── Session check ────────────────────────────────────────────────────────────
 
 @router.get("/me")
 async def auth_me(
@@ -62,74 +47,30 @@ async def auth_me(
     return AuthMeResponse(user=_make_user_info(user))
 
 
-# ── Pages ─────────────────────────────────────────────────────────────────────
+# ── Magic link ───────────────────────────────────────────────────────────────
 
-@router.get("/login", response_class=HTMLResponse)
-async def login_page(
-    request: Request,
-    error: str | None = None,
-    user: Annotated[UserRow | None, Depends(get_current_user_optional)] = None,
-) -> HTMLResponse:
-    """Render the login / signup page. Redirect to dashboard if already logged in."""
-    if user is not None:
-        return RedirectResponse(url="/", status_code=302)
-    return _templates(request).TemplateResponse(
-        request,
-        "login.html",
-        {"error": error},
-    )
-
-
-# ── Actions ───────────────────────────────────────────────────────────────────
-
-@router.post("/magic-link", response_model=None)
+@router.post("/magic-link")
 async def request_magic_link(
     request: Request,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
-) -> HTMLResponse | JSONResponse:
+) -> JSONResponse:
     """Accept an email address and send a magic link.
 
-    JSON mode (React SPA): expects ``{"email": "..."}`` body, returns ``{"ok": true}``.
-    HTML mode (HTMX/form): expects form-encoded body, returns template response.
+    Expects ``{"email": "..."}`` JSON body, returns ``{"ok": true}``.
     Always returns success — never reveals whether the address exists.
     """
-    if _wants_json(request):
-        body = await request.json()
-        email = str(body.get("email", "")).strip().lower()
-        if not email:
-            return JSONResponse({"ok": False, "error": "Email is required"}, status_code=422)
-        try:
-            await auth_service.request_magic_link(email)
-        except AuthError as exc:
-            return JSONResponse({"ok": False, "error": str(exc)}, status_code=429)
-        return JSONResponse({"ok": True})
-
-    # ── HTML / HTMX mode ─────────────────────────────────────────────────
-    form = await request.form()
-    email = str(form.get("email", "")).strip().lower()
-
+    body = await request.json()
+    email = str(body.get("email", "")).strip().lower()
+    if not email:
+        return JSONResponse({"ok": False, "error": "Email is required"}, status_code=422)
     try:
         await auth_service.request_magic_link(email)
     except AuthError as exc:
-        is_htmx = request.headers.get("HX-Request") == "true"
-        if is_htmx:
-            return HTMLResponse(
-                content=f'<p class="error">{exc}</p>',
-                status_code=200,
-            )
-        return _templates(request).TemplateResponse(
-            request,
-            "login.html",
-            {"error": str(exc)},
-            status_code=429,
-        )
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=429)
+    return JSONResponse({"ok": True})
 
-    return _templates(request).TemplateResponse(
-        request,
-        "check_email.html",
-        {"email": email},
-    )
 
+# ── Verify ───────────────────────────────────────────────────────────────────
 
 @router.get("/verify")
 async def verify_magic_link(
@@ -137,12 +78,12 @@ async def verify_magic_link(
     response: Response,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> RedirectResponse:
-    """Validate a magic link token, set a session cookie, and redirect to the dashboard."""
+    """Validate a magic link token, set a session cookie, and redirect to the SPA."""
     try:
         session_token = await auth_service.verify_magic_link(token)
     except AuthError:
         return RedirectResponse(
-            url="/auth/login?error=invalid_or_expired",
+            url="/?error=invalid_or_expired",
             status_code=302,
         )
 
@@ -166,28 +107,19 @@ async def verify_magic_link(
     return redirect
 
 
+# ── Logout ───────────────────────────────────────────────────────────────────
+
 @router.post("/logout")
 async def logout(
     request: Request,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
-) -> Response:
-    """Invalidate the current session and clear the session cookie.
-
-    JSON mode (React SPA): returns ``{"ok": true}``.
-    HTMX mode: returns ``HX-Redirect`` header.
-    """
+) -> JSONResponse:
+    """Invalidate the current session and clear the session cookie."""
     token = request.cookies.get(_SESSION_COOKIE)
     if token:
         await auth_service.logout(token)
 
-    is_htmx = request.headers.get("HX-Request") == "true"
-
-    if is_htmx:
-        response = Response(status_code=200)
-        response.headers["HX-Redirect"] = "/auth/login"
-    else:
-        response = JSONResponse({"ok": True})
-
+    response = JSONResponse({"ok": True})
     response.delete_cookie(key=_SESSION_COOKIE)
     response.delete_cookie(key=CSRF_COOKIE)
     return response

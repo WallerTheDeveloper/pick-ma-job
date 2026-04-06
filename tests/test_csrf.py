@@ -1,18 +1,15 @@
-"""Tests for CSRF token utilities and enforcement on mutating routes."""
+"""Tests for CSRF token utilities and enforcement on mutating API routes."""
 
 import os
 from datetime import datetime, timezone
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
-from fastapi.templating import Jinja2Templates
 from httpx import ASGITransport, AsyncClient
 
 from api.csrf import derive_csrf_token, require_csrf
-from api.deps import get_auth_service, get_search_config_service
-from repositories.user import UserRow
+from api.deps import get_auth_service, get_search_config_service, get_profile_service
 
 
 # ── Unit tests: derive_csrf_token ─────────────────────────────────────────────
@@ -47,6 +44,9 @@ def test_derive_csrf_token_returns_hex_string(monkeypatch):
 
 # ── Integration fixtures ───────────────────────────────────────────────────────
 
+from repositories.user import UserRow
+
+
 @pytest.fixture
 def test_app(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://fake/fake")
@@ -59,9 +59,6 @@ def test_app(monkeypatch):
     from main import create_app
     app = create_app()
     app.state.db_pool = MagicMock()
-    app.state.templates = Jinja2Templates(
-        directory=str(Path(__file__).parent.parent / "templates")
-    )
     return app
 
 
@@ -96,7 +93,14 @@ def _mock_search_config_service(delete_result: bool = True) -> MagicMock:
     return svc
 
 
-# ── CSRF enforcement: DELETE /search-config/{id} ──────────────────────────────
+def _mock_profile_service() -> MagicMock:
+    svc = MagicMock()
+    svc.get_or_default = AsyncMock(return_value=None)
+    svc.update = AsyncMock(return_value=None)
+    return svc
+
+
+# ── CSRF enforcement: DELETE /api/search-configs/{id} ────────────────────────
 
 async def test_delete_without_csrf_token_returns_403(client, test_app):
     user = _make_user()
@@ -104,7 +108,7 @@ async def test_delete_without_csrf_token_returns_403(client, test_app):
     test_app.dependency_overrides[get_search_config_service] = lambda: _mock_search_config_service()
 
     client.cookies.set("session_token", "valid-token")
-    resp = await client.delete(f"/search-config/{uuid4()}")
+    resp = await client.delete(f"/api/search-configs/{uuid4()}")
     client.cookies.clear()
     test_app.dependency_overrides.clear()
 
@@ -120,7 +124,7 @@ async def test_delete_with_wrong_csrf_token_returns_403(client, test_app, monkey
 
     client.cookies.set("session_token", "valid-token")
     resp = await client.delete(
-        f"/search-config/{uuid4()}",
+        f"/api/search-configs/{uuid4()}",
         headers={"X-CSRF-Token": "wrong-token"},
     )
     client.cookies.clear()
@@ -140,7 +144,7 @@ async def test_delete_with_valid_csrf_token_succeeds(client, test_app, monkeypat
 
     client.cookies.set("session_token", session_token)
     resp = await client.delete(
-        f"/search-config/{uuid4()}",
+        f"/api/search-configs/{uuid4()}",
         headers={"X-CSRF-Token": csrf_token},
     )
     client.cookies.clear()
@@ -149,7 +153,7 @@ async def test_delete_with_valid_csrf_token_succeeds(client, test_app, monkeypat
     assert resp.status_code == 200
 
 
-# ── CSRF enforcement: POST /search-config ────────────────────────────────────
+# ── CSRF enforcement: POST /api/search-configs ──────────────────────────────
 
 async def test_post_search_config_without_csrf_returns_403(client, test_app):
     user = _make_user()
@@ -157,7 +161,10 @@ async def test_post_search_config_without_csrf_returns_403(client, test_app):
     test_app.dependency_overrides[get_search_config_service] = lambda: _mock_search_config_service()
 
     client.cookies.set("session_token", "valid-token")
-    resp = await client.post("/search-config", data={"platform": "upwork"})
+    resp = await client.post(
+        "/api/search-configs",
+        json={"platform": "upwork", "query": "unity"},
+    )
     client.cookies.clear()
     test_app.dependency_overrides.clear()
 
@@ -175,26 +182,25 @@ async def test_post_search_config_with_valid_csrf_succeeds(client, test_app, mon
 
     client.cookies.set("session_token", session_token)
     resp = await client.post(
-        "/search-config",
-        data={"platform": "upwork"},
+        "/api/search-configs",
+        json={"platform": "upwork", "query": "unity"},
         headers={"X-CSRF-Token": csrf_token},
     )
     client.cookies.clear()
     test_app.dependency_overrides.clear()
 
-    assert resp.status_code == 200
+    assert resp.status_code == 201
 
 
-# ── CSRF enforcement: POST /profile ──────────────────────────────────────────
+# ── CSRF enforcement: POST /api/profile ────────────────────────────────────
 
 async def test_post_profile_without_csrf_returns_403(client, test_app):
-    from api.deps import get_profile_service
-
     user = _make_user()
     test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service(user=user)
+    test_app.dependency_overrides[get_profile_service] = lambda: _mock_profile_service()
 
     client.cookies.set("session_token", "valid-token")
-    resp = await client.post("/profile", data={"role": "Unity Developer"})
+    resp = await client.post("/api/profile", json={"role": "Unity Developer"})
     client.cookies.clear()
     test_app.dependency_overrides.clear()
 
@@ -203,14 +209,14 @@ async def test_post_profile_without_csrf_returns_403(client, test_app):
 
 # ── CSRF not enforced for GET requests ───────────────────────────────────────
 
-async def test_get_search_config_without_csrf_succeeds(client, test_app):
+async def test_get_search_configs_without_csrf_succeeds(client, test_app):
     """GET requests must never require a CSRF token."""
     user = _make_user()
     test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service(user=user)
     test_app.dependency_overrides[get_search_config_service] = lambda: _mock_search_config_service()
 
     client.cookies.set("session_token", "valid-token")
-    resp = await client.get("/search-config")
+    resp = await client.get("/api/search-configs")
     client.cookies.clear()
     test_app.dependency_overrides.clear()
 
@@ -224,7 +230,7 @@ async def test_delete_without_session_cookie_returns_401_not_403(client, test_ap
     test_app.dependency_overrides[get_auth_service] = lambda: _mock_auth_service(user=None)
     test_app.dependency_overrides[get_search_config_service] = lambda: _mock_search_config_service()
 
-    resp = await client.delete(f"/search-config/{uuid4()}")
+    resp = await client.delete(f"/api/search-configs/{uuid4()}")
     test_app.dependency_overrides.clear()
 
     assert resp.status_code == 401

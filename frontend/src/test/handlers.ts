@@ -195,7 +195,7 @@ export const handlers = [
       results = results.filter((r) => r.status === statusFilter);
     }
     if (minScore) {
-      results = results.filter((r) => (r.score ?? 0) >= parseInt(minScore, 10));
+      results = results.filter((r) => ((r.score as number) ?? 0) >= parseInt(minScore, 10));
     }
     if (platform) {
       results = results.filter((r) => r.platform === platform);
