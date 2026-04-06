@@ -9,6 +9,7 @@ import { SearchConfigPage } from "@/pages/search-config";
 import { AdminPage } from "@/pages/admin";
 import { LoginPage } from "@/pages/login";
 import { CheckEmailPage } from "@/pages/check-email";
+import { Toaster } from "@/components/ui/sonner";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -40,6 +41,7 @@ export default function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      <Toaster />
     </QueryClientProvider>
   );
 }

@@ -82,7 +82,31 @@ function makeResultsList(
   };
 }
 
-export { makeJobResult, makeResultsList };
+function makeProfile(overrides?: Record<string, unknown>) {
+  return {
+    id: "00000000-0000-0000-0000-000000000020",
+    role: "Unity Developer",
+    experience: "Mid-level, 4 years",
+    rate: "$30/hr",
+    primary_skills: ["Unity", "C#", "AR/VR"],
+    secondary_skills: ["Rust", "C++"],
+    tertiary_skills: ["Vue.js", "TypeScript"],
+    not_a_good_fit: ["Data science", "DevOps-only"],
+    background: [
+      "2 years AR & Web Developer at ZAUBAR",
+      "2 years Backend Developer at Intelligent Project",
+    ],
+    notable_projects: [
+      { name: "Rust Multiplayer Game", description: "Authoritative game server" },
+    ],
+    languages: ["English", "Ukrainian", "German"],
+    rubric: {},
+    updated_at: "2026-04-06T10:00:00Z",
+    ...overrides,
+  };
+}
+
+export { makeJobResult, makeResultsList, makeProfile };
 
 export function makeDashboardResponse(overrides?: Record<string, unknown>) {
   return {
@@ -116,6 +140,17 @@ export const handlers = [
   http.post("/api/run", () =>
     HttpResponse.json({ run_id: TEST_RUN_ID }, { status: 202 }),
   ),
+
+  // Profile — GET returns existing profile
+  http.get("/api/profile", () =>
+    HttpResponse.json({ profile: makeProfile() }),
+  ),
+
+  // Profile — POST saves and returns updated profile
+  http.post("/api/profile", async ({ request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    return HttpResponse.json({ profile: makeProfile(body) });
+  }),
 
   // Results list
   http.get("/api/results", ({ request }) => {

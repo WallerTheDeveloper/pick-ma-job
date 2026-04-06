@@ -3,6 +3,7 @@
 import { render, type RenderOptions } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
+import { Toaster } from "sonner";
 import type { ReactElement } from "react";
 
 interface WrapperOptions {
@@ -23,6 +24,7 @@ function createWrapper({ initialEntries = ["/"] }: WrapperOptions = {}) {
         <MemoryRouter initialEntries={initialEntries}>
           {children}
         </MemoryRouter>
+        <Toaster />
       </QueryClientProvider>
     );
   };

@@ -105,6 +105,61 @@ export type ResultsListResponse = z.infer<typeof resultsListResponseSchema>;
 export const resultStatusValues = ["new", "applied", "dismissed"] as const;
 export type ResultStatus = (typeof resultStatusValues)[number];
 
+// ── Profile ────────────────────────────────────────────────────────────────
+
+export const notableProjectSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+});
+
+export type NotableProject = z.infer<typeof notableProjectSchema>;
+
+export const profileResponseSchema = z.object({
+  id: z.string().uuid(),
+  role: z.string().nullable(),
+  experience: z.string().nullable(),
+  rate: z.string().nullable(),
+  primary_skills: z.array(z.string()),
+  secondary_skills: z.array(z.string()),
+  tertiary_skills: z.array(z.string()),
+  not_a_good_fit: z.array(z.string()),
+  background: z.array(z.string()),
+  notable_projects: z.array(notableProjectSchema),
+  languages: z.array(z.string()),
+  rubric: z.record(z.string(), z.unknown()),
+  updated_at: z.string(),
+});
+
+export type ProfileResponse = z.infer<typeof profileResponseSchema>;
+
+export const profileGetResponseSchema = z.object({
+  profile: profileResponseSchema.nullable(),
+});
+
+export type ProfileGetResponse = z.infer<typeof profileGetResponseSchema>;
+
+export const profileSaveRequestSchema = z.object({
+  role: z.string().nullable().default(null),
+  experience: z.string().nullable().default(null),
+  rate: z.string().nullable().default(null),
+  primary_skills: z.array(z.string()).default([]),
+  secondary_skills: z.array(z.string()).default([]),
+  tertiary_skills: z.array(z.string()).default([]),
+  not_a_good_fit: z.array(z.string()).default([]),
+  background: z.array(z.string()).default([]),
+  notable_projects: z.array(notableProjectSchema).default([]),
+  languages: z.array(z.string()).default([]),
+  rubric: z.record(z.string(), z.unknown()).default({}),
+});
+
+export type ProfileSaveRequest = z.infer<typeof profileSaveRequestSchema>;
+
+export const profileSaveResponseSchema = z.object({
+  profile: profileResponseSchema,
+});
+
+export type ProfileSaveResponse = z.infer<typeof profileSaveResponseSchema>;
+
 // ── Dashboard ───────────────────────────────────────────────────────────────
 
 export const pipelineRunInfoSchema = z.object({
