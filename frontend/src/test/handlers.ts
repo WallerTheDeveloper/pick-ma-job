@@ -124,7 +124,18 @@ function makeSearchConfig(overrides?: Record<string, unknown>) {
   };
 }
 
-export { makeJobResult, makeResultsList, makeProfile, makeSearchConfig };
+function makeAdminUser(overrides?: Record<string, unknown>) {
+  return {
+    id: "00000000-0000-0000-0000-000000000001",
+    email: "admin@example.com",
+    created_at: "2026-01-15T08:00:00Z",
+    last_login: "2026-04-06T09:30:00Z",
+    job_count: 42,
+    ...overrides,
+  };
+}
+
+export { makeJobResult, makeResultsList, makeProfile, makeSearchConfig, makeAdminUser };
 
 export function makeDashboardResponse(overrides?: Record<string, unknown>) {
   return {
@@ -227,6 +238,22 @@ export const handlers = [
   // Search configs — delete
   http.delete("/api/search-configs/:configId", () =>
     HttpResponse.json({ ok: true }),
+  ),
+
+  // Admin — users list
+  http.get("/api/admin/users", () =>
+    HttpResponse.json({
+      users: [
+        makeAdminUser(),
+        makeAdminUser({
+          id: "00000000-0000-0000-0000-000000000002",
+          email: "user@example.com",
+          created_at: "2026-03-01T12:00:00Z",
+          last_login: null,
+          job_count: 0,
+        }),
+      ],
+    }),
   ),
 
   // Run status — transitions from running → completed after 2 polls

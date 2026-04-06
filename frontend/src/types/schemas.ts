@@ -195,6 +195,24 @@ export const searchConfigCreateResponseSchema = z.object({
 
 export type SearchConfigCreateResponse = z.infer<typeof searchConfigCreateResponseSchema>;
 
+// ── Admin ──────────────────────────────────────────────────────────────────
+
+export const userStatsSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string().email(),
+  created_at: z.string(),
+  last_login: z.string().nullable(),
+  job_count: z.number(),
+});
+
+export type UserStats = z.infer<typeof userStatsSchema>;
+
+export const adminUsersResponseSchema = z.object({
+  users: z.array(userStatsSchema),
+});
+
+export type AdminUsersResponse = z.infer<typeof adminUsersResponseSchema>;
+
 // ── Dashboard ───────────────────────────────────────────────────────────────
 
 export const pipelineRunInfoSchema = z.object({
