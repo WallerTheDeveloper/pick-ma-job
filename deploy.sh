@@ -7,7 +7,7 @@
 # Prerequisites:
 #   - Node.js 20+ and npm installed on the server
 #   - Python venv at /opt/pick-ma-job/.venv
-#   - systemd unit: pick-ma-job.service
+#   - systemd unit installed (see setup.sh for first-time setup)
 #   - nginx config symlinked: /etc/nginx/sites-enabled/pick-ma-job.conf
 
 set -euo pipefail
