@@ -106,7 +106,25 @@ function makeProfile(overrides?: Record<string, unknown>) {
   };
 }
 
-export { makeJobResult, makeResultsList, makeProfile };
+function makeSearchConfig(overrides?: Record<string, unknown>) {
+  return {
+    id: "00000000-0000-0000-0000-000000000030",
+    platform: "upwork",
+    query: "unity developer",
+    filters: {
+      experienceLevel: ["entry", "intermediate"],
+      jobType: ["fixed", "hourly"],
+      paymentVerified: true,
+      perPage: 50,
+      sort: "newest",
+      maxJobAge: { value: 24, unit: "hours" },
+    },
+    updated_at: "2026-04-06T10:00:00Z",
+    ...overrides,
+  };
+}
+
+export { makeJobResult, makeResultsList, makeProfile, makeSearchConfig };
 
 export function makeDashboardResponse(overrides?: Record<string, unknown>) {
   return {
@@ -189,6 +207,27 @@ export const handlers = [
     const base = makeJobResult({ id: params.resultId });
     return HttpResponse.json({ ...base, status: body.status });
   }),
+
+  // Search configs — list
+  http.get("/api/search-configs", () =>
+    HttpResponse.json({ configs: [makeSearchConfig()] }),
+  ),
+
+  // Search configs — create
+  http.post("/api/search-configs", async ({ request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    return HttpResponse.json({
+      config: makeSearchConfig({
+        id: "00000000-0000-0000-0000-000000000031",
+        ...body,
+      }),
+    });
+  }),
+
+  // Search configs — delete
+  http.delete("/api/search-configs/:configId", () =>
+    HttpResponse.json({ ok: true }),
+  ),
 
   // Run status — transitions from running → completed after 2 polls
   http.get(`/api/run/:runId/status`, () => {

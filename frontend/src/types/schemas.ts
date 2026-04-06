@@ -160,6 +160,41 @@ export const profileSaveResponseSchema = z.object({
 
 export type ProfileSaveResponse = z.infer<typeof profileSaveResponseSchema>;
 
+// ── Search Config ──────────────────────────────────────────────────────────
+
+export const platformValues = ["upwork", "linkedin"] as const;
+export type Platform = (typeof platformValues)[number];
+
+export const searchConfigResponseSchema = z.object({
+  id: z.string().uuid(),
+  platform: z.string(),
+  query: z.string().nullable(),
+  filters: z.record(z.string(), z.unknown()),
+  updated_at: z.string(),
+});
+
+export type SearchConfigResponse = z.infer<typeof searchConfigResponseSchema>;
+
+export const searchConfigsListResponseSchema = z.object({
+  configs: z.array(searchConfigResponseSchema),
+});
+
+export type SearchConfigsListResponse = z.infer<typeof searchConfigsListResponseSchema>;
+
+export const searchConfigCreateRequestSchema = z.object({
+  platform: z.enum(platformValues),
+  query: z.string().min(1, "Search query is required").nullable(),
+  filters: z.record(z.string(), z.unknown()).default({}),
+});
+
+export type SearchConfigCreateRequest = z.infer<typeof searchConfigCreateRequestSchema>;
+
+export const searchConfigCreateResponseSchema = z.object({
+  config: searchConfigResponseSchema,
+});
+
+export type SearchConfigCreateResponse = z.infer<typeof searchConfigCreateResponseSchema>;
+
 // ── Dashboard ───────────────────────────────────────────────────────────────
 
 export const pipelineRunInfoSchema = z.object({
