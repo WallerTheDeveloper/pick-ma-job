@@ -1,0 +1,78 @@
+{
+  "developer": {
+    "name": "Danylo Golosov",
+    "role": "Unity Developer",
+    "experience_years": 4,
+    "level": "mid-level",
+    "location": "Berlin, Germany",
+    "work_preference": "remote only",
+    "rate": {
+      "hourly_eur": "10-30",
+      "annual_eur": 50000
+    }
+  },
+  "background": [
+    "2 years as AR & Web Developer at ZAUBAR (Berlin) — AR SDK development, cross-platform mobile app shipping, CI/CD pipelines, VR haptics integration",
+    "2 years as Backend Developer at Intelligent Project (Kyiv) — server-side architecture, database integration, WordPress backend",
+    "BSc Computer Science from Lublin University of Technology (thesis: 4X strategy game in Unity)"
+  ],
+  "skills": {
+    "primary": [
+      "Unity Engine (C#) — mobile apps, AR/VR, games",
+      "AR/VR SDKs: AR Foundation, ARKit, ARCore, XR Interaction Toolkit, OpenXR",
+      "Cross-platform mobile shipping (iOS & Android) from start to release",
+      "CI/CD for mobile builds: Jenkins, Firebase App Distribution",
+      "Performance profiling and optimization: Unity Profiler, Android Logcat"
+    ],
+    "secondary": [
+      "Rust — multiplayer game server development, networking, authoritative server architecture",
+      "C++ and OpenGL — custom rendering, graphics programming, shader development",
+      "Backend architecture and server-side systems",
+      "Python scripting",
+      "Swift — native iOS plugins"
+    ],
+    "tertiary": [
+      "Vue.js, TypeScript, Tailwind CSS — web component development",
+      "Blender — 3D modeling",
+      "WordPress backend configuration"
+    ]
+  },
+  "not_a_good_fit": [
+    "Pure frontend/web development (unless tied to Unity or AR/VR pipeline)",
+    "Generic mobile development without Unity (native Android Kotlin / native iOS SwiftUI as primary)",
+    "Data science, machine learning engineering, DevOps-only, database administration",
+    "Roles requiring Unreal Engine, Godot, or other non-Unity game engines as primary tool"
+  ],
+  "notable_projects": [
+    {
+      "name": "Rust Multiplayer Game (Paper.io 2 clone)",
+      "description": "Fully authoritative game server from scratch in Rust, 200+ concurrent players, full client-server pipeline with cheat prevention"
+    },
+    {
+      "name": "Solar System Simulation",
+      "description": "C++17 + OpenGL 3.3, custom rendering engine, no game engine dependency"
+    },
+    {
+      "name": "VR Tower Defense",
+      "description": "Unity + XR Interaction Toolkit, spatial tower placement, state machine AI architecture"
+    }
+  ],
+  "languages": ["English", "Ukrainian", "German (actively studying)", "Russian", "Polish"],
+  "scoring_rubric": {
+    "9-10": "Excellent match — hits primary strengths, appropriate level and budget, apply immediately",
+    "7-8": "Good match — primarily relevant with minor gaps, likely worth applying",
+    "5-6": "Moderate match — touches secondary/tertiary skills or notable mismatches, apply cautiously",
+    "3-4": "Poor match — only tangential overlap or significant red flags, probably not worth it",
+    "1-2": "Very poor match — outside domain entirely, do not apply"
+  },
+  "evaluation_factors": [
+    "Skills Match: How well required skills align with primary > secondary > tertiary strengths",
+    "Experience Level: Mid-level is ideal. Junior is fine. Senior in AR/VR is acceptable.",
+    "Project Type: Prioritize AR/VR, Unity games, multiplayer servers (Rust), graphics programming (OpenGL/C++), mobile shipping",
+    "Budget/Rate: For Upwork: €10–30/hour or reasonable fixed-price. For full-time: ~€50k/year. Flag lowball budgets.",
+    "Project Scope: Both full project ownership and SDK/feature contribution are fine. Fixed-price and hourly both acceptable.",
+    "Client Quality: Flag vague requirements, unrealistic expectations, no verified payment, spec work. Positive: clear scope, hire history, domain knowledge.",
+    "Competition: AR/VR and Rust game server roles have less competition — factor this in positively."
+  ],
+  "system_instructions": "You are a job-fit evaluator. Assess the provided job posting against the developer profile above. Return ONLY a raw JSON object — no markdown, no backticks, no explanation outside the JSON. The JSON must include exactly these fields: evaluation, relevancy_score, recommendation, flags, summary. All fields except relevancy_score must be plain strings — no nested objects or arrays."
+}

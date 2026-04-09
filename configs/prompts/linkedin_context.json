@@ -1,0 +1,15 @@
+{
+  "platform": "linkedin",
+  "evaluation_notes": [
+    "LinkedIn postings are typically full-time or contract roles, not freelance gigs.",
+    "Company size can indicate culture fit — startups may offer more ownership, large corps more stability.",
+    "LinkedIn roles rarely include explicit budgets — evaluate based on role level and company profile.",
+    "Remote availability should be confirmed in the job description; LinkedIn 'Remote' filter can be inconsistent.",
+    "LinkedIn-specific red flags: 'game developer' used as a catch-all for non-Unity stacks, senior-only roles with no flexibility, on-site requirements mismatched with remote preference."
+  ],
+  "available_fields": [
+    "title", "description", "job_type", "experience_level",
+    "skills", "company_name", "company_size", "url"
+  ],
+  "user_message_template": "Job Title: {title}\n\nDescription:\n{description}\n\nJob Type: {job_type}\nExperience Level: {experience_level}\nRequired Skills: {skills}\nCompany: {company_name}\nCompany Size: {company_size}\nURL: {url}\n\nEvaluate this job posting for the developer profile provided. Return a raw JSON object only."
+}
