@@ -51,7 +51,7 @@ export function AdminPage() {
   }
 
   if (!user?.is_admin) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   if (isLoading) {

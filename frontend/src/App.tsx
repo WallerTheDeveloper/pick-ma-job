@@ -9,6 +9,7 @@ import { SearchConfigPage } from "@/pages/search-config";
 import { AdminPage } from "@/pages/admin";
 import { LoginPage } from "@/pages/login";
 import { CheckEmailPage } from "@/pages/check-email";
+import { LandingPage } from "@/pages/landing";
 import { Toaster } from "@/components/ui/sonner";
 
 const queryClient = new QueryClient({
@@ -26,13 +27,14 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           {/* Public routes */}
+          <Route index element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/check-email" element={<CheckEmailPage />} />
 
-          {/* Protected routes — redirect to /login if not authenticated */}
+          {/* Protected routes — redirect to / if not authenticated */}
           <Route element={<ProtectedRoute />}>
             <Route element={<AppShell />}>
-              <Route index element={<DashboardPage />} />
+              <Route path="dashboard" element={<DashboardPage />} />
               <Route path="results" element={<ResultsPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="search-config" element={<SearchConfigPage />} />

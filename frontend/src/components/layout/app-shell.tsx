@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 
 const navItems = [
-  { to: "/", label: "Dashboard" },
+  { to: "/dashboard", label: "Dashboard" },
   { to: "/results", label: "Results" },
   { to: "/profile", label: "Profile" },
   { to: "/search-config", label: "Search Config" },
@@ -32,7 +32,6 @@ export function AppShell() {
             <NavLink
               key={to}
               to={to}
-              end={to === "/"}
               className={navLinkClass}
             >
               {label}

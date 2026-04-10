@@ -87,7 +87,7 @@ async def verify_magic_link(
             status_code=302,
         )
 
-    redirect = RedirectResponse(url="/", status_code=302)
+    redirect = RedirectResponse(url="/dashboard", status_code=302)
     redirect.set_cookie(
         key=_SESSION_COOKIE,
         value=session_token,
