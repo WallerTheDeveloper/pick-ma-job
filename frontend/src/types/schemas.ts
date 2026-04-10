@@ -138,6 +138,15 @@ export const profileGetResponseSchema = z.object({
 
 export type ProfileGetResponse = z.infer<typeof profileGetResponseSchema>;
 
+export const structuredRubricSchema = z.object({
+  min_score: z.number().min(1).max(10).optional(),
+  prefer_remote: z.boolean().optional(),
+  priority_keywords: z.array(z.string()).optional(),
+  avoid_keywords: z.array(z.string()).optional(),
+});
+
+export type StructuredRubric = z.infer<typeof structuredRubricSchema>;
+
 export const profileSaveRequestSchema = z.object({
   role: z.string().nullable().default(null),
   experience: z.string().nullable().default(null),

@@ -7,34 +7,89 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { TagInput } from "@/components/tag-input";
 import { useProfile } from "@/hooks/use-profile";
 import type { NotableProject, ProfileSaveRequest } from "@/types/schemas";
 
-/** Split a comma-separated string into a trimmed, non-empty array. */
-function splitList(value: string): string[] {
-  return value
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+// ── Rubric helpers ────────────────────────────────────────────────────────────
+
+const STRUCTURED_RUBRIC_KEYS = [
+  "min_score",
+  "prefer_remote",
+  "priority_keywords",
+  "avoid_keywords",
+] as const;
+
+interface RubricState {
+  minScore: string;
+  preferRemote: boolean;
+  priorityKeywords: string[];
+  avoidKeywords: string[];
+  advanced: string;
 }
 
-/** Join an array back to a comma-separated display string. */
-function joinList(arr: readonly string[]): string {
-  return arr.join(", ");
+function extractRubric(rubric: Record<string, unknown>): RubricState {
+  const extra: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(rubric)) {
+    if (!(STRUCTURED_RUBRIC_KEYS as readonly string[]).includes(k)) {
+      extra[k] = v;
+    }
+  }
+  return {
+    minScore:
+      typeof rubric.min_score === "number" ? String(rubric.min_score) : "",
+    preferRemote: rubric.prefer_remote === true,
+    priorityKeywords: Array.isArray(rubric.priority_keywords)
+      ? rubric.priority_keywords.filter((x): x is string => typeof x === "string")
+      : [],
+    avoidKeywords: Array.isArray(rubric.avoid_keywords)
+      ? rubric.avoid_keywords.filter((x): x is string => typeof x === "string")
+      : [],
+    advanced:
+      Object.keys(extra).length > 0 ? JSON.stringify(extra, null, 2) : "",
+  };
 }
+
+function buildRubric(r: RubricState): Record<string, unknown> {
+  const rubric: Record<string, unknown> = {};
+  const minScore = Number(r.minScore);
+  if (r.minScore !== "" && !isNaN(minScore) && minScore >= 1 && minScore <= 10) {
+    rubric.min_score = minScore;
+  }
+  if (r.preferRemote) rubric.prefer_remote = true;
+  if (r.priorityKeywords.length > 0) rubric.priority_keywords = r.priorityKeywords;
+  if (r.avoidKeywords.length > 0) rubric.avoid_keywords = r.avoidKeywords;
+
+  if (r.advanced.trim()) {
+    try {
+      const extra = JSON.parse(r.advanced) as Record<string, unknown>;
+      Object.assign(rubric, extra);
+    } catch {
+      // validation will catch this before save
+    }
+  }
+  return rubric;
+}
+
+// ── Form state ────────────────────────────────────────────────────────────────
 
 interface FormState {
   role: string;
   experience: string;
   rate: string;
-  primarySkills: string;
-  secondarySkills: string;
-  tertiarySkills: string;
-  notAGoodFit: string;
-  background: string;
-  languages: string;
+  primarySkills: string[];
+  secondarySkills: string[];
+  tertiarySkills: string[];
+  notAGoodFit: string[];
+  background: string[];
+  languages: string[];
   notableProjects: NotableProject[];
-  rubricText: string;
+  rubric: RubricState;
 }
 
 function emptyForm(): FormState {
@@ -42,14 +97,20 @@ function emptyForm(): FormState {
     role: "",
     experience: "",
     rate: "",
-    primarySkills: "",
-    secondarySkills: "",
-    tertiarySkills: "",
-    notAGoodFit: "",
-    background: "",
-    languages: "",
+    primarySkills: [],
+    secondarySkills: [],
+    tertiarySkills: [],
+    notAGoodFit: [],
+    background: [],
+    languages: [],
     notableProjects: [],
-    rubricText: "",
+    rubric: {
+      minScore: "",
+      preferRemote: false,
+      priorityKeywords: [],
+      avoidKeywords: [],
+      advanced: "",
+    },
   };
 }
 
@@ -60,66 +121,57 @@ function profileToForm(
     role: p.role ?? "",
     experience: p.experience ?? "",
     rate: p.rate ?? "",
-    primarySkills: joinList(p.primary_skills),
-    secondarySkills: joinList(p.secondary_skills),
-    tertiarySkills: joinList(p.tertiary_skills),
-    notAGoodFit: joinList(p.not_a_good_fit),
-    background: p.background.join("\n"),
-    languages: joinList(p.languages),
-    notableProjects: p.notable_projects.length > 0 ? p.notable_projects : [],
-    rubricText: Object.keys(p.rubric).length > 0
-      ? JSON.stringify(p.rubric, null, 2)
-      : "",
+    primarySkills: [...p.primary_skills],
+    secondarySkills: [...p.secondary_skills],
+    tertiarySkills: [...p.tertiary_skills],
+    notAGoodFit: [...p.not_a_good_fit],
+    background: [...p.background],
+    languages: [...p.languages],
+    notableProjects: p.notable_projects.length > 0 ? [...p.notable_projects] : [],
+    rubric: extractRubric(p.rubric),
   };
 }
 
 function formToRequest(form: FormState): ProfileSaveRequest {
-  let rubric: Record<string, unknown> = {};
-  if (form.rubricText.trim()) {
-    try {
-      rubric = JSON.parse(form.rubricText);
-    } catch {
-      // validation will catch this
-    }
-  }
-
   return {
     role: form.role.trim() || null,
     experience: form.experience.trim() || null,
     rate: form.rate.trim() || null,
-    primary_skills: splitList(form.primarySkills),
-    secondary_skills: splitList(form.secondarySkills),
-    tertiary_skills: splitList(form.tertiarySkills),
-    not_a_good_fit: splitList(form.notAGoodFit),
-    background: form.background
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean),
-    languages: splitList(form.languages),
+    primary_skills: form.primarySkills,
+    secondary_skills: form.secondarySkills,
+    tertiary_skills: form.tertiarySkills,
+    not_a_good_fit: form.notAGoodFit,
+    background: form.background.filter(Boolean),
+    languages: form.languages,
     notable_projects: form.notableProjects.filter(
       (p) => p.name.trim() || p.description.trim(),
     ),
-    rubric,
+    rubric: buildRubric(form.rubric),
   };
 }
 
 function validateForm(form: FormState): string | null {
-  if (form.rubricText.trim()) {
+  if (form.rubric.advanced.trim()) {
     try {
-      JSON.parse(form.rubricText);
+      JSON.parse(form.rubric.advanced);
     } catch {
-      return "Custom rubric must be valid JSON.";
+      return "Advanced rubric JSON is not valid. Fix or clear it before saving.";
     }
+  }
+  const minScore = Number(form.rubric.minScore);
+  if (form.rubric.minScore !== "" && (isNaN(minScore) || minScore < 1 || minScore > 10)) {
+    return "Minimum score must be a number between 1 and 10.";
   }
   return null;
 }
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export function ProfilePage() {
   const { profile, isLoading, error, save, isSaving } = useProfile();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [initialized, setInitialized] = useState(false);
 
-  // Populate form when profile loads
   useEffect(() => {
     if (!initialized && !isLoading) {
       setForm(profile ? profileToForm(profile) : emptyForm());
@@ -129,6 +181,28 @@ export function ProfilePage() {
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function updateRubric<K extends keyof RubricState>(key: K, value: RubricState[K]) {
+    setForm((prev) => ({ ...prev, rubric: { ...prev.rubric, [key]: value } }));
+  }
+
+  function updateBackground(index: number, value: string) {
+    setForm((prev) => ({
+      ...prev,
+      background: prev.background.map((entry, i) => (i === index ? value : entry)),
+    }));
+  }
+
+  function addBackgroundEntry() {
+    setForm((prev) => ({ ...prev, background: [...prev.background, ""] }));
+  }
+
+  function removeBackgroundEntry(index: number) {
+    setForm((prev) => ({
+      ...prev,
+      background: prev.background.filter((_, i) => i !== index),
+    }));
   }
 
   function updateProject(index: number, field: keyof NotableProject, value: string) {
@@ -168,9 +242,7 @@ export function ProfilePage() {
       setForm(profileToForm(result.profile));
       toast.success("Profile saved successfully.");
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to save profile.",
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to save profile.");
     }
   }
 
@@ -242,74 +314,96 @@ export function ProfilePage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Skills</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Used to score job relevance. Primary skills are weighted most heavily.
+          </p>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-1">
             <label className="text-sm font-medium">Primary Skills</label>
             <p className="text-xs text-muted-foreground">
-              Comma-separated. These are weighted most heavily in scoring.
+              Type a skill and press Enter or comma to add. These are weighted most heavily.
             </p>
-            <Textarea
-              placeholder="Unity, C#, AR/VR, Mobile Development"
+            <TagInput
               value={form.primarySkills}
-              onChange={(e) => updateField("primarySkills", e.target.value)}
-              rows={2}
+              onChange={(tags) => updateField("primarySkills", tags)}
+              placeholder="Unity, C#, AR/VR…"
             />
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium">Secondary Skills</label>
-            <p className="text-xs text-muted-foreground">
-              Comma-separated. Scored moderately.
-            </p>
-            <Textarea
-              placeholder="Rust, C++, Backend Architecture"
+            <p className="text-xs text-muted-foreground">Scored moderately.</p>
+            <TagInput
               value={form.secondarySkills}
-              onChange={(e) => updateField("secondarySkills", e.target.value)}
-              rows={2}
+              onChange={(tags) => updateField("secondarySkills", tags)}
+              placeholder="Rust, C++, Backend Architecture…"
             />
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium">Tertiary Skills</label>
-            <p className="text-xs text-muted-foreground">
-              Comma-separated. Scored lightly.
-            </p>
-            <Textarea
-              placeholder="Vue.js, TypeScript, Blender"
+            <p className="text-xs text-muted-foreground">Scored lightly.</p>
+            <TagInput
               value={form.tertiarySkills}
-              onChange={(e) => updateField("tertiarySkills", e.target.value)}
-              rows={2}
+              onChange={(tags) => updateField("tertiarySkills", tags)}
+              placeholder="Vue.js, TypeScript, Blender…"
             />
           </div>
         </CardContent>
       </Card>
 
-      {/* Background & Languages */}
+      {/* Background */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Background</CardTitle>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base">Background</CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Each entry is a job, qualification, or relevant experience.
+              </p>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={addBackgroundEntry}>
+              Add Entry
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Professional Background</label>
-            <p className="text-xs text-muted-foreground">
-              One entry per line (e.g. each job or qualification).
+        <CardContent className="space-y-3">
+          {form.background.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              No entries yet. Add your professional background.
             </p>
-            <Textarea
-              placeholder={"2 years AR & Web Developer at ZAUBAR\n2 years Backend Developer at Intelligent Project\nBSc Computer Science"}
-              value={form.background}
-              onChange={(e) => updateField("background", e.target.value)}
-              rows={4}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Languages</label>
-            <p className="text-xs text-muted-foreground">Comma-separated.</p>
-            <Input
-              placeholder="English, German, Ukrainian"
-              value={form.languages}
-              onChange={(e) => updateField("languages", e.target.value)}
-            />
-          </div>
+          )}
+          {form.background.map((entry, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Input
+                placeholder="e.g. 2 years AR Developer at ZAUBAR"
+                value={entry}
+                onChange={(e) => updateBackground(i, e.target.value)}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => removeBackgroundEntry(i)}
+                className="shrink-0"
+              >
+                Remove
+              </Button>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* Languages */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Languages</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TagInput
+            value={form.languages}
+            onChange={(tags) => updateField("languages", tags)}
+            placeholder="English, German, Ukrainian…"
+          />
         </CardContent>
       </Card>
 
@@ -317,7 +411,12 @@ export function ProfilePage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Notable Projects</CardTitle>
+            <div>
+              <CardTitle className="text-base">Notable Projects</CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Highlighted in the AI evaluation for relevant job matches.
+              </p>
+            </div>
             <Button type="button" variant="outline" size="sm" onClick={addProject}>
               Add Project
             </Button>
@@ -333,12 +432,7 @@ export function ProfilePage() {
             <div key={i} className="space-y-2 rounded-md border p-3">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">Project {i + 1}</label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeProject(i)}
-                >
+                <Button type="button" variant="ghost" size="sm" onClick={() => removeProject(i)}>
                   Remove
                 </Button>
               </div>
@@ -362,41 +456,102 @@ export function ProfilePage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Not a Good Fit For</CardTitle>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Jobs matching these categories will score lower.
+          </p>
         </CardHeader>
         <CardContent>
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">
-              Comma-separated. Jobs matching these will score lower.
-            </p>
-            <Textarea
-              placeholder="Pure frontend, Data science, DevOps-only"
-              value={form.notAGoodFit}
-              onChange={(e) => updateField("notAGoodFit", e.target.value)}
-              rows={2}
-            />
-          </div>
+          <TagInput
+            value={form.notAGoodFit}
+            onChange={(tags) => updateField("notAGoodFit", tags)}
+            placeholder="Pure frontend, Data science, DevOps-only…"
+          />
         </CardContent>
       </Card>
 
-      {/* Custom Rubric */}
+      {/* Scoring Rubric */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Custom Rubric</CardTitle>
+          <CardTitle className="text-base">Scoring Rubric</CardTitle>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Fine-tune how the AI scores jobs. Leave fields empty to use defaults.
+          </p>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-5">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Minimum Score Threshold</label>
+              <p className="text-xs text-muted-foreground">
+                Jobs below this score are flagged. Range: 1–10.
+              </p>
+              <Input
+                type="number"
+                min={1}
+                max={10}
+                placeholder="e.g. 5"
+                value={form.rubric.minScore}
+                onChange={(e) => updateRubric("minScore", e.target.value)}
+                className="w-32"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Prefer Remote</label>
+              <p className="text-xs text-muted-foreground">
+                Score remote-friendly jobs higher.
+              </p>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.rubric.preferRemote}
+                  onChange={(e) => updateRubric("preferRemote", e.target.checked)}
+                  className="h-4 w-4 rounded border-input accent-primary"
+                />
+                <span className="text-sm">Prefer remote positions</span>
+              </label>
+            </div>
+          </div>
+
           <div className="space-y-1">
+            <label className="text-sm font-medium">Priority Keywords</label>
             <p className="text-xs text-muted-foreground">
-              Optional JSON object with custom scoring criteria. Leave empty to
-              use the default rubric.
+              Jobs containing these keywords get a score boost.
             </p>
-            <Textarea
-              placeholder='{"min_score": 5, "prefer_remote": true}'
-              value={form.rubricText}
-              onChange={(e) => updateField("rubricText", e.target.value)}
-              rows={4}
-              className="font-mono text-sm"
+            <TagInput
+              value={form.rubric.priorityKeywords}
+              onChange={(tags) => updateRubric("priorityKeywords", tags)}
+              placeholder="multiplayer, AR, game server…"
             />
           </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Avoid Keywords</label>
+            <p className="text-xs text-muted-foreground">
+              Jobs containing these keywords score lower.
+            </p>
+            <TagInput
+              value={form.rubric.avoidKeywords}
+              onChange={(tags) => updateRubric("avoidKeywords", tags)}
+              placeholder="Unreal, Godot, WordPress…"
+            />
+          </div>
+
+          <Collapsible>
+            <CollapsibleTrigger className="text-sm text-muted-foreground hover:text-foreground cursor-pointer">
+              Advanced: raw JSON ▾
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2 space-y-1">
+              <p className="text-xs text-muted-foreground">
+                Extra rubric fields as JSON. These are merged with the structured fields above (structured fields take precedence on conflict).
+              </p>
+              <Textarea
+                placeholder='{"custom_field": "value"}'
+                value={form.rubric.advanced}
+                onChange={(e) => updateRubric("advanced", e.target.value)}
+                rows={4}
+                className="font-mono text-sm"
+              />
+            </CollapsibleContent>
+          </Collapsible>
         </CardContent>
       </Card>
 

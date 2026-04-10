@@ -66,7 +66,7 @@ export function ResultRow({ result, onStatusChange, isUpdating }: ResultRowProps
                   disabled={isUpdating}
                 >
                   <SelectTrigger size="sm">
-                    <SelectValue>{statusLabels[result.status]}</SelectValue>
+                    <SelectValue>{statusLabels[result.status as ResultStatus] ?? result.status}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {resultStatusValues.map((s) => (
