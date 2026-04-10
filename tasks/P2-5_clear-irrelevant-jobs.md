@@ -2,7 +2,7 @@
 
 - **Phase:** 2 — UX Polish
 - **Priority:** P1 — High
-- **Status:** TODO
+- **Status:** DONE
 - **Depends on:** None
 
 ## Problem
@@ -39,7 +39,7 @@ Should "clear" permanently delete or just set status to `dismissed`? (Defaulting
 
 ## Acceptance Criteria
 
-- [ ] User can dismiss all currently-filtered results in one action
-- [ ] Confirmation dialog prevents accidental bulk dismissal
-- [ ] Results list refreshes after bulk dismiss
-- [ ] Dismissed results can be found by filtering for "Dismissed" status
+- [x] User can dismiss all currently-filtered results in one action
+- [x] Confirmation dialog prevents accidental bulk dismissal
+- [x] Results list refreshes after bulk dismiss
+- [x] Dismissed results can be found by filtering for "Dismissed" status

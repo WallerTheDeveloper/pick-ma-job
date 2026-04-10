@@ -2,7 +2,7 @@
 
 - **Phase:** 2 — UX Polish
 - **Priority:** P1 — High
-- **Status:** TODO
+- **Status:** Done
 - **Depends on:** None
 
 ## Problem
@@ -27,7 +27,7 @@ shadcn `<SelectValue>` renders the selected `value` prop text when no matching `
 
 ## Acceptance Criteria
 
-- [ ] Sort dropdown shows "Score (high -> low)" not `score_desc`
-- [ ] Status dropdown shows "New" / "Applied" / "Dismissed" not raw values
-- [ ] Platform dropdown shows "Upwork" / "LinkedIn" not raw values
-- [ ] Labels are correct both before and after selection
+- [x] Sort dropdown shows "Score (high -> low)" not `score_desc`
+- [x] Status dropdown shows "New" / "Applied" / "Dismissed" not raw values
+- [x] Platform dropdown shows "Upwork" / "LinkedIn" not raw values
+- [x] Labels are correct both before and after selection

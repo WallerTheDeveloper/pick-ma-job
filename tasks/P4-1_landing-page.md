@@ -2,7 +2,7 @@
 
 - **Phase:** 4 — New Features & Visual
 - **Priority:** P3 — Nice to have
-- **Status:** TODO
+- **Status:** Done
 - **Depends on:** P4-2 (visual redesign — should share the same color scheme)
 
 ## Problem
@@ -51,8 +51,8 @@ Content sections:
 
 ## Acceptance Criteria
 
-- [ ] Unauthenticated users see landing page at `/`
-- [ ] Landing page explains the product clearly
-- [ ] "Get Started" / "Sign In" buttons navigate to `/login`
-- [ ] Authenticated users can still access `/dashboard`
-- [ ] All existing internal links and redirects updated
+- [x] Unauthenticated users see landing page at `/`
+- [x] Landing page explains the product clearly
+- [x] "Get Started" / "Sign In" buttons navigate to `/login`
+- [x] Authenticated users can still access `/dashboard`
+- [x] All existing internal links and redirects updated

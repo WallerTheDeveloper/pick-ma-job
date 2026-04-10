@@ -2,7 +2,7 @@
 
 - **Phase:** 4 — New Features & Visual
 - **Priority:** P3 — Nice to have
-- **Status:** TODO
+- **Status:** DONE
 - **Depends on:** None (can start independently, landing page should use the new theme)
 
 ## Problem
@@ -58,10 +58,10 @@ Update CSS custom properties for the shadcn theme:
 
 ## Acceptance Criteria
 
-- [ ] Site has a cohesive color scheme (not just black and white)
-- [ ] Primary brand color used consistently across buttons, links, active states
-- [ ] Sidebar has visual polish (icons, tinted background, active highlighting)
-- [ ] Score badges are color-coded by score range
-- [ ] Cards have shadows and hover effects
-- [ ] Both light and dark modes look good
-- [ ] Overall impression: professional and polished
+- [x] Site has a cohesive color scheme (not just black and white)
+- [x] Primary brand color used consistently across buttons, links, active states
+- [x] Sidebar has visual polish (icons, tinted background, active highlighting)
+- [x] Score badges are color-coded by score range
+- [x] Cards have shadows and hover effects
+- [x] Both light and dark modes look good
+- [x] Overall impression: professional and polished

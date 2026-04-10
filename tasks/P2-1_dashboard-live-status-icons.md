@@ -2,7 +2,7 @@
 
 - **Phase:** 2 — UX Polish
 - **Priority:** P1 — High
-- **Status:** TODO
+- **Status:** DONE
 - **Depends on:** P1-1 (pipeline must work)
 
 ## Problem
@@ -31,8 +31,8 @@ Dashboard shows text "pending"/"completed" status. User must reload the tab to s
 
 ## Acceptance Criteria
 
-- [ ] Running pipeline shows animated spinner icon
-- [ ] Completed pipeline shows green checkmark icon (no reload needed)
-- [ ] Failed pipeline shows red X icon
-- [ ] Recent runs list updates automatically when a run finishes
-- [ ] Dashboard stats (config count, recent runs count) refresh after run completes
+- [x] Running pipeline shows animated spinner icon
+- [x] Completed pipeline shows green checkmark icon (no reload needed)
+- [x] Failed pipeline shows red X icon
+- [x] Recent runs list updates automatically when a run finishes
+- [x] Dashboard stats (config count, recent runs count) refresh after run completes

@@ -2,7 +2,7 @@
 
 - **Phase:** 2 — UX Polish
 - **Priority:** P1 — High
-- **Status:** TODO
+- **Status:** DONE
 - **Depends on:** None
 
 ## Problem
@@ -25,7 +25,7 @@ Result row text (summary, evaluation, flags, scratchpad) stretches horizontally 
 
 ## Acceptance Criteria
 
-- [ ] All expanded text wraps within the card boundary
-- [ ] No horizontal scrollbar appears on the results page
-- [ ] Long URLs in evaluation text wrap instead of overflowing
-- [ ] Formatting (line breaks in scratchpad/evaluation) is preserved
+- [x] All expanded text wraps within the card boundary
+- [x] No horizontal scrollbar appears on the results page
+- [x] Long URLs in evaluation text wrap instead of overflowing
+- [x] Formatting (line breaks in scratchpad/evaluation) is preserved

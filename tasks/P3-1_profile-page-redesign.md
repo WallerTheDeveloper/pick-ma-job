@@ -2,7 +2,7 @@
 
 - **Phase:** 3 — Profile Redesign
 - **Priority:** P2 — Medium
-- **Status:** TODO
+- **Status:** DONE
 - **Depends on:** None
 
 ## Problem
@@ -64,9 +64,9 @@ Replace raw JSON textarea with structured form fields:
 
 ## Acceptance Criteria
 
-- [ ] Skills use tag/chip input instead of comma-separated text
-- [ ] Background uses dynamic list of individual inputs
-- [ ] Rubric has structured form fields (no JSON knowledge needed)
-- [ ] Power users can still access raw JSON via collapsible section
-- [ ] Existing profile data loads correctly into the new form
-- [ ] Saving works with both structured and raw JSON rubric
+- [x] Skills use tag/chip input instead of comma-separated text
+- [x] Background uses dynamic list of individual inputs
+- [x] Rubric has structured form fields (no JSON knowledge needed)
+- [x] Power users can still access raw JSON via collapsible section
+- [x] Existing profile data loads correctly into the new form
+- [x] Saving works with both structured and raw JSON rubric
