@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -17,6 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ScoreBadge } from "@/components/score-badge";
+import { AddToListMenu } from "@/components/add-to-list-menu";
+import { useLists } from "@/hooks/use-lists";
 import { resultStatusValues, type JobResult, type ResultStatus } from "@/types/schemas";
 
 interface ResultRowProps {
@@ -34,12 +37,27 @@ const statusLabels: Record<ResultStatus, string> = {
 export function ResultRow({ result, onStatusChange, isUpdating }: ResultRowProps) {
   const [open, setOpen] = useState(false);
   const evaluation = result.evaluation;
+  const queryClient = useQueryClient();
+  const { addJob, removeJob } = useLists();
+
+  async function handleAddToList(listId: string) {
+    await addJob({ listId, jobResultId: result.id });
+    queryClient.invalidateQueries({ queryKey: ["result-lists", result.id] });
+    queryClient.invalidateQueries({ queryKey: ["lists", "jobs", listId] });
+  }
+
+  async function handleRemoveFromList(listId: string) {
+    await removeJob({ listId, jobResultId: result.id });
+    queryClient.invalidateQueries({ queryKey: ["result-lists", result.id] });
+    queryClient.invalidateQueries({ queryKey: ["lists", "jobs", listId] });
+  }
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <Card className="overflow-hidden">
-        <CollapsibleTrigger className="w-full text-left">
-          <div className="flex items-center gap-3 p-4">
+        <div className="flex items-center gap-3 p-4">
+          {/* Clickable expand/collapse area */}
+          <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-3 text-left">
             <ScoreBadge score={result.score} />
 
             <div className="min-w-0 flex-1">
@@ -54,36 +72,37 @@ export function ResultRow({ result, onStatusChange, isUpdating }: ResultRowProps
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
-              {/* Status dropdown — stop propagation to prevent collapsible toggle */}
-              <div
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => e.stopPropagation()}
-              >
-                <Select
-                  value={result.status}
-                  onValueChange={(val) => onStatusChange(result.id, val as string)}
-                  disabled={isUpdating}
-                >
-                  <SelectTrigger size="sm">
-                    <SelectValue>{statusLabels[result.status as ResultStatus] ?? result.status}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {resultStatusValues.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {statusLabels[s]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <ChevronDownIcon
+              className={`size-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+            />
+          </CollapsibleTrigger>
 
-              <ChevronDownIcon
-                className={`size-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
-              />
-            </div>
+          {/* Interactive controls — outside the trigger to avoid nested buttons */}
+          <div className="flex shrink-0 items-center gap-2">
+            <Select
+              value={result.status}
+              onValueChange={(val) => onStatusChange(result.id, val as string)}
+              disabled={isUpdating}
+            >
+              <SelectTrigger size="sm">
+                <SelectValue>{statusLabels[result.status as ResultStatus] ?? result.status}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {resultStatusValues.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {statusLabels[s]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <AddToListMenu
+              jobResultId={result.id}
+              onAdd={handleAddToList}
+              onRemove={handleRemoveFromList}
+            />
           </div>
-        </CollapsibleTrigger>
+        </div>
 
         <CollapsibleContent>
           <CardContent className="space-y-4 border-t pt-4">

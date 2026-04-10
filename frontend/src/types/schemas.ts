@@ -204,6 +204,28 @@ export const searchConfigCreateResponseSchema = z.object({
 
 export type SearchConfigCreateResponse = z.infer<typeof searchConfigCreateResponseSchema>;
 
+// ── Job Lists ─────────────────────────────────────────────────────────────
+
+export const jobListSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  created_at: z.string(),
+});
+
+export type JobList = z.infer<typeof jobListSchema>;
+
+export const jobListsResponseSchema = z.object({
+  lists: z.array(jobListSchema),
+});
+
+export type JobListsResponse = z.infer<typeof jobListsResponseSchema>;
+
+export const jobListJobsResponseSchema = z.object({
+  jobs: z.array(jobResultSchema),
+});
+
+export type JobListJobsResponse = z.infer<typeof jobListJobsResponseSchema>;
+
 // ── Admin ──────────────────────────────────────────────────────────────────
 
 export const userStatsSchema = z.object({

@@ -19,6 +19,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.routes.api_admin import router as api_admin_router
+from api.routes.api_lists import router as api_lists_router
 from api.routes.api_dashboard import router as api_dashboard_router
 from api.routes.api_pipeline import router as api_pipeline_router
 from api.routes.api_profile import router as api_profile_router
@@ -101,6 +102,7 @@ def create_app() -> FastAPI:
     app.include_router(api_profile_router)
     app.include_router(api_search_config_router)
     app.include_router(api_pipeline_router)
+    app.include_router(api_lists_router)
     app.include_router(api_admin_router)
 
     return app

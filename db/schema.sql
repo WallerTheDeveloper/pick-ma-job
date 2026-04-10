@@ -110,3 +110,21 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_pipeline_runs_user_id ON pipeline_runs(user_id);
+
+-- ── Job Lists ─────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS job_lists (
+    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name       TEXT        NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_lists_user_id ON job_lists(user_id);
+
+CREATE TABLE IF NOT EXISTS job_list_items (
+    list_id       UUID        NOT NULL REFERENCES job_lists(id) ON DELETE CASCADE,
+    job_result_id UUID        NOT NULL REFERENCES job_results(id) ON DELETE CASCADE,
+    added_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (list_id, job_result_id)
+);

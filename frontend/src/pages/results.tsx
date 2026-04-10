@@ -21,7 +21,9 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { ResultRow } from "@/components/result-row";
+import { ListManager } from "@/components/list-manager";
 import { useResults } from "@/hooks/use-results";
+import { useListJobs } from "@/hooks/use-lists";
 import { resultStatusValues, type ResultStatus } from "@/types/schemas";
 
 const statusLabels: Record<string, string> = {
@@ -48,11 +50,13 @@ const platformLabels: Record<string, string> = {
 
 export function ResultsPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [selectedListId, setSelectedListId] = useState<string | null>(null);
+
   const {
-    results,
+    results: allResults,
     pagination,
-    isLoading,
-    error,
+    isLoading: allLoading,
+    error: allError,
     filters,
     updateFilter,
     resetFilters,
@@ -62,13 +66,29 @@ export function ResultsPage() {
     isBulkDismissing,
   } = useResults();
 
+  const { data: listJobsData, isLoading: listLoading } = useListJobs(selectedListId);
+
+  const results = selectedListId !== null ? (listJobsData?.jobs ?? []) : allResults;
+  const isLoading = selectedListId !== null ? listLoading : allLoading;
+  const error = selectedListId !== null ? null : allError;
+
   const hasActiveFilters =
     filters.status !== "" ||
     filters.minScore !== "" ||
     filters.platform !== "";
 
   return (
-    <div className="space-y-6">
+    <div className="flex gap-6">
+      {/* Sidebar — list manager */}
+      <aside className="w-48 shrink-0">
+        <ListManager
+          selectedListId={selectedListId}
+          onSelectList={setSelectedListId}
+        />
+      </aside>
+
+      {/* Main content */}
+      <div className="min-w-0 flex-1 space-y-6">
       <div>
         <h2 className="text-2xl font-semibold">Results</h2>
         <p className="mt-1 text-muted-foreground">
@@ -255,8 +275,8 @@ export function ResultsPage() {
         </div>
       )}
 
-      {/* Pagination */}
-      {pagination && pagination.total_pages > 1 && (
+      {/* Pagination — only shown when viewing all results (not a specific list) */}
+      {selectedListId === null && pagination && pagination.total_pages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             Page {pagination.page} of {pagination.total_pages} ({pagination.total}{" "}
@@ -282,6 +302,7 @@ export function ResultsPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

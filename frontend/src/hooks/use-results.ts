@@ -54,6 +54,7 @@ export function useResults(initialFilters?: Partial<ResultsFilters>) {
       updateResultStatus(resultId, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [RESULTS_KEY] });
+      queryClient.invalidateQueries({ queryKey: ["lists"] });
     },
   });
 
@@ -61,6 +62,7 @@ export function useResults(initialFilters?: Partial<ResultsFilters>) {
     mutationFn: (params: BulkDismissParams) => bulkDismissResults(params),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [RESULTS_KEY] });
+      queryClient.invalidateQueries({ queryKey: ["lists"] });
     },
   });
 

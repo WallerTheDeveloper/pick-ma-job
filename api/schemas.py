@@ -171,6 +171,34 @@ class RunStatusResponse(BaseModel):
     error: str | None = None
 
 
+# ── Job Lists ────────────────────────────────────────────────────────────────
+
+class JobListResponse(BaseModel):
+    id: UUID
+    name: str
+    created_at: datetime
+
+
+class JobListsResponse(BaseModel):
+    lists: list[JobListResponse]
+
+
+class JobListCreateRequest(BaseModel):
+    name: str
+
+
+class JobListRenameRequest(BaseModel):
+    name: str
+
+
+class JobListJobsResponse(BaseModel):
+    jobs: list[JobResultResponse]
+
+
+class AddJobToListRequest(BaseModel):
+    job_result_id: UUID
+
+
 # ── Admin ────────────────────────────────────────────────────────────────────
 
 class UserStatsResponse(BaseModel):

@@ -8,15 +8,17 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.csrf import require_csrf
-from api.deps import get_current_user, get_job_result_repo
+from api.deps import get_current_user, get_job_list_repo, get_job_result_repo
 from api.schemas import (
     BulkDismissRequest,
     BulkDismissResponse,
     JobResultResponse,
+    OkResponse,
     PaginationMeta,
     ResultStatusUpdateRequest,
     ResultsListResponse,
 )
+from repositories.job_list import JobListRepository
 from repositories.job_result import VALID_STATUSES, JobResultRepository
 from repositories.user import UserRow
 
@@ -154,3 +156,18 @@ async def api_bulk_dismiss_results(
         older_than=older_than,
     )
     return BulkDismissResponse(dismissed_count=dismissed_count)
+
+
+class JobResultListsResponse(OkResponse):
+    list_ids: list[str]
+
+
+@router.get("/{result_id}/lists")
+async def api_get_result_lists(
+    result_id: UUID,
+    user: Annotated[UserRow, Depends(get_current_user)],
+    list_repo: Annotated[JobListRepository, Depends(get_job_list_repo)],
+) -> JobResultListsResponse:
+    """Return the list IDs that contain this job result for the current user."""
+    list_ids = await list_repo.get_list_ids_for_job(result_id, user.id)
+    return JobResultListsResponse(list_ids=[str(lid) for lid in list_ids])

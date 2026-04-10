@@ -6,6 +6,7 @@ from typing import Annotated
 import asyncpg
 from fastapi import Depends, HTTPException, Request, status
 
+from repositories.job_list import JobListRepository
 from repositories.job_result import JobResultRepository
 from repositories.magic_link import MagicLinkRepository
 from repositories.profile import ProfileRepository
@@ -75,6 +76,13 @@ async def get_job_result_repo(
 ) -> JobResultRepository:
     """Construct a JobResultRepository with a per-request pool."""
     return JobResultRepository(pool)
+
+
+async def get_job_list_repo(
+    pool: Annotated[asyncpg.Pool, Depends(get_db_pool)],
+) -> JobListRepository:
+    """Construct a JobListRepository with a per-request pool."""
+    return JobListRepository(pool)
 
 
 async def get_run_manager(request: Request) -> RunManager:
