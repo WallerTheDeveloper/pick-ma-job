@@ -37,7 +37,7 @@ export function ResultRow({ result, onStatusChange, isUpdating }: ResultRowProps
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <Card>
+      <Card className="overflow-hidden">
         <CollapsibleTrigger className="w-full text-left">
           <div className="flex items-center gap-3 p-4">
             <ScoreBadge score={result.score} />
@@ -66,7 +66,7 @@ export function ResultRow({ result, onStatusChange, isUpdating }: ResultRowProps
                   disabled={isUpdating}
                 >
                   <SelectTrigger size="sm">
-                    <SelectValue />
+                    <SelectValue>{statusLabels[result.status]}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {resultStatusValues.map((s) => (
@@ -93,7 +93,7 @@ export function ResultRow({ result, onStatusChange, isUpdating }: ResultRowProps
                 <h4 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
                   Summary
                 </h4>
-                <p className="text-sm">{evaluation.summary}</p>
+                <p className="text-sm break-words">{evaluation.summary}</p>
               </div>
             )}
 
@@ -103,7 +103,7 @@ export function ResultRow({ result, onStatusChange, isUpdating }: ResultRowProps
                 <h4 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
                   Evaluation
                 </h4>
-                <p className="text-sm whitespace-pre-wrap">{evaluation.evaluation}</p>
+                <p className="text-sm whitespace-pre-wrap break-words">{evaluation.evaluation}</p>
               </div>
             )}
 
@@ -113,7 +113,7 @@ export function ResultRow({ result, onStatusChange, isUpdating }: ResultRowProps
                 <h4 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
                   Flags
                 </h4>
-                <p className="text-sm">{evaluation.flags}</p>
+                <p className="text-sm break-words">{evaluation.flags}</p>
               </div>
             )}
 
@@ -123,7 +123,7 @@ export function ResultRow({ result, onStatusChange, isUpdating }: ResultRowProps
                 <h4 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
                   Scratchpad
                 </h4>
-                <p className="text-sm whitespace-pre-wrap text-muted-foreground">
+                <p className="text-sm whitespace-pre-wrap break-words text-muted-foreground">
                   {evaluation.scratchpad}
                 </p>
               </div>
