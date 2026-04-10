@@ -89,8 +89,9 @@ class PipelineService:
         """
         profile = await self._profile_repo.find_by_user_id(user_id)
         if profile is None:
+            logger.warning("Pipeline blocked: no profile for user_id=%s", user_id)
             raise PipelineError(
-                "Profile not configured. Please set up your profile before running the pipeline."
+                "Please complete your profile before running the pipeline."
             )
 
         if platform is not None:

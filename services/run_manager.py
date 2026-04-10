@@ -160,7 +160,7 @@ class RunManager:
                 len(result.errors),
             )
         except Exception as exc:
-            logger.error("Run %s failed: %s", run_id, exc, exc_info=True)
+            logger.error("Run %s failed (user_id=%s): %s", run_id, user_id, exc, exc_info=True)
             completed_at = datetime.now(timezone.utc)
             self._update(
                 run_id,

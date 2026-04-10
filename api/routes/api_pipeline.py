@@ -44,7 +44,7 @@ async def api_start_run(
     if profile is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Profile not configured. Please set up your profile before running the pipeline.",
+            detail="Please complete your profile before running the pipeline.",
         )
 
     if platform is not None:
