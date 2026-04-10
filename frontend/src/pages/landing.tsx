@@ -1,5 +1,6 @@
 import { Link } from "react-router";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export function LandingPage() {
   return (
@@ -7,9 +8,7 @@ export function LandingPage() {
       {/* Top navbar */}
       <header className="border-b border-border px-6 py-4 flex items-center justify-between">
         <span className="text-lg font-semibold tracking-tight">Pick Ma Job</span>
-        <Button asChild size="sm">
-          <Link to="/login">Sign In</Link>
-        </Button>
+        <Link to="/login" className={cn(buttonVariants({ size: "sm" }))}>Sign In</Link>
       </header>
 
       <main>
@@ -22,9 +21,7 @@ export function LandingPage() {
             Pick Ma Job scrapes Upwork and LinkedIn, then uses Claude AI to score
             each posting against your profile — so you only see jobs worth your time.
           </p>
-          <Button asChild size="lg">
-            <Link to="/login">Get Started</Link>
-          </Button>
+          <Link to="/login" className={cn(buttonVariants({ size: "lg" }))}>Get Started</Link>
         </section>
 
         {/* How it works */}
