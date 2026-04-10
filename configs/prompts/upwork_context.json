@@ -4,7 +4,7 @@
     "Upwork jobs include client payment verification status — treat unverified payment as a red flag.",
     "The 'proposals' count indicates competition level — fewer proposals on AR/VR or Rust roles is a positive signal.",
     "Budget can be fixed-price or hourly. Flag budgets below €10/hour or suspiciously low fixed prices for the scope.",
-    "Client rating (job success score) above 90% is a green flag; below 70% or absent is a yellow/red flag.",
+    "Client rating is on a 1–5 scale (5 is the maximum). A rating of 4.5–5/5 is a green flag; below 4/5 or absent is a yellow/red flag.",
     "Client location matters for timezone overlap — prefer EU/US clients for Danylo in Berlin.",
     "Upwork-specific red flags: spec work, test tasks without pay, vague 'we'll discuss' budgets, milestone-heavy low-trust setups."
   ],
@@ -12,5 +12,5 @@
     "title", "description", "budget", "job_type", "experience_level",
     "skills", "client_rating", "client_location", "proposals", "url"
   ],
-  "user_message_template": "Job Title: {title}\n\nDescription:\n{description}\n\nBudget: {budget}\nJob Type: {job_type}\nExperience Level: {experience_level}\nRequired Skills: {skills}\nClient Rating: {client_rating}\nClient Location: {client_location}\nProposals So Far: {proposals}\nURL: {url}\n\nEvaluate this job posting for the developer profile provided. Return a raw JSON object only."
+  "user_message_template": "Job Title: {title}\n\nDescription:\n{description}\n\nBudget: {budget}\nJob Type: {job_type}\nExperience Level: {experience_level}\nRequired Skills: {skills}\nClient Rating: {client_rating}/5\nClient Location: {client_location}\nProposals So Far: {proposals}\nURL: {url}\n\nEvaluate this job posting for the developer profile provided. Return a raw JSON object only."
 }
