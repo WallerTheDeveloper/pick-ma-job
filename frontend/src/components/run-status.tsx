@@ -1,38 +1,59 @@
 /** Pipeline run status display — shows progress and result summary. */
 
+import { Loader2, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import type { RunStatusResponse } from "@/types/schemas";
 
 interface RunStatusProps {
   run: RunStatusResponse;
 }
 
-const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  pending: { label: "Pending", variant: "outline" },
-  running: { label: "Running", variant: "default" },
-  completed: { label: "Completed", variant: "secondary" },
-  failed: { label: "Failed", variant: "destructive" },
-};
+function StatusIcon({ status }: { status: string }) {
+  switch (status) {
+    case "pending":
+      return <Clock className="h-4 w-4 text-muted-foreground" />;
+    case "running":
+      return <Loader2 className="h-4 w-4 animate-spin text-primary" />;
+    case "completed":
+      return <CheckCircle2 className="h-4 w-4 text-green-600" />;
+    case "failed":
+      return <XCircle className="h-4 w-4 text-destructive" />;
+    default:
+      return <Clock className="h-4 w-4 text-muted-foreground" />;
+  }
+}
 
 export function RunStatus({ run }: RunStatusProps) {
-  const config = statusConfig[run.status] ?? { label: run.status, variant: "outline" as const };
-
   return (
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium">Pipeline Run</CardTitle>
-          <Badge variant={config.variant}>{config.label}</Badge>
+          <div className="flex items-center gap-1.5">
+            <StatusIcon status={run.status} />
+            <span className="text-sm text-muted-foreground">
+              {run.status.charAt(0).toUpperCase() + run.status.slice(1)}
+            </span>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-2 text-sm">
         {(run.status === "pending" || run.status === "running") && (
-          <p className="text-muted-foreground">
-            {run.status === "pending"
-              ? "Waiting to start..."
-              : "Scraping and evaluating jobs..."}
-          </p>
+          <>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+              <span>
+                {run.status === "pending"
+                  ? "Waiting to start..."
+                  : "Scraping and evaluating jobs..."}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-1 animate-pulse">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="h-4 rounded bg-muted" />
+              ))}
+            </div>
+          </>
         )}
 
         {run.status === "completed" && run.result && (

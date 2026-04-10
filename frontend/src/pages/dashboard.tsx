@@ -1,12 +1,28 @@
 /** Dashboard page — welcome, stats, pipeline trigger, run status. */
 
 import { useQuery } from "@tanstack/react-query";
+import { Loader2, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { fetchDashboard } from "@/api/dashboard";
 import { useRun } from "@/hooks/use-run";
 import { RunStatus } from "@/components/run-status";
 import type { DashboardResponse } from "@/types/schemas";
+
+function RunStatusIcon({ status }: { status: string }) {
+  switch (status) {
+    case "pending":
+      return <Clock className="h-4 w-4 text-muted-foreground" />;
+    case "running":
+      return <Loader2 className="h-4 w-4 animate-spin text-primary" />;
+    case "completed":
+      return <CheckCircle2 className="h-4 w-4 text-green-600" />;
+    case "failed":
+      return <XCircle className="h-4 w-4 text-destructive" />;
+    default:
+      return <Clock className="h-4 w-4 text-muted-foreground" />;
+  }
+}
 
 export function DashboardPage() {
   const { data, isLoading, error } = useQuery<DashboardResponse>({
@@ -88,7 +104,14 @@ export function DashboardPage() {
             onClick={() => startRun()}
             disabled={!canRun || isRunning || startStatus === "pending"}
           >
-            {isRunning ? "Running..." : "Run Pipeline"}
+            {isRunning ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Running...
+              </>
+            ) : (
+              "Run Pipeline"
+            )}
           </Button>
           {!canRun && (
             <p className="text-sm text-muted-foreground">
@@ -121,17 +144,7 @@ export function DashboardPage() {
                   <span className="text-muted-foreground">
                     {new Date(run.started_at).toLocaleString()}
                   </span>
-                  <span
-                    className={
-                      run.status === "completed"
-                        ? "text-green-600"
-                        : run.status === "failed"
-                          ? "text-destructive"
-                          : "text-muted-foreground"
-                    }
-                  >
-                    {run.status}
-                  </span>
+                  <RunStatusIcon status={run.status} />
                 </div>
               </Card>
             ))}
