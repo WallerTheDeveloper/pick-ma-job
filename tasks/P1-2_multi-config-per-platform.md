@@ -2,7 +2,7 @@
 
 - **Phase:** 1 — Critical Bugs
 - **Priority:** P0 — Blocking
-- **Status:** TODO
+- **Status:** Done
 - **Depends on:** None
 
 ## Problem
@@ -44,7 +44,7 @@ Users cannot add two search configs for the same platform with different queries
 
 ## Acceptance Criteria
 
-- [ ] User can create multiple configs for the same platform
-- [ ] Each config has a different query/filters
-- [ ] Pipeline runs all configs for a platform, not just one
-- [ ] Deleting one config does not affect others
+- [x] User can create multiple configs for the same platform
+- [x] Each config has a different query/filters
+- [x] Pipeline runs all configs for a platform, not just one
+- [x] Deleting one config does not affect others

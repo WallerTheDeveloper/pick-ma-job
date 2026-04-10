@@ -53,7 +53,7 @@ async def api_create_search_config(
     _csrf: Annotated[None, Depends(require_csrf)],
     svc: Annotated[SearchConfigService, Depends(get_search_config_service)],
 ) -> SearchConfigCreateResponse:
-    """Create or update a search config for the given platform."""
+    """Create a new search config for the given platform."""
     data = SearchConfigData(
         platform=body.platform,
         query=body.query.strip() if body.query else None,
@@ -61,7 +61,7 @@ async def api_create_search_config(
     )
 
     try:
-        row = await svc.upsert(user.id, data)
+        row = await svc.create(user.id, data)
     except SearchConfigError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

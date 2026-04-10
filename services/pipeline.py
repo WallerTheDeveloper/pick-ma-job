@@ -94,8 +94,7 @@ class PipelineService:
             )
 
         if platform is not None:
-            row = await self._search_config_repo.find_by_user_and_platform(user_id, platform)
-            search_configs: list[SearchConfigRow] = [row] if row else []
+            search_configs: list[SearchConfigRow] = await self._search_config_repo.find_by_user_and_platform(user_id, platform)
         else:
             search_configs = await self._search_config_repo.find_by_user_id(user_id)
 

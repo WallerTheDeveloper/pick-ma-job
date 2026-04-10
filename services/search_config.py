@@ -33,20 +33,20 @@ class SearchConfigService:
         """Return all search configs for a user."""
         return await self._repo.find_by_user_id(user_id)
 
-    async def get_by_platform(self, user_id: UUID, platform: str) -> SearchConfigRow | None:
-        """Return the config for a specific platform, or None."""
+    async def get_by_platform(self, user_id: UUID, platform: str) -> list[SearchConfigRow]:
+        """Return all configs for a specific platform."""
         return await self._repo.find_by_user_and_platform(user_id, platform)
 
-    async def upsert(self, user_id: UUID, data: SearchConfigData) -> SearchConfigRow:
-        """Validate and upsert a search config. Raises SearchConfigError on invalid input."""
+    async def create(self, user_id: UUID, data: SearchConfigData) -> SearchConfigRow:
+        """Validate and create a search config. Raises SearchConfigError on invalid input."""
         _validate(data)
-        row = await self._repo.upsert(
+        row = await self._repo.create(
             user_id=user_id,
             platform=data.platform,
             query=data.query or None,
             filters=data.filters,
         )
-        logger.info("Search config upserted user_id=%s platform=%s", user_id, data.platform)
+        logger.info("Search config created user_id=%s platform=%s", user_id, data.platform)
         return row
 
     async def delete(self, config_id: UUID, user_id: UUID) -> bool:

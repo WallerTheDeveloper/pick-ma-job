@@ -51,37 +51,34 @@ class SearchConfigRepository:
 
     async def find_by_user_and_platform(
         self, user_id: UUID, platform: str
-    ) -> SearchConfigRow | None:
-        """Return the search config for a specific user + platform, or None."""
+    ) -> list[SearchConfigRow]:
+        """Return all search configs for a specific user + platform."""
         async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(
+            rows = await conn.fetch(
                 """
                 SELECT id, user_id, platform, query, filters, updated_at
                 FROM search_configs
                 WHERE user_id = $1 AND platform = $2
+                ORDER BY updated_at
                 """,
                 user_id,
                 platform,
             )
-        return _row_to_search_config(row) if row else None
+        return [_row_to_search_config(r) for r in rows]
 
-    async def upsert(
+    async def create(
         self,
         user_id: UUID,
         platform: str,
         query: str | None,
         filters: dict,
     ) -> SearchConfigRow:
-        """Insert or update the config for user + platform. Returns the resulting row."""
+        """Insert a new search config. Returns the inserted row."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
                 INSERT INTO search_configs (user_id, platform, query, filters, updated_at)
                 VALUES ($1, $2, $3, $4::jsonb, now())
-                ON CONFLICT (user_id, platform) DO UPDATE SET
-                    query      = EXCLUDED.query,
-                    filters    = EXCLUDED.filters,
-                    updated_at = now()
                 RETURNING id, user_id, platform, query, filters, updated_at
                 """,
                 user_id,
@@ -89,7 +86,7 @@ class SearchConfigRepository:
                 query,
                 filters,
             )
-        logger.debug("Upserted search config user_id=%s platform=%s", user_id, platform)
+        logger.debug("Created search config user_id=%s platform=%s", user_id, platform)
         return _row_to_search_config(row)
 
     async def delete(self, config_id: UUID, user_id: UUID) -> bool:

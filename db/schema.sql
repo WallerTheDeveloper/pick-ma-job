@@ -71,8 +71,7 @@ CREATE TABLE IF NOT EXISTS search_configs (
     platform   TEXT        NOT NULL,
     query      TEXT,
     filters    JSONB       NOT NULL DEFAULT '{}',
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (user_id, platform)
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_search_configs_user_id ON search_configs(user_id);
