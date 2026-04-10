@@ -1,7 +1,7 @@
 /** Dashboard page — welcome, stats, pipeline trigger, run status. */
 
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Clock, Play, UserCircle, Settings2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { fetchDashboard } from "@/api/dashboard";
@@ -61,9 +61,10 @@ export function DashboardPage() {
 
       {/* Quick stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Card>
+        <Card className="shadow-sm transition-shadow hover:shadow-md">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <UserCircle className="h-4 w-4" />
               Profile
             </CardTitle>
           </CardHeader>
@@ -74,9 +75,10 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-sm transition-shadow hover:shadow-md">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <Settings2 className="h-4 w-4" />
               Search Configs
             </CardTitle>
           </CardHeader>
@@ -85,9 +87,10 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-sm transition-shadow hover:shadow-md">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <Clock className="h-4 w-4" />
               Recent Runs
             </CardTitle>
           </CardHeader>
@@ -110,7 +113,10 @@ export function DashboardPage() {
                 Running...
               </>
             ) : (
-              "Run Pipeline"
+              <>
+                <Play className="mr-2 h-4 w-4" />
+                Run Pipeline
+              </>
             )}
           </Button>
           {!canRun && (
@@ -139,7 +145,7 @@ export function DashboardPage() {
           </h3>
           <div className="space-y-2">
             {data.recent_runs.map((run) => (
-              <Card key={run.id} className="p-3">
+              <Card key={run.id} className="p-3 shadow-sm">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">
                     {new Date(run.started_at).toLocaleString()}

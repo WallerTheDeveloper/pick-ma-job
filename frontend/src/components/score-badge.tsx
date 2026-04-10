@@ -7,10 +7,8 @@ interface ScoreBadgeProps {
 }
 
 function getScoreColor(score: number): string {
-  if (score >= 9) return "bg-green-600 text-white";
-  if (score >= 7) return "bg-blue-600 text-white";
-  if (score >= 5) return "bg-yellow-500 text-black";
-  if (score >= 3) return "bg-orange-500 text-white";
+  if (score >= 7) return "bg-green-600 text-white";
+  if (score >= 4) return "bg-yellow-500 text-black";
   return "bg-red-600 text-white";
 }
 
