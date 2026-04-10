@@ -7,11 +7,17 @@ Prompt assembly merges:
 
 Claude is expected to return a raw JSON object (no markdown fences). If it
 doesn't, a single retry is attempted after stripping backtick fences.
+
+Two-pass evaluation:
+- Pass 1 (score only): lightweight prompt → single integer 1–10
+- Pass 2 (full eval): only if Pass 1 score ≥ SCORE_THRESHOLD
+Jobs below the threshold are stored with their score and null evaluation fields.
 """
 
 import json
 import logging
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from typing import Any
 
 import anthropic
@@ -20,40 +26,53 @@ from scrapers.base import NormalizedJob
 
 logger = logging.getLogger(__name__)
 
+SCORE_THRESHOLD = 5  # Jobs scoring below this skip the full evaluation pass
+
 
 @dataclass(frozen=True)
 class EvaluationResult:
     """Structured result from a Claude evaluation.
 
+    For jobs that score below ``SCORE_THRESHOLD`` in Pass 1, only
+    ``relevancy_score`` and ``raw`` are populated; all other fields are None.
+
     Attributes:
-        scratchpad: Internal step-by-step reasoning (not displayed).
-        evaluation: Detailed explanation of job relevance.
         relevancy_score: Integer 1–10.
-        recommendation: Apply / Consider / Do not apply + justification.
-        flags: Comma-separated red/green flags.
-        summary: One-sentence job-fit summary.
+        scratchpad: Internal step-by-step reasoning (not displayed). None for low-score jobs.
+        evaluation: Detailed explanation of job relevance. None for low-score jobs.
+        recommendation: Apply / Consider / Do not apply + justification. None for low-score jobs.
+        flags: Comma-separated red/green flags. None for low-score jobs.
+        summary: One-sentence job-fit summary. None for low-score jobs.
         raw: The original parsed dict from Claude (defensive copy).
     """
 
-    scratchpad: str
-    evaluation: str
     relevancy_score: int
-    recommendation: str
-    flags: str
-    summary: str
-    raw: dict
+    scratchpad: str | None = None
+    evaluation: str | None = None
+    recommendation: str | None = None
+    flags: str | None = None
+    summary: str | None = None
+    raw: dict = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "EvaluationResult":
-        """Build an EvaluationResult from Claude's parsed JSON response."""
+        """Build a full EvaluationResult from Claude's parsed JSON response."""
         return cls(
-            scratchpad=raw.get("scratchpad", ""),
-            evaluation=raw.get("evaluation", ""),
             relevancy_score=int(raw.get("relevancy_score", 0)),
-            recommendation=raw.get("recommendation", ""),
-            flags=raw.get("flags", ""),
-            summary=raw.get("summary", ""),
+            scratchpad=raw.get("scratchpad"),
+            evaluation=raw.get("evaluation"),
+            recommendation=raw.get("recommendation"),
+            flags=raw.get("flags"),
+            summary=raw.get("summary"),
             raw=dict(raw),
+        )
+
+    @classmethod
+    def from_score(cls, score: int) -> "EvaluationResult":
+        """Build a score-only result for jobs that failed the Pass 1 threshold."""
+        return cls(
+            relevancy_score=score,
+            raw={"relevancy_score": score},
         )
 
 
@@ -82,22 +101,37 @@ class Evaluator:
         job: NormalizedJob,
         platform_context: dict,
     ) -> EvaluationResult:
-        """Evaluate a single job and return a structured result.
+        """Evaluate a single job using a two-pass approach.
 
-        Assembles the system prompt from base_profile + platform_context,
-        builds the user message using the platform's template, calls Claude
-        Haiku at temperature 0, and parses the JSON response.
+        Pass 1 — lightweight score prompt: returns a single integer 1–10.
+        Pass 2 — full evaluation: only runs if Pass 1 score ≥ SCORE_THRESHOLD.
+
+        Jobs below the threshold return an ``EvaluationResult`` with only the
+        score populated (all other fields are None).
 
         Args:
             job: The normalized job to evaluate.
             platform_context: Loaded ``configs/prompts/<platform>_context.json``.
 
         Returns:
-            An ``EvaluationResult`` with all Claude response fields populated.
+            An ``EvaluationResult`` — fully populated for high-score jobs,
+            score-only for low-score jobs.
 
         Raises:
-            ValueError: If Claude returns invalid JSON after one retry.
+            ValueError: If Claude returns invalid JSON after one retry (Pass 2 only).
         """
+        score = await self._call_score(job)
+        logger.debug("Pass 1 score=%d for job '%s'", score, job.title)
+
+        if score < SCORE_THRESHOLD:
+            logger.info(
+                "Low score (%d < %d) — skipping full evaluation for '%s'",
+                score,
+                SCORE_THRESHOLD,
+                job.title,
+            )
+            return EvaluationResult.from_score(score)
+
         system_prompt = self._assemble_system_prompt(platform_context)
         user_message = self._assemble_user_message(job, platform_context)
 
@@ -112,6 +146,67 @@ class Evaluator:
         content = response.content[0].text
         raw = self._parse_response(content)
         return EvaluationResult.from_dict(raw)
+
+    async def _call_score(self, job: NormalizedJob) -> int:
+        """Pass 1: send a lightweight prompt and return a relevancy score 1–10.
+
+        Args:
+            job: The job to score.
+
+        Returns:
+            An integer between 1 and 10 (inclusive). Falls back to
+            ``SCORE_THRESHOLD`` if Claude returns an unparseable response.
+        """
+        system_prompt = self._build_score_system_prompt()
+        user_message = f"Job Title: {job.title}\n\nDescription:\n{job.description}"
+
+        response = await self._client.messages.create(
+            model=self._model,
+            max_tokens=16,
+            temperature=self._temperature,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_message}],
+        )
+        return self._parse_score(response.content[0].text)
+
+    def _build_score_system_prompt(self) -> str:
+        """Build the concise system prompt used for Pass 1 scoring."""
+        developer = self._base_profile.get("developer", {})
+        role = developer.get("role", "")
+        experience = developer.get("experience", "")
+        primary_skills = ", ".join(self._base_profile.get("skills", {}).get("primary", []))
+        not_a_good_fit = ", ".join(self._base_profile.get("not_a_good_fit", []))
+        return (
+            "You are a job-fit screener. Rate the relevance of the job posting "
+            "to the developer profile below on a scale of 1 to 10. Respond with "
+            "ONLY a single integer between 1 and 10 — no explanation, no other text.\n\n"
+            f"Developer: {role} ({experience})\n"
+            f"Primary skills: {primary_skills}\n"
+            f"Not a good fit for: {not_a_good_fit}"
+        )
+
+    def _parse_score(self, content: str) -> int:
+        """Parse a 1–10 integer from Claude's Pass 1 response.
+
+        Tries a direct integer parse first, then falls back to regex extraction.
+        Returns ``SCORE_THRESHOLD`` (conservative) if parsing fails entirely.
+        """
+        stripped = content.strip()
+        try:
+            return max(1, min(10, int(stripped)))
+        except ValueError:
+            pass
+
+        match = re.search(r"\b(10|[1-9])\b", stripped)
+        if match:
+            return int(match.group(1))
+
+        logger.warning(
+            "Could not parse score from Pass 1 response: %r — defaulting to %d",
+            content,
+            SCORE_THRESHOLD,
+        )
+        return SCORE_THRESHOLD
 
     def _assemble_system_prompt(self, platform_context: dict) -> str:
         """Merge base_profile and platform_context into a system prompt string."""

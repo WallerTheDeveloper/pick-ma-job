@@ -37,6 +37,7 @@ class PipelineRunResult:
     jobs_found: int
     jobs_skipped_dedup: int
     jobs_skipped_filter: int
+    jobs_skipped_low_score: int
     jobs_evaluated: int
     jobs_stored: int
     errors: tuple[str, ...]
@@ -112,6 +113,7 @@ class PipelineService:
             "jobs_found": 0,
             "jobs_skipped_dedup": 0,
             "jobs_skipped_filter": 0,
+            "jobs_skipped_low_score": 0,
             "jobs_evaluated": 0,
             "jobs_stored": 0,
         }
@@ -130,6 +132,7 @@ class PipelineService:
             jobs_found=totals["jobs_found"],
             jobs_skipped_dedup=totals["jobs_skipped_dedup"],
             jobs_skipped_filter=totals["jobs_skipped_filter"],
+            jobs_skipped_low_score=totals["jobs_skipped_low_score"],
             jobs_evaluated=totals["jobs_evaluated"],
             jobs_stored=totals["jobs_stored"],
             errors=tuple(errors),
@@ -195,7 +198,10 @@ class PipelineService:
                 errors.append(msg)
                 continue
 
-            totals["jobs_evaluated"] += 1
+            if result.evaluation is None:
+                totals["jobs_skipped_low_score"] += 1
+            else:
+                totals["jobs_evaluated"] += 1
 
             try:
                 stored = await self._job_result_repo.insert(
@@ -205,7 +211,7 @@ class PipelineService:
                     title=job.title,
                     url=job.url,
                     score=result.relevancy_score,
-                    evaluation=result.raw,
+                    evaluation=result.raw if result.evaluation is not None else None,
                 )
                 if stored is not None:
                     totals["jobs_stored"] += 1
@@ -215,11 +221,12 @@ class PipelineService:
                 errors.append(msg)
 
         logger.info(
-            "Pipeline done: platform=%s found=%d dedup=%d filter=%d evaluated=%d stored=%d",
+            "Pipeline done: platform=%s found=%d dedup=%d filter=%d low_score=%d evaluated=%d stored=%d",
             platform,
             totals["jobs_found"],
             totals["jobs_skipped_dedup"],
             totals["jobs_skipped_filter"],
+            totals["jobs_skipped_low_score"],
             totals["jobs_evaluated"],
             totals["jobs_stored"],
         )
