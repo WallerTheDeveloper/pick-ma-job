@@ -35,3 +35,23 @@ export async function updateResultStatus(
     body: { status },
   });
 }
+
+export interface BulkDismissParams {
+  older_than_days?: number;
+  status?: string;
+  platform?: string;
+  max_score?: number;
+}
+
+export interface BulkDismissResult {
+  dismissed_count: number;
+}
+
+export async function bulkDismissResults(
+  params: BulkDismissParams,
+): Promise<BulkDismissResult> {
+  return api<BulkDismissResult>("/api/results/bulk-dismiss", {
+    method: "POST",
+    body: params,
+  });
+}

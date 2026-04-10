@@ -167,6 +167,54 @@ class JobResultRepository:
             )
         return _row_to_job_result(row) if row is not None else None
 
+    async def bulk_update_status(
+        self,
+        user_id: UUID,
+        new_status: str,
+        current_status: str | None = None,
+        platform: str | None = None,
+        max_score: int | None = None,
+        older_than: datetime | None = None,
+    ) -> int:
+        """Set all matching results to new_status. Returns the number of rows updated."""
+        if new_status not in VALID_STATUSES:
+            raise ValueError(f"Invalid status '{new_status}'. Must be one of: {VALID_STATUSES}")
+
+        # $1 = new_status, $2 = user_id, remaining params start at $3
+        params: list = [new_status, user_id]
+        conditions = ["user_id = $2"]
+        idx = 3
+
+        if current_status is not None:
+            conditions.append(f"status = ${idx}")
+            params.append(current_status)
+            idx += 1
+
+        if platform is not None:
+            conditions.append(f"platform = ${idx}")
+            params.append(platform)
+            idx += 1
+
+        if max_score is not None:
+            conditions.append(f"score <= ${idx}")
+            params.append(max_score)
+            idx += 1
+
+        if older_than is not None:
+            conditions.append(f"created_at < ${idx}")
+            params.append(older_than)
+            idx += 1
+
+        where = " AND ".join(conditions)
+        async with self._pool.acquire() as conn:
+            result = await conn.execute(
+                f"UPDATE job_results SET status = $1 WHERE {where}",
+                *params,
+            )
+        updated_count = int(result.split()[-1])
+        logger.debug("Bulk updated %d results for user_id=%s to status=%s", updated_count, user_id, new_status)
+        return updated_count
+
     async def count_by_user(
         self,
         user_id: UUID,

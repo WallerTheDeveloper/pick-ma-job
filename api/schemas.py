@@ -76,6 +76,17 @@ class ResultStatusUpdateRequest(BaseModel):
     status: str
 
 
+class BulkDismissRequest(BaseModel):
+    older_than_days: int | None = None
+    status: str | None = None
+    platform: str | None = None
+    max_score: int | None = None
+
+
+class BulkDismissResponse(BaseModel):
+    dismissed_count: int
+
+
 # ── Profile ──────────────────────────────────────────────────────────────────
 
 class NotableProject(BaseModel):

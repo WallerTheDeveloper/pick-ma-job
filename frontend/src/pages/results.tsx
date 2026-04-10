@@ -1,5 +1,6 @@
 /** Results page — filter, sort, paginate, and manage job evaluation results. */
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -9,6 +10,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { ResultRow } from "@/components/result-row";
 import { useResults } from "@/hooks/use-results";
 import { resultStatusValues, type ResultStatus } from "@/types/schemas";
@@ -36,6 +47,7 @@ const platformLabels: Record<string, string> = {
 };
 
 export function ResultsPage() {
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const {
     results,
     pagination,
@@ -46,6 +58,8 @@ export function ResultsPage() {
     resetFilters,
     updateStatus,
     isUpdatingStatus,
+    bulkDismiss,
+    isBulkDismissing,
   } = useResults();
 
   const hasActiveFilters =
@@ -74,7 +88,9 @@ export function ResultsPage() {
             onValueChange={(val) => updateFilter("status", val as string)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="All statuses" />
+              <SelectValue>
+                {(value) => statusLabels[value as string] ?? "All statuses"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="">All statuses</SelectItem>
@@ -97,7 +113,9 @@ export function ResultsPage() {
             onValueChange={(val) => updateFilter("platform", val as string)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="All platforms" />
+              <SelectValue>
+                {(value) => platformLabels[value as string] ?? "All platforms"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {platformOptions.map((p) => (
@@ -135,7 +153,9 @@ export function ResultsPage() {
             onValueChange={(val) => updateFilter("sort", val as string)}
           >
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue>
+                {(value) => sortLabels[value as string] ?? String(value)}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {Object.entries(sortLabels).map(([key, label]) => (
@@ -152,6 +172,48 @@ export function ResultsPage() {
           <Button variant="ghost" size="sm" onClick={resetFilters}>
             Clear filters
           </Button>
+        )}
+
+        {/* Bulk dismiss */}
+        {results.length > 0 && (
+          <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+            <DialogTrigger render={
+              <Button variant="outline" size="sm">
+                Dismiss all filtered
+              </Button>
+            } />
+            <DialogContent showCloseButton={false}>
+              <DialogHeader>
+                <DialogTitle>Dismiss all filtered results?</DialogTitle>
+                <DialogDescription>
+                  This will mark all{" "}
+                  {pagination ? pagination.total : results.length} currently
+                  filtered result{pagination && pagination.total !== 1 ? "s" : ""}{" "}
+                  as dismissed. You can find them later by filtering for
+                  "Dismissed" status.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose render={<Button variant="outline">Cancel</Button>} />
+                <Button
+                  variant="destructive"
+                  disabled={isBulkDismissing}
+                  onClick={async () => {
+                    await bulkDismiss({
+                      ...(filters.status && { status: filters.status }),
+                      ...(filters.platform && { platform: filters.platform }),
+                      ...(filters.minScore && {
+                        max_score: Number(filters.minScore),
+                      }),
+                    });
+                    setConfirmOpen(false);
+                  }}
+                >
+                  {isBulkDismissing ? "Dismissing..." : "Dismiss all"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
 

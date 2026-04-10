@@ -1,6 +1,7 @@
 """Results JSON API — view and manage job evaluation results."""
 
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 from uuid import UUID
 
@@ -9,6 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from api.csrf import require_csrf
 from api.deps import get_current_user, get_job_result_repo
 from api.schemas import (
+    BulkDismissRequest,
+    BulkDismissResponse,
     JobResultResponse,
     PaginationMeta,
     ResultStatusUpdateRequest,
@@ -122,3 +125,32 @@ async def api_update_result_status(
         status=updated.status,
         created_at=updated.created_at,
     )
+
+
+@router.post("/bulk-dismiss")
+async def api_bulk_dismiss_results(
+    body: BulkDismissRequest,
+    user: Annotated[UserRow, Depends(get_current_user)],
+    repo: Annotated[JobResultRepository, Depends(get_job_result_repo)],
+    _csrf: Annotated[None, Depends(require_csrf)],
+) -> BulkDismissResponse:
+    """Bulk-dismiss job results matching the given filters."""
+    if body.status is not None and body.status not in VALID_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid status filter '{body.status}'. Must be one of: {sorted(VALID_STATUSES)}",
+        )
+
+    older_than: datetime | None = None
+    if body.older_than_days is not None:
+        older_than = datetime.now(timezone.utc) - timedelta(days=body.older_than_days)
+
+    dismissed_count = await repo.bulk_update_status(
+        user_id=user.id,
+        new_status="dismissed",
+        current_status=body.status,
+        platform=body.platform,
+        max_score=body.max_score,
+        older_than=older_than,
+    )
+    return BulkDismissResponse(dismissed_count=dismissed_count)

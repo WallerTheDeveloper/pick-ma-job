@@ -3,8 +3,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
+  bulkDismissResults,
   fetchResults,
   updateResultStatus,
+  type BulkDismissParams,
   type ResultsQueryParams,
 } from "@/api/results";
 import type { ResultsListResponse } from "@/types/schemas";
@@ -55,6 +57,13 @@ export function useResults(initialFilters?: Partial<ResultsFilters>) {
     },
   });
 
+  const bulkDismissMutation = useMutation({
+    mutationFn: (params: BulkDismissParams) => bulkDismissResults(params),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [RESULTS_KEY] });
+    },
+  });
+
   function updateFilter<K extends keyof ResultsFilters>(
     key: K,
     value: ResultsFilters[K],
@@ -81,5 +90,7 @@ export function useResults(initialFilters?: Partial<ResultsFilters>) {
     resetFilters,
     updateStatus: statusMutation.mutate,
     isUpdatingStatus: statusMutation.isPending,
+    bulkDismiss: bulkDismissMutation.mutateAsync,
+    isBulkDismissing: bulkDismissMutation.isPending,
   };
 }
