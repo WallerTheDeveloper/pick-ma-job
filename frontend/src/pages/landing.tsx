@@ -14,6 +14,9 @@ export function LandingPage() {
       <main>
         {/* Hero */}
         <section className="px-6 py-24 text-center max-w-3xl mx-auto">
+          <p className="text-sm font-medium text-primary mb-3">
+            Pick MA (Most Appropriate) Job
+          </p>
           <h1 className="text-4xl font-bold tracking-tight mb-4">
             Stop scrolling job boards. Start applying to the right ones.
           </h1>
