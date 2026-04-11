@@ -2,7 +2,7 @@
 
 - **Phase:** improvements
 - **Priority:** P3 (Medium)
-- **Status:** TODO
+- **Status:** DONE
 - **Depends on:** fixes-3_zod-runtime-validation
 
 ## Problem

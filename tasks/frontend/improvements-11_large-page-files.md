@@ -2,7 +2,7 @@
 
 - **Phase:** improvements
 - **Priority:** P3 (Medium)
-- **Status:** TODO
+- **Status:** DONE
 - **Depends on:** improvements-1_index-key-profile-lists, improvements-3_buildrubric-mutation-swallow
 
 ## Problem

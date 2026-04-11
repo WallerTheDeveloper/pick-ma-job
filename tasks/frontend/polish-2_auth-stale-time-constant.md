@@ -2,7 +2,7 @@
 
 - **Phase:** polish
 - **Priority:** P4 (Low)
-- **Status:** TODO
+- **Status:** DONE
 - **Depends on:** None
 
 ## Problem
