@@ -101,32 +101,48 @@ class JobListRepository:
             )
         return row is not None
 
-    async def add_job(self, list_id: UUID, job_result_id: UUID) -> bool:
-        """Add a job result to a list. Returns False if already present."""
+    async def add_job(self, list_id: UUID, job_result_id: UUID, user_id: UUID) -> bool:
+        """Add a job result to a list, verifying both list and job are owned by user_id.
+
+        Returns True if the row was inserted, False if the ownership check failed or
+        the job was already present in the list.
+        """
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
+                WITH owned_list AS (
+                    SELECT id FROM job_lists WHERE id = $1 AND user_id = $3
+                ),
+                owned_job AS (
+                    SELECT id FROM job_results WHERE id = $2 AND user_id = $3
+                )
                 INSERT INTO job_list_items (list_id, job_result_id)
-                VALUES ($1, $2)
+                SELECT $1, $2 FROM owned_list, owned_job
                 ON CONFLICT (list_id, job_result_id) DO NOTHING
                 RETURNING list_id
                 """,
                 list_id,
                 job_result_id,
+                user_id,
             )
         return row is not None
 
-    async def remove_job(self, list_id: UUID, job_result_id: UUID) -> bool:
-        """Remove a job result from a list. Returns True if a row was deleted."""
+    async def remove_job(self, list_id: UUID, job_result_id: UUID, user_id: UUID) -> bool:
+        """Remove a job result from a list, verifying list ownership.
+
+        Returns True if a row was deleted, False if not found or list not owned by user_id.
+        """
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
                 DELETE FROM job_list_items
                 WHERE list_id = $1 AND job_result_id = $2
+                  AND list_id IN (SELECT id FROM job_lists WHERE id = $1 AND user_id = $3)
                 RETURNING list_id
                 """,
                 list_id,
                 job_result_id,
+                user_id,
             )
         return row is not None
 

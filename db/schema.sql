@@ -128,3 +128,5 @@ CREATE TABLE IF NOT EXISTS job_list_items (
     added_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (list_id, job_result_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_job_list_items_job_result_id ON job_list_items(job_result_id);

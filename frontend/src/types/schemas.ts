@@ -88,9 +88,7 @@ export type JobResult = z.infer<typeof jobResultSchema>;
 
 export const paginationMetaSchema = z.object({
   total: z.number(),
-  page: z.number(),
   limit: z.number(),
-  total_pages: z.number(),
 });
 
 export type PaginationMeta = z.infer<typeof paginationMetaSchema>;
@@ -98,6 +96,7 @@ export type PaginationMeta = z.infer<typeof paginationMetaSchema>;
 export const resultsListResponseSchema = z.object({
   results: z.array(jobResultSchema),
   pagination: paginationMetaSchema,
+  next_cursor: z.string().nullable().optional(),
 });
 
 export type ResultsListResponse = z.infer<typeof resultsListResponseSchema>;

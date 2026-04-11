@@ -132,7 +132,9 @@ async def api_add_job_to_list(
     jl = await repo.find_by_id(list_id, user.id)
     if jl is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="List not found")
-    await repo.add_job(list_id, body.job_result_id)
+    added = await repo.add_job(list_id, body.job_result_id, user.id)
+    if not added:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job result not found")
     return OkResponse()
 
 
@@ -148,7 +150,7 @@ async def api_remove_job_from_list(
     jl = await repo.find_by_id(list_id, user.id)
     if jl is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="List not found")
-    removed = await repo.remove_job(list_id, job_result_id)
+    removed = await repo.remove_job(list_id, job_result_id, user.id)
     if not removed:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not in list")
     return OkResponse()

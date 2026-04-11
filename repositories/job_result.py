@@ -92,12 +92,70 @@ class JobResultRepository:
             )
         return row is not None
 
+    # Sort clauses use `id DESC` as tiebreaker for deterministic keyset pagination.
     _SORT_CLAUSES: dict[str, str] = {
-        "score_desc": "score DESC NULLS LAST, created_at DESC",
-        "score_asc": "score ASC NULLS LAST, created_at DESC",
-        "date_desc": "created_at DESC",
-        "date_asc": "created_at ASC",
+        "score_desc": "score DESC NULLS LAST, id DESC",
+        "score_asc": "score ASC NULLS LAST, id DESC",
+        "date_desc": "created_at DESC, id DESC",
+        "date_asc": "created_at ASC, id DESC",
     }
+
+    @staticmethod
+    def _build_keyset_condition(
+        sort: str,
+        cursor_id: UUID,
+        cursor_score: int | None,
+        cursor_created_at: datetime | None,
+        params: list,
+        idx: int,
+    ) -> tuple[str, int]:
+        """Build a keyset WHERE clause for cursor-based pagination.
+
+        Returns (sql_condition, next_param_index). Appends required values to params.
+        """
+        if sort == "score_desc":
+            # ORDER: score DESC NULLS LAST, id DESC
+            if cursor_score is not None:
+                params.extend([cursor_score, cursor_score, cursor_id])
+                cond = (
+                    f"(score < ${idx} OR (score = ${idx + 1} AND id < ${idx + 2}) OR score IS NULL)"
+                )
+                return cond, idx + 3
+            else:
+                # Cursor is in the NULL section
+                params.append(cursor_id)
+                return f"(score IS NULL AND id < ${idx})", idx + 1
+
+        elif sort == "score_asc":
+            # ORDER: score ASC NULLS LAST, id DESC
+            if cursor_score is not None:
+                params.extend([cursor_score, cursor_score, cursor_id])
+                cond = (
+                    f"(score > ${idx} OR (score = ${idx + 1} AND id < ${idx + 2}) OR score IS NULL)"
+                )
+                return cond, idx + 3
+            else:
+                params.append(cursor_id)
+                return f"(score IS NULL AND id < ${idx})", idx + 1
+
+        elif sort == "date_desc":
+            # ORDER: created_at DESC, id DESC
+            params.extend([cursor_created_at, cursor_created_at, cursor_id])
+            return (
+                f"(created_at < ${idx} OR (created_at = ${idx + 1} AND id < ${idx + 2}))",
+                idx + 3,
+            )
+
+        elif sort == "date_asc":
+            # ORDER: created_at ASC, id DESC
+            params.extend([cursor_created_at, cursor_created_at, cursor_id])
+            return (
+                f"(created_at > ${idx} OR (created_at = ${idx + 1} AND id < ${idx + 2}))",
+                idx + 3,
+            )
+
+        else:
+            raise ValueError(f"Unknown sort key: {sort!r}")
 
     async def find_by_user(
         self,
@@ -107,9 +165,18 @@ class JobResultRepository:
         platform: str | None = None,
         sort: str = "score_desc",
         limit: int = 50,
-        offset: int = 0,
+        cursor_id: UUID | None = None,
+        cursor_score: int | None = None,
+        cursor_created_at: datetime | None = None,
     ) -> list[JobResultRow]:
-        """Return paginated job results for a user, optionally filtered by status, min score, and platform."""
+        """Return job results using keyset (cursor) pagination.
+
+        Pass cursor_id (plus cursor_score or cursor_created_at depending on sort) to
+        retrieve the next page after the last seen row. Omit cursor_id for the first page.
+        """
+        if sort not in self._SORT_CLAUSES:
+            raise ValueError(f"Unknown sort key: {sort!r}")
+
         conditions = ["user_id = $1"]
         params: list = [user_id]
         idx = 2
@@ -129,9 +196,15 @@ class JobResultRepository:
             params.append(platform)
             idx += 1
 
+        if cursor_id is not None:
+            keyset_cond, idx = self._build_keyset_condition(
+                sort, cursor_id, cursor_score, cursor_created_at, params, idx
+            )
+            conditions.append(keyset_cond)
+
         where = " AND ".join(conditions)
-        order = self._SORT_CLAUSES.get(sort, self._SORT_CLAUSES["score_desc"])
-        params.extend([limit, offset])
+        order = self._SORT_CLAUSES[sort]
+        params.append(limit)
 
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
@@ -140,7 +213,7 @@ class JobResultRepository:
                 FROM job_results
                 WHERE {where}
                 ORDER BY {order}
-                LIMIT ${idx} OFFSET ${idx + 1}
+                LIMIT ${idx}
                 """,
                 *params,
             )

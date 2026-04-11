@@ -60,25 +60,32 @@ class PipelineRunRepository:
     async def update_status(
         self,
         run_id: UUID,
+        user_id: UUID,
         status: str,
         result: dict | None = None,
         error: str | None = None,
         completed_at: datetime | None = None,
-    ) -> None:
-        """Update the status (and optionally result/error/completed_at) of a run."""
+    ) -> bool:
+        """Update the status of a run, scoped to user_id.
+
+        Returns True if a row was updated, False if run_id not found or not owned by user.
+        """
         async with self._pool.acquire() as conn:
-            await conn.execute(
+            row = await conn.fetchrow(
                 """
                 UPDATE pipeline_runs
                 SET status = $1, result = $2::jsonb, error = $3, completed_at = $4
-                WHERE id = $5
+                WHERE id = $5 AND user_id = $6
+                RETURNING id
                 """,
                 status,
                 result,
                 error,
                 completed_at,
                 run_id,
+                user_id,
             )
+        return row is not None
 
     async def find_by_user(
         self,

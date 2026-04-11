@@ -126,7 +126,7 @@ class RunManager:
     ) -> None:
         """Background coroutine — runs the pipeline and updates snapshot state."""
         self._update(run_id, status="running")
-        await self._persist_status(run_id, status="running")
+        await self._persist_status(run_id, user_id, status="running")
 
         service = PipelineService(
             profile_repo=ProfileRepository(pool),
@@ -147,6 +147,7 @@ class RunManager:
             result_dict = asdict(result)
             await self._persist_status(
                 run_id,
+                user_id,
                 status="completed",
                 result=result_dict,
                 completed_at=completed_at,
@@ -170,6 +171,7 @@ class RunManager:
             )
             await self._persist_status(
                 run_id,
+                user_id,
                 status="failed",
                 error=str(exc),
                 completed_at=completed_at,
@@ -216,16 +218,18 @@ class RunManager:
     async def _persist_status(
         self,
         run_id: UUID,
+        user_id: UUID,
         status: str,
         result: dict | None = None,
         error: str | None = None,
         completed_at: datetime | None = None,
     ) -> None:
-        """Update pipeline_runs row. Errors are logged, not raised."""
+        """Update pipeline_runs row scoped to user_id. Errors are logged, not raised."""
         try:
             repo = PipelineRunRepository(self._pool)
             await repo.update_status(
                 run_id,
+                user_id,
                 status=status,
                 result=result,
                 error=error,

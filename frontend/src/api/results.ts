@@ -8,7 +8,7 @@ export interface ResultsQueryParams {
   min_score?: number;
   platform?: string;
   sort?: string;
-  page?: number;
+  cursor?: string;
 }
 
 export async function fetchResults(
@@ -20,7 +20,7 @@ export async function fetchResults(
     search.set("min_score", String(params.min_score));
   if (params.platform) search.set("platform", params.platform);
   if (params.sort) search.set("sort", params.sort);
-  if (params.page !== undefined) search.set("page", String(params.page));
+  if (params.cursor !== undefined) search.set("cursor", params.cursor);
 
   const qs = search.toString();
   return api<ResultsListResponse>(`/api/results${qs ? `?${qs}` : ""}`);

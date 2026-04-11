@@ -62,14 +62,13 @@ class JobResultResponse(BaseModel):
 
 class PaginationMeta(BaseModel):
     total: int
-    page: int
     limit: int
-    total_pages: int
 
 
 class ResultsListResponse(BaseModel):
     results: list[JobResultResponse]
     pagination: PaginationMeta
+    next_cursor: str | None = None
 
 
 class ResultStatusUpdateRequest(BaseModel):

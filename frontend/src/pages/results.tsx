@@ -61,6 +61,10 @@ export function ResultsPage() {
     filters,
     updateFilter,
     resetFilters,
+    hasNextPage,
+    hasPrevPage,
+    nextPage,
+    prevPage,
     updateStatus,
     isUpdatingStatus,
     bulkDismiss,
@@ -323,26 +327,25 @@ export function ResultsPage() {
       )}
 
       {/* Pagination — only shown when viewing all results (not a specific list) */}
-      {selectedListId === null && pagination && pagination.total_pages > 1 && (
+      {selectedListId === null && pagination && (hasNextPage || hasPrevPage) && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Page {pagination.page} of {pagination.total_pages} ({pagination.total}{" "}
-            results)
+            {pagination.total} total results
           </p>
           <div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
-              disabled={pagination.page <= 1}
-              onClick={() => updateFilter("page", pagination.page - 1)}
+              disabled={!hasPrevPage}
+              onClick={prevPage}
             >
               Previous
             </Button>
             <Button
               variant="outline"
               size="sm"
-              disabled={pagination.page >= pagination.total_pages}
-              onClick={() => updateFilter("page", pagination.page + 1)}
+              disabled={!hasNextPage}
+              onClick={nextPage}
             >
               Next
             </Button>

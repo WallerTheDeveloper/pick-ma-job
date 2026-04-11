@@ -1,8 +1,10 @@
 """Results JSON API — view and manage job evaluation results."""
 
+import base64
+import json
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -21,7 +23,7 @@ from api.schemas import (
     ResultsListResponse,
 )
 from repositories.job_list import JobListRepository
-from repositories.job_result import VALID_STATUSES, JobResultRepository
+from repositories.job_result import VALID_STATUSES, JobResultRepository, JobResultRow
 from repositories.user import UserRow
 
 logger = logging.getLogger(__name__)
@@ -31,6 +33,42 @@ router = APIRouter(prefix="/api/results", tags=["api-results"])
 _PAGE_SIZE = 50
 
 
+def _encode_cursor(row: JobResultRow, sort: str) -> str:
+    """Encode the last result row into an opaque pagination cursor."""
+    data: dict = {"id": str(row.id)}
+    if sort in ("score_desc", "score_asc"):
+        data["score"] = row.score  # may be None
+    else:
+        data["created_at"] = row.created_at.isoformat()
+    return base64.urlsafe_b64encode(json.dumps(data).encode()).decode()
+
+
+def _decode_cursor(
+    cursor_str: str,
+    sort: str,
+) -> tuple[UUID, int | None, datetime | None]:
+    """Decode a cursor string into its components. Raises HTTP 422 on invalid input."""
+    try:
+        raw = base64.urlsafe_b64decode(cursor_str + "==").decode()
+        data = json.loads(raw)
+        cursor_id = UUID(data["id"])
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid cursor value",
+        )
+    cursor_score: int | None = None
+    cursor_created_at: datetime | None = None
+    if sort in ("score_desc", "score_asc"):
+        raw_score = data.get("score")
+        cursor_score = int(raw_score) if raw_score is not None else None
+    else:
+        cat_str = data.get("created_at")
+        if cat_str:
+            cursor_created_at = datetime.fromisoformat(cat_str)
+    return cursor_id, cursor_score, cursor_created_at
+
+
 @router.get("")
 async def api_list_results(
     user: Annotated[UserRow, Depends(get_current_user)],
@@ -38,10 +76,13 @@ async def api_list_results(
     status_filter: Annotated[str, Query(alias="status")] = "",
     min_score: Annotated[str, Query()] = "",
     platform: Annotated[str, Query()] = "",
-    sort: Annotated[str, Query()] = "score_desc",
-    page: Annotated[int, Query(ge=1)] = 1,
+    sort: Annotated[
+        Literal["score_desc", "score_asc", "date_desc", "date_asc"],
+        Query(),
+    ] = "score_desc",
+    cursor: Annotated[str | None, Query()] = None,
 ) -> ResultsListResponse:
-    """Return paginated job results with optional filtering."""
+    """Return paginated job results with optional filtering (cursor-based pagination)."""
     parsed_status: str | None = status_filter if status_filter else None
     parsed_min_score: int | None = int(min_score) if min_score else None
     parsed_platform: str | None = platform if platform else None
@@ -49,19 +90,22 @@ async def api_list_results(
     if parsed_status is not None and parsed_status not in VALID_STATUSES:
         parsed_status = None
 
-    valid_sorts = {"score_desc", "score_asc", "date_desc", "date_asc"}
-    parsed_sort = sort if sort in valid_sorts else "score_desc"
-
-    offset = (page - 1) * _PAGE_SIZE
+    cursor_id: UUID | None = None
+    cursor_score: int | None = None
+    cursor_created_at: datetime | None = None
+    if cursor is not None:
+        cursor_id, cursor_score, cursor_created_at = _decode_cursor(cursor, sort)
 
     results = await repo.find_by_user(
         user_id=user.id,
         status=parsed_status,
         min_score=parsed_min_score,
         platform=parsed_platform,
-        sort=parsed_sort,
+        sort=sort,
         limit=_PAGE_SIZE,
-        offset=offset,
+        cursor_id=cursor_id,
+        cursor_score=cursor_score,
+        cursor_created_at=cursor_created_at,
     )
     total = await repo.count_by_user(
         user_id=user.id,
@@ -70,7 +114,9 @@ async def api_list_results(
         platform=parsed_platform,
     )
 
-    total_pages = max(1, (total + _PAGE_SIZE - 1) // _PAGE_SIZE)
+    next_cursor: str | None = None
+    if len(results) == _PAGE_SIZE:
+        next_cursor = _encode_cursor(results[-1], sort)
 
     return ResultsListResponse(
         results=[
@@ -89,10 +135,9 @@ async def api_list_results(
         ],
         pagination=PaginationMeta(
             total=total,
-            page=page,
             limit=_PAGE_SIZE,
-            total_pages=total_pages,
         ),
+        next_cursor=next_cursor,
     )
 
 
