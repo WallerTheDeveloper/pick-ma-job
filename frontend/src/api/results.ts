@@ -1,7 +1,9 @@
 /** Results API functions — fetch and update job evaluation results. */
 
 import { api } from "@/api/client";
+import { resultsListResponseSchema, jobResultSchema } from "@/types/schemas";
 import type { JobResult, ResultsListResponse } from "@/types/schemas";
+import { z } from "zod";
 
 export interface ResultsQueryParams {
   status?: string;
@@ -23,17 +25,14 @@ export async function fetchResults(
   if (params.cursor !== undefined) search.set("cursor", params.cursor);
 
   const qs = search.toString();
-  return api<ResultsListResponse>(`/api/results${qs ? `?${qs}` : ""}`);
+  return api(`/api/results${qs ? `?${qs}` : ""}`, {}, resultsListResponseSchema);
 }
 
 export async function updateResultStatus(
   resultId: string,
   status: string,
 ): Promise<JobResult> {
-  return api<JobResult>(`/api/results/${resultId}`, {
-    method: "PATCH",
-    body: { status },
-  });
+  return api(`/api/results/${resultId}`, { method: "PATCH", body: { status } }, jobResultSchema);
 }
 
 export async function deleteResult(resultId: string): Promise<void> {
@@ -44,6 +43,7 @@ export interface BulkDismissParams {
   older_than_days?: number;
   status?: string;
   platform?: string;
+  min_score?: number;
   max_score?: number;
 }
 
@@ -51,19 +51,23 @@ export interface BulkDismissResult {
   dismissed_count: number;
 }
 
+const bulkDismissResultSchema = z.object({ dismissed_count: z.number() });
+
 export async function bulkDismissResults(
   params: BulkDismissParams,
 ): Promise<BulkDismissResult> {
-  return api<BulkDismissResult>("/api/results/bulk-dismiss", {
-    method: "POST",
-    body: params,
-  });
+  return api(
+    "/api/results/bulk-dismiss",
+    { method: "POST", body: params },
+    bulkDismissResultSchema,
+  );
 }
 
 export interface BulkDeleteParams {
   older_than_days?: number;
   status?: string;
   platform?: string;
+  min_score?: number;
   max_score?: number;
 }
 
@@ -71,11 +75,14 @@ export interface BulkDeleteResult {
   deleted_count: number;
 }
 
+const bulkDeleteResultSchema = z.object({ deleted_count: z.number() });
+
 export async function bulkDeleteResults(
   params: BulkDeleteParams,
 ): Promise<BulkDeleteResult> {
-  return api<BulkDeleteResult>("/api/results/bulk-delete", {
-    method: "POST",
-    body: params,
-  });
+  return api(
+    "/api/results/bulk-delete",
+    { method: "POST", body: params },
+    bulkDeleteResultSchema,
+  );
 }

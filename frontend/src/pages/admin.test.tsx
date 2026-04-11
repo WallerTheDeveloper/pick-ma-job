@@ -27,7 +27,7 @@ describe("AdminPage", () => {
       http.get("/auth/me", () =>
         HttpResponse.json({
           user: {
-            id: "00000000-0000-0000-0000-000000000001",
+            id: "00000000-0000-4000-8000-000000000001",
             email: "admin@example.com",
             is_admin: true,
           },
@@ -64,7 +64,7 @@ describe("AdminPage", () => {
       http.get("/auth/me", () =>
         HttpResponse.json({
           user: {
-            id: "00000000-0000-0000-0000-000000000001",
+            id: "00000000-0000-4000-8000-000000000001",
             email: "admin@example.com",
             is_admin: true,
           },
@@ -87,7 +87,7 @@ describe("AdminPage", () => {
       http.get("/auth/me", () =>
         HttpResponse.json({
           user: {
-            id: "00000000-0000-0000-0000-000000000001",
+            id: "00000000-0000-4000-8000-000000000001",
             email: "admin@example.com",
             is_admin: true,
           },
@@ -110,7 +110,7 @@ describe("AdminPage", () => {
       http.get("/auth/me", () =>
         HttpResponse.json({
           user: {
-            id: "00000000-0000-0000-0000-000000000001",
+            id: "00000000-0000-4000-8000-000000000001",
             email: "admin@example.com",
             is_admin: true,
           },

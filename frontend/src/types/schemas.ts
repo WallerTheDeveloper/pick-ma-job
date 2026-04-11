@@ -89,6 +89,8 @@ export type JobResult = z.infer<typeof jobResultSchema>;
 export const paginationMetaSchema = z.object({
   total: z.number(),
   limit: z.number(),
+  page: z.number().optional(),
+  total_pages: z.number().optional(),
 });
 
 export type PaginationMeta = z.infer<typeof paginationMetaSchema>;

@@ -1,7 +1,7 @@
 /** Hook for triggering pipeline runs and polling their status. */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { startRun, getRunStatus } from "@/api/pipeline";
 import type { RunStatusResponse } from "@/types/schemas";
 
@@ -31,12 +31,17 @@ export function useRun() {
     },
   });
 
-  // Invalidate dashboard when run finishes so stats and recent runs list refresh automatically
+  // Invalidate dashboard exactly once when a run transitions to a terminal state
+  const prevStatusRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     const status = statusQuery.data?.status;
-    if (status === "completed" || status === "failed") {
+    if (
+      (status === "completed" || status === "failed") &&
+      prevStatusRef.current !== status
+    ) {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     }
+    prevStatusRef.current = status;
   }, [statusQuery.data?.status, queryClient]);
 
   const runStatus: RunStatusResponse | null = statusQuery.data ?? null;

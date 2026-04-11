@@ -79,6 +79,7 @@ class BulkDismissRequest(BaseModel):
     older_than_days: int | None = None
     status: str | None = None
     platform: str | None = None
+    min_score: int | None = None
     max_score: int | None = None
 
 
@@ -90,6 +91,7 @@ class BulkDeleteRequest(BaseModel):
     older_than_days: int | None = None
     status: str | None = None
     platform: str | None = None
+    min_score: int | None = None
     max_score: int | None = None
 
 

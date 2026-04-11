@@ -23,11 +23,20 @@ describe("ProfilePage", () => {
 
     expect(screen.getByDisplayValue("Mid-level, 4 years")).toBeInTheDocument();
     expect(screen.getByDisplayValue("$30/hr")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Unity, C#, AR/VR")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Rust, C++")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Vue.js, TypeScript")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Data science, DevOps-only")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("English, Ukrainian, German")).toBeInTheDocument();
+
+    // TagInput renders individual chips, not a single comma-joined value
+    expect(screen.getByText("Unity")).toBeInTheDocument();
+    expect(screen.getByText("C#")).toBeInTheDocument();
+    expect(screen.getByText("AR/VR")).toBeInTheDocument();
+    expect(screen.getByText("Rust")).toBeInTheDocument();
+    expect(screen.getByText("C++")).toBeInTheDocument();
+    expect(screen.getByText("Vue.js")).toBeInTheDocument();
+    expect(screen.getByText("TypeScript")).toBeInTheDocument();
+    expect(screen.getByText("Data science")).toBeInTheDocument();
+    expect(screen.getByText("DevOps-only")).toBeInTheDocument();
+    expect(screen.getByText("English")).toBeInTheDocument();
+    expect(screen.getByText("Ukrainian")).toBeInTheDocument();
+    expect(screen.getByText("German")).toBeInTheDocument();
 
     // Notable project
     expect(screen.getByDisplayValue("Rust Multiplayer Game")).toBeInTheDocument();
@@ -165,9 +174,12 @@ describe("ProfilePage", () => {
       expect(screen.getByDisplayValue("Unity Developer")).toBeInTheDocument();
     });
 
+    // Expand the Advanced rubric collapsible section
+    await user.click(screen.getByText(/Advanced: raw JSON/));
+
     // Type invalid JSON in the rubric field
     const rubricInput = screen.getByPlaceholderText(
-      '{"min_score": 5, "prefer_remote": true}',
+      '{"custom_field": "value"}',
     );
     await user.type(rubricInput, "not valid json");
 
@@ -176,7 +188,7 @@ describe("ProfilePage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Custom rubric must be valid JSON."),
+        screen.getByText("Advanced rubric JSON is not valid. Fix or clear it before saving."),
       ).toBeInTheDocument();
     });
   });

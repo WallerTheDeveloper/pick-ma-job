@@ -130,7 +130,7 @@ describe("DashboardPage", () => {
     server.use(
       http.get("/api/run/:runId/status", () =>
         HttpResponse.json({
-          run_id: "00000000-0000-0000-0000-000000000099",
+          run_id: "00000000-0000-4000-8000-000000000099",
           status: "failed",
           started_at: "2026-04-06T10:00:00Z",
           completed_at: "2026-04-06T10:00:30Z",

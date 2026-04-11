@@ -232,7 +232,7 @@ export function ResultsPage() {
                       ...(filters.status && { status: filters.status }),
                       ...(filters.platform && { platform: filters.platform }),
                       ...(filters.minScore && {
-                        max_score: Number(filters.minScore),
+                        min_score: Number(filters.minScore),
                       }),
                     });
                     setConfirmOpen(false);
@@ -272,7 +272,7 @@ export function ResultsPage() {
                       ...(filters.status && { status: filters.status }),
                       ...(filters.platform && { platform: filters.platform }),
                       ...(filters.minScore && {
-                        max_score: Number(filters.minScore),
+                        min_score: Number(filters.minScore),
                       }),
                     });
                     setConfirmDeleteAllOpen(false);
