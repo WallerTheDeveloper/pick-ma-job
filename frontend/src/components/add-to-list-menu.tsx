@@ -1,6 +1,7 @@
 /** AddToListMenu — dropdown to add/remove a job result from named lists. */
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { BookmarkPlusIcon, CheckIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -73,7 +74,10 @@ export function AddToListMenu({ jobResultId, onAdd, onRemove }: AddToListMenuPro
                 <DropdownMenuItem
                   key={list.id}
                   onClick={() => {
-                    void (inList ? onRemove(list.id) : onAdd(list.id));
+                    const promise = inList ? onRemove(list.id) : onAdd(list.id);
+                    promise.catch((err: unknown) => {
+                      toast.error(err instanceof Error ? err.message : "Failed to update list");
+                    });
                   }}
                 >
                   <span className="flex-1 truncate">{list.name}</span>

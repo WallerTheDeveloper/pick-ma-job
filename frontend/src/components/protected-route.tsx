@@ -15,7 +15,7 @@ export function ProtectedRoute() {
   }
 
   if (!isAuthenticated || error) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   return <Outlet />;

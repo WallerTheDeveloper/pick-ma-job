@@ -265,6 +265,7 @@ class JobResultRepository:
         new_status: str,
         current_status: str | None = None,
         platform: str | None = None,
+        min_score: int | None = None,
         max_score: int | None = None,
         older_than: datetime | None = None,
     ) -> int:
@@ -285,6 +286,11 @@ class JobResultRepository:
         if platform is not None:
             conditions.append(f"platform = ${idx}")
             params.append(platform)
+            idx += 1
+
+        if min_score is not None:
+            conditions.append(f"score >= ${idx}")
+            params.append(min_score)
             idx += 1
 
         if max_score is not None:
@@ -312,6 +318,7 @@ class JobResultRepository:
         user_id: UUID,
         current_status: str | None = None,
         platform: str | None = None,
+        min_score: int | None = None,
         max_score: int | None = None,
         older_than: datetime | None = None,
     ) -> int:
@@ -328,6 +335,11 @@ class JobResultRepository:
         if platform is not None:
             conditions.append(f"platform = ${idx}")
             params.append(platform)
+            idx += 1
+
+        if min_score is not None:
+            conditions.append(f"score >= ${idx}")
+            params.append(min_score)
             idx += 1
 
         if max_score is not None:

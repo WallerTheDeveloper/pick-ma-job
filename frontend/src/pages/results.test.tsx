@@ -76,7 +76,8 @@ describe("ResultsPage", () => {
     // Open status dropdown and select "Dismissed"
     const statusTrigger = screen.getAllByText("All statuses")[0];
     await user.click(statusTrigger);
-    await user.click(screen.getByText("Dismissed"));
+    // Use role="option" to target the dropdown item, not the status badge on result rows
+    await user.click(screen.getByRole("option", { name: "Dismissed" }));
 
     // Should now only show the dismissed result
     await waitFor(() => {
@@ -193,8 +194,8 @@ describe("ResultsPage", () => {
     const firstStatusSelect = allComboboxes[3];
     await user.click(firstStatusSelect);
 
-    // Select "Applied" from the opened popup
-    await user.click(screen.getByText("Applied"));
+    // Select "Applied" from the opened popup (role="option" targets the dropdown item)
+    await user.click(screen.getByRole("option", { name: "Applied" }));
 
     // The mutation should fire and refetch — verify no error appears
     await waitFor(() => {
@@ -204,24 +205,18 @@ describe("ResultsPage", () => {
 
   it("shows pagination controls when multiple pages", async () => {
     server.use(
-      http.get("/api/results", ({ request }) => {
-        const url = new URL(request.url);
-        const page = parseInt(url.searchParams.get("page") ?? "1", 10);
-        return HttpResponse.json(
-          makeResultsList(undefined, {
-            total: 120,
-            page,
-            limit: 50,
-            total_pages: 3,
-          }),
-        );
-      }),
+      http.get("/api/results", () =>
+        HttpResponse.json({
+          ...makeResultsList(undefined, { total: 120, limit: 50 }),
+          next_cursor: "cursor_page_2",
+        }),
+      ),
     );
 
     renderWithProviders(<ResultsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Page 1 of 3/)).toBeInTheDocument();
+      expect(screen.getByText("Next")).toBeInTheDocument();
     });
 
     expect(screen.getByText(/120/)).toBeInTheDocument();
@@ -235,32 +230,33 @@ describe("ResultsPage", () => {
     server.use(
       http.get("/api/results", ({ request }) => {
         const url = new URL(request.url);
-        const page = parseInt(url.searchParams.get("page") ?? "1", 10);
-        return HttpResponse.json(
-          makeResultsList(undefined, {
-            total: 120,
-            page,
-            limit: 50,
-            total_pages: 3,
-          }),
-        );
+        const cursor = url.searchParams.get("cursor");
+        // First page has next_cursor; second page does not
+        const next_cursor = cursor ? null : "cursor_page_2";
+        return HttpResponse.json({
+          ...makeResultsList(undefined, { total: 120, limit: 50 }),
+          next_cursor,
+        });
       }),
     );
 
     renderWithProviders(<ResultsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Page 1 of 3/)).toBeInTheDocument();
+      expect(screen.getByText("Next")).toBeInTheDocument();
     });
+
+    expect(screen.getByText("Previous")).toBeDisabled();
+    expect(screen.getByText("Next")).toBeEnabled();
 
     await user.click(screen.getByText("Next"));
 
     await waitFor(() => {
-      expect(screen.getByText(/Page 2 of 3/)).toBeInTheDocument();
+      expect(screen.getByText("Previous")).toBeEnabled();
     });
 
-    // Previous should now be enabled
-    expect(screen.getByText("Previous")).toBeEnabled();
+    // Now on page 2: no next cursor, so Next is disabled
+    expect(screen.getByText("Next")).toBeDisabled();
   });
 
   it("shows empty state with filter message when filters active", async () => {

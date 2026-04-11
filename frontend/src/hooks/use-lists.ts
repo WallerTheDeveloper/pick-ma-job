@@ -72,7 +72,12 @@ export function useLists() {
 export function useListJobs(listId: string | null) {
   return useQuery<JobListJobsResponse>({
     queryKey: [LISTS_KEY, "jobs", listId],
-    queryFn: () => fetchJobsInList(listId!),
+    queryFn: () => {
+      if (listId === null || listId === undefined) {
+        throw new Error("listId is required to fetch jobs in a list");
+      }
+      return fetchJobsInList(listId);
+    },
     enabled: listId !== null,
   });
 }

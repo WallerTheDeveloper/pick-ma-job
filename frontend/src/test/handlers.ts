@@ -3,16 +3,16 @@
 import { http, HttpResponse } from "msw";
 
 const TEST_USER = {
-  id: "00000000-0000-0000-0000-000000000001",
+  id: "00000000-0000-4000-8000-000000000001",
   email: "test@example.com",
   is_admin: false,
 };
 
-const TEST_RUN_ID = "00000000-0000-0000-0000-000000000099";
+const TEST_RUN_ID = "00000000-0000-4000-8000-000000000099";
 
 function makeJobResult(overrides?: Record<string, unknown>) {
   return {
-    id: "00000000-0000-0000-0000-000000000010",
+    id: "00000000-0000-4000-8000-000000000010",
     platform: "upwork",
     job_id: "job-001",
     title: "Unity AR Developer Needed",
@@ -39,7 +39,7 @@ function makeResultsList(
   const items = results ?? [
     makeJobResult(),
     makeJobResult({
-      id: "00000000-0000-0000-0000-000000000011",
+      id: "00000000-0000-4000-8000-000000000011",
       job_id: "job-002",
       title: "React Frontend Developer",
       score: 3,
@@ -55,7 +55,7 @@ function makeResultsList(
       },
     }),
     makeJobResult({
-      id: "00000000-0000-0000-0000-000000000012",
+      id: "00000000-0000-4000-8000-000000000012",
       job_id: "job-003",
       title: "Rust Game Server Engineer",
       score: 8,
@@ -84,7 +84,7 @@ function makeResultsList(
 
 function makeProfile(overrides?: Record<string, unknown>) {
   return {
-    id: "00000000-0000-0000-0000-000000000020",
+    id: "00000000-0000-4000-8000-000000000020",
     role: "Unity Developer",
     experience: "Mid-level, 4 years",
     rate: "$30/hr",
@@ -108,7 +108,7 @@ function makeProfile(overrides?: Record<string, unknown>) {
 
 function makeSearchConfig(overrides?: Record<string, unknown>) {
   return {
-    id: "00000000-0000-0000-0000-000000000030",
+    id: "00000000-0000-4000-8000-000000000030",
     platform: "upwork",
     query: "unity developer",
     filters: {
@@ -126,7 +126,7 @@ function makeSearchConfig(overrides?: Record<string, unknown>) {
 
 function makeAdminUser(overrides?: Record<string, unknown>) {
   return {
-    id: "00000000-0000-0000-0000-000000000001",
+    id: "00000000-0000-4000-8000-000000000001",
     email: "admin@example.com",
     created_at: "2026-01-15T08:00:00Z",
     last_login: "2026-04-06T09:30:00Z",
@@ -229,7 +229,7 @@ export const handlers = [
     const body = (await request.json()) as Record<string, unknown>;
     return HttpResponse.json({
       config: makeSearchConfig({
-        id: "00000000-0000-0000-0000-000000000031",
+        id: "00000000-0000-4000-8000-000000000031",
         ...body,
       }),
     });
@@ -240,13 +240,26 @@ export const handlers = [
     HttpResponse.json({ ok: true }),
   ),
 
+  // Job lists
+  http.get("/api/lists", () =>
+    HttpResponse.json({ lists: [] }),
+  ),
+
+  http.get("/api/lists/:listId/jobs", () =>
+    HttpResponse.json({ jobs: [] }),
+  ),
+
+  http.get("/api/results/:resultId/lists", () =>
+    HttpResponse.json({ list_ids: [] }),
+  ),
+
   // Admin — users list
   http.get("/api/admin/users", () =>
     HttpResponse.json({
       users: [
         makeAdminUser(),
         makeAdminUser({
-          id: "00000000-0000-0000-0000-000000000002",
+          id: "00000000-0000-4000-8000-000000000002",
           email: "user@example.com",
           created_at: "2026-03-01T12:00:00Z",
           last_login: null,

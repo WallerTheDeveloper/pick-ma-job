@@ -1,12 +1,14 @@
 /** Base API client with CSRF cookie reading and credentials. */
 
+import type { ZodType } from "zod";
+
 const CSRF_COOKIE = "csrf_token";
 
 function getCsrfToken(): string | undefined {
   const match = document.cookie
     .split("; ")
     .find((row) => row.startsWith(`${CSRF_COOKIE}=`));
-  return match ? decodeURIComponent(match.split("=")[1]) : undefined;
+  return match ? decodeURIComponent(match.split("=").slice(1).join("=")) : undefined;
 }
 
 export class ApiError extends Error {
@@ -30,6 +32,7 @@ interface RequestOptions extends Omit<RequestInit, "body"> {
 export async function api<T>(
   path: string,
   options: RequestOptions = {},
+  schema?: ZodType<T>,
 ): Promise<T> {
   const { body, headers: extraHeaders, ...rest } = options;
 
@@ -46,6 +49,10 @@ export async function api<T>(
     const csrf = getCsrfToken();
     if (csrf) {
       headers["X-CSRF-Token"] = csrf;
+    } else if (import.meta.env.DEV) {
+      console.warn(
+        `[API] CSRF token missing for ${method} ${path}. Request will likely fail with 403.`,
+      );
     }
   }
 
@@ -71,5 +78,16 @@ export async function api<T>(
     return undefined as T;
   }
 
-  return response.json() as Promise<T>;
+  const json: unknown = await response.json();
+
+  if (schema) {
+    try {
+      return schema.parse(json);
+    } catch (err) {
+      console.error(`[API] Response validation failed for ${method} ${path}:`, err, json);
+      throw err;
+    }
+  }
+
+  return json as T;
 }

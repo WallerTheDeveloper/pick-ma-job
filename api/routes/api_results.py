@@ -215,6 +215,7 @@ async def api_bulk_dismiss_results(
         new_status="dismissed",
         current_status=body.status,
         platform=body.platform,
+        min_score=body.min_score,
         max_score=body.max_score,
         older_than=older_than,
     )
@@ -243,6 +244,7 @@ async def api_bulk_delete_results(
         user_id=user.id,
         current_status=body.status,
         platform=body.platform,
+        min_score=body.min_score,
         max_score=body.max_score,
         older_than=older_than,
     )
