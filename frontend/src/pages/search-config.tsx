@@ -27,12 +27,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
+import { SearchConfigCard } from "@/components/search-config-card";
+import {
+  UpworkFiltersForm,
+  emptyUpworkFilters,
+  upworkFiltersToDict,
+  type UpworkFilters,
+} from "@/components/upwork-filters-form";
 import { useSearchConfigs } from "@/hooks/use-search-config";
 import type {
   Platform,
   SearchConfigCreateRequest,
-  SearchConfigResponse,
 } from "@/types/schemas";
 import { platformValues } from "@/types/schemas";
 
@@ -42,54 +47,6 @@ const platformLabels: Record<Platform, string> = {
   upwork: "Upwork",
   linkedin: "LinkedIn",
 };
-
-// ── Upwork filter options ───────────────────────────────────────────────────
-
-const experienceLevels = [
-  { value: "entry", label: "Entry" },
-  { value: "intermediate", label: "Intermediate" },
-  { value: "expert", label: "Expert" },
-] as const;
-
-const jobTypes = [
-  { value: "fixed", label: "Fixed Price" },
-  { value: "hourly", label: "Hourly" },
-] as const;
-
-// ── Upwork filter form state ────────────────────────────────────────────────
-
-interface UpworkFilters {
-  experienceLevel: string[];
-  jobType: string[];
-  paymentVerified: boolean;
-  perPage: string;
-  maxJobAgeHours: string;
-}
-
-function emptyUpworkFilters(): UpworkFilters {
-  return {
-    experienceLevel: [],
-    jobType: [],
-    paymentVerified: true,
-    perPage: "50",
-    maxJobAgeHours: "24",
-  };
-}
-
-function upworkFiltersToDict(f: UpworkFilters): Record<string, unknown> {
-  const filters: Record<string, unknown> = {};
-  if (f.experienceLevel.length > 0) filters.experienceLevel = f.experienceLevel;
-  if (f.jobType.length > 0) filters.jobType = f.jobType;
-  filters.paymentVerified = f.paymentVerified;
-  const perPage = parseInt(f.perPage, 10);
-  if (!isNaN(perPage) && perPage > 0) filters.perPage = perPage;
-  const hours = parseInt(f.maxJobAgeHours, 10);
-  if (!isNaN(hours) && hours > 0) {
-    filters.maxJobAge = { value: hours, unit: "hours" };
-  }
-  filters.sort = "newest";
-  return filters;
-}
 
 // ── Add config form state ───────────────────────────────────────────────────
 
@@ -109,9 +66,7 @@ function emptyAddForm(): AddFormState {
 
 function formToRequest(form: AddFormState): SearchConfigCreateRequest {
   const filters =
-    form.platform === "upwork"
-      ? upworkFiltersToDict(form.upworkFilters)
-      : {};
+    form.platform === "upwork" ? upworkFiltersToDict(form.upworkFilters) : {};
 
   return {
     platform: form.platform,
@@ -123,213 +78,6 @@ function formToRequest(form: AddFormState): SearchConfigCreateRequest {
 function validateForm(form: AddFormState): string | null {
   if (!form.query.trim()) return "Search query is required.";
   return null;
-}
-
-// ── Toggle helper for multi-select arrays ───────────────────────────────────
-
-function toggleInArray(arr: string[], value: string): string[] {
-  return arr.includes(value)
-    ? arr.filter((v) => v !== value)
-    : [...arr, value];
-}
-
-// ── Config card component ───────────────────────────────────────────────────
-
-interface ConfigCardProps {
-  config: SearchConfigResponse;
-  onDelete: (id: string) => void;
-  isDeleting: boolean;
-}
-
-function ConfigCard({ config, onDelete, isDeleting }: ConfigCardProps) {
-  const filters = config.filters as Record<string, unknown>;
-  const experienceLevel = filters.experienceLevel as string[] | undefined;
-  const jobType = filters.jobType as string[] | undefined;
-  const paymentVerified = filters.paymentVerified as boolean | undefined;
-  const maxJobAge = filters.maxJobAge as { value: number; unit: string } | undefined;
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">
-            {platformLabels[config.platform as Platform] ?? config.platform}
-          </CardTitle>
-          <Badge variant="secondary">{config.platform}</Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-2 text-sm">
-        {config.query && (
-          <div>
-            <span className="font-medium">Query:</span>{" "}
-            <span className="text-muted-foreground">{config.query}</span>
-          </div>
-        )}
-        {experienceLevel && experienceLevel.length > 0 && (
-          <div>
-            <span className="font-medium">Experience:</span>{" "}
-            <span className="text-muted-foreground">
-              {experienceLevel.join(", ")}
-            </span>
-          </div>
-        )}
-        {jobType && jobType.length > 0 && (
-          <div>
-            <span className="font-medium">Job type:</span>{" "}
-            <span className="text-muted-foreground">
-              {jobType.join(", ")}
-            </span>
-          </div>
-        )}
-        {paymentVerified !== undefined && (
-          <div>
-            <span className="font-medium">Payment verified:</span>{" "}
-            <span className="text-muted-foreground">
-              {paymentVerified ? "Yes" : "No"}
-            </span>
-          </div>
-        )}
-        {maxJobAge && (
-          <div>
-            <span className="font-medium">Max age:</span>{" "}
-            <span className="text-muted-foreground">
-              {maxJobAge.value} {maxJobAge.unit}
-            </span>
-          </div>
-        )}
-        <div className="text-xs text-muted-foreground">
-          Updated: {new Date(config.updated_at).toLocaleDateString()}
-        </div>
-      </CardContent>
-      <CardFooter className="justify-end">
-        <Button
-          variant="destructive"
-          size="sm"
-          disabled={isDeleting}
-          onClick={() => onDelete(config.id)}
-        >
-          {isDeleting ? "Deleting..." : "Delete"}
-        </Button>
-      </CardFooter>
-    </Card>
-  );
-}
-
-// ── Upwork filters form ─────────────────────────────────────────────────────
-
-interface UpworkFiltersFormProps {
-  filters: UpworkFilters;
-  onChange: (filters: UpworkFilters) => void;
-}
-
-function UpworkFiltersForm({ filters, onChange }: UpworkFiltersFormProps) {
-  function updateFilter<K extends keyof UpworkFilters>(
-    key: K,
-    value: UpworkFilters[K],
-  ) {
-    onChange({ ...filters, [key]: value });
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Experience level — multi-toggle */}
-      <div className="space-y-1">
-        <label className="text-sm font-medium">Experience Level</label>
-        <div className="flex flex-wrap gap-2">
-          {experienceLevels.map((level) => {
-            const selected = filters.experienceLevel.includes(level.value);
-            return (
-              <button
-                key={level.value}
-                type="button"
-                className={`rounded-md border px-3 py-1 text-sm transition-colors ${
-                  selected
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-input bg-background hover:bg-accent"
-                }`}
-                onClick={() =>
-                  updateFilter(
-                    "experienceLevel",
-                    toggleInArray(filters.experienceLevel, level.value),
-                  )
-                }
-              >
-                {level.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Job type — multi-toggle */}
-      <div className="space-y-1">
-        <label className="text-sm font-medium">Job Type</label>
-        <div className="flex flex-wrap gap-2">
-          {jobTypes.map((jt) => {
-            const selected = filters.jobType.includes(jt.value);
-            return (
-              <button
-                key={jt.value}
-                type="button"
-                className={`rounded-md border px-3 py-1 text-sm transition-colors ${
-                  selected
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-input bg-background hover:bg-accent"
-                }`}
-                onClick={() =>
-                  updateFilter(
-                    "jobType",
-                    toggleInArray(filters.jobType, jt.value),
-                  )
-                }
-              >
-                {jt.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Payment verified checkbox */}
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="paymentVerified"
-          className="size-4 rounded border-input"
-          checked={filters.paymentVerified}
-          onChange={(e) => updateFilter("paymentVerified", e.target.checked)}
-        />
-        <label htmlFor="paymentVerified" className="text-sm font-medium">
-          Payment Verified Only
-        </label>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        {/* Results per page */}
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Results per Page</label>
-          <Input
-            type="number"
-            min={1}
-            max={100}
-            value={filters.perPage}
-            onChange={(e) => updateFilter("perPage", e.target.value)}
-          />
-        </div>
-
-        {/* Max job age */}
-        <div className="space-y-1">
-          <label className="text-sm font-medium">Max Job Age (hours)</label>
-          <Input
-            type="number"
-            min={1}
-            value={filters.maxJobAgeHours}
-            onChange={(e) => updateFilter("maxJobAgeHours", e.target.value)}
-          />
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // ── Main page ───────────────────────────────────────────────────────────────
@@ -510,7 +258,7 @@ export function SearchConfigPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {configs.map((config) => (
-            <ConfigCard
+            <SearchConfigCard
               key={config.id}
               config={config}
               onDelete={(id) => setDeleteTarget(id)}

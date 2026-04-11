@@ -14,156 +14,16 @@ import {
 } from "@/components/ui/collapsible";
 import { TagInput } from "@/components/tag-input";
 import { useProfile } from "@/hooks/use-profile";
-import type { NotableProject, ProfileSaveRequest } from "@/types/schemas";
-
-// ── Rubric helpers ────────────────────────────────────────────────────────────
-
-const STRUCTURED_RUBRIC_KEYS = [
-  "min_score",
-  "prefer_remote",
-  "priority_keywords",
-  "avoid_keywords",
-] as const;
-
-interface RubricState {
-  minScore: string;
-  preferRemote: boolean;
-  priorityKeywords: string[];
-  avoidKeywords: string[];
-  advanced: string;
-}
-
-function extractRubric(rubric: Record<string, unknown>): RubricState {
-  const extra: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(rubric)) {
-    if (!(STRUCTURED_RUBRIC_KEYS as readonly string[]).includes(k)) {
-      extra[k] = v;
-    }
-  }
-  return {
-    minScore:
-      typeof rubric.min_score === "number" ? String(rubric.min_score) : "",
-    preferRemote: rubric.prefer_remote === true,
-    priorityKeywords: Array.isArray(rubric.priority_keywords)
-      ? rubric.priority_keywords.filter((x): x is string => typeof x === "string")
-      : [],
-    avoidKeywords: Array.isArray(rubric.avoid_keywords)
-      ? rubric.avoid_keywords.filter((x): x is string => typeof x === "string")
-      : [],
-    advanced:
-      Object.keys(extra).length > 0 ? JSON.stringify(extra, null, 2) : "",
-  };
-}
-
-function buildRubric(r: RubricState): Record<string, unknown> {
-  const rubric: Record<string, unknown> = {};
-  const minScore = Number(r.minScore);
-  if (r.minScore !== "" && !isNaN(minScore) && minScore >= 1 && minScore <= 10) {
-    rubric.min_score = minScore;
-  }
-  if (r.preferRemote) rubric.prefer_remote = true;
-  if (r.priorityKeywords.length > 0) rubric.priority_keywords = r.priorityKeywords;
-  if (r.avoidKeywords.length > 0) rubric.avoid_keywords = r.avoidKeywords;
-
-  if (r.advanced.trim()) {
-    try {
-      const extra = JSON.parse(r.advanced) as Record<string, unknown>;
-      Object.assign(rubric, extra);
-    } catch {
-      // validation will catch this before save
-    }
-  }
-  return rubric;
-}
-
-// ── Form state ────────────────────────────────────────────────────────────────
-
-interface FormState {
-  role: string;
-  experience: string;
-  rate: string;
-  primarySkills: string[];
-  secondarySkills: string[];
-  tertiarySkills: string[];
-  notAGoodFit: string[];
-  background: string[];
-  languages: string[];
-  notableProjects: NotableProject[];
-  rubric: RubricState;
-}
-
-function emptyForm(): FormState {
-  return {
-    role: "",
-    experience: "",
-    rate: "",
-    primarySkills: [],
-    secondarySkills: [],
-    tertiarySkills: [],
-    notAGoodFit: [],
-    background: [],
-    languages: [],
-    notableProjects: [],
-    rubric: {
-      minScore: "",
-      preferRemote: false,
-      priorityKeywords: [],
-      avoidKeywords: [],
-      advanced: "",
-    },
-  };
-}
-
-function profileToForm(
-  p: NonNullable<ReturnType<typeof useProfile>["profile"]>,
-): FormState {
-  return {
-    role: p.role ?? "",
-    experience: p.experience ?? "",
-    rate: p.rate ?? "",
-    primarySkills: [...p.primary_skills],
-    secondarySkills: [...p.secondary_skills],
-    tertiarySkills: [...p.tertiary_skills],
-    notAGoodFit: [...p.not_a_good_fit],
-    background: [...p.background],
-    languages: [...p.languages],
-    notableProjects: p.notable_projects.length > 0 ? [...p.notable_projects] : [],
-    rubric: extractRubric(p.rubric),
-  };
-}
-
-function formToRequest(form: FormState): ProfileSaveRequest {
-  return {
-    role: form.role.trim() || null,
-    experience: form.experience.trim() || null,
-    rate: form.rate.trim() || null,
-    primary_skills: form.primarySkills,
-    secondary_skills: form.secondarySkills,
-    tertiary_skills: form.tertiarySkills,
-    not_a_good_fit: form.notAGoodFit,
-    background: form.background.filter(Boolean),
-    languages: form.languages,
-    notable_projects: form.notableProjects.filter(
-      (p) => p.name.trim() || p.description.trim(),
-    ),
-    rubric: buildRubric(form.rubric),
-  };
-}
-
-function validateForm(form: FormState): string | null {
-  if (form.rubric.advanced.trim()) {
-    try {
-      JSON.parse(form.rubric.advanced);
-    } catch {
-      return "Advanced rubric JSON is not valid. Fix or clear it before saving.";
-    }
-  }
-  const minScore = Number(form.rubric.minScore);
-  if (form.rubric.minScore !== "" && (isNaN(minScore) || minScore < 1 || minScore > 10)) {
-    return "Minimum score must be a number between 1 and 10.";
-  }
-  return null;
-}
+import {
+  emptyForm,
+  formToRequest,
+  profileToForm,
+  validateForm,
+  type BackgroundEntry,
+  type FormState,
+  type ProjectEntry,
+  type RubricState,
+} from "@/pages/profile-helpers";
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -190,12 +50,17 @@ export function ProfilePage() {
   function updateBackground(index: number, value: string) {
     setForm((prev) => ({
       ...prev,
-      background: prev.background.map((entry, i) => (i === index ? value : entry)),
+      background: prev.background.map((entry, i) =>
+        i === index ? { ...entry, value } : entry,
+      ),
     }));
   }
 
   function addBackgroundEntry() {
-    setForm((prev) => ({ ...prev, background: [...prev.background, ""] }));
+    setForm((prev) => ({
+      ...prev,
+      background: [...prev.background, { id: crypto.randomUUID(), value: "" }],
+    }));
   }
 
   function removeBackgroundEntry(index: number) {
@@ -217,7 +82,10 @@ export function ProfilePage() {
   function addProject() {
     setForm((prev) => ({
       ...prev,
-      notableProjects: [...prev.notableProjects, { name: "", description: "" }],
+      notableProjects: [
+        ...prev.notableProjects,
+        { id: crypto.randomUUID(), name: "", description: "" },
+      ],
     }));
   }
 
@@ -373,10 +241,10 @@ export function ProfilePage() {
             </p>
           )}
           {form.background.map((entry, i) => (
-            <div key={i} className="flex items-center gap-2">
+            <div key={entry.id} className="flex items-center gap-2">
               <Input
                 placeholder="e.g. 2 years AR Developer at ZAUBAR"
-                value={entry}
+                value={entry.value}
                 onChange={(e) => updateBackground(i, e.target.value)}
               />
               <Button
@@ -429,7 +297,7 @@ export function ProfilePage() {
             </p>
           )}
           {form.notableProjects.map((project, i) => (
-            <div key={i} className="space-y-2 rounded-md border p-3">
+            <div key={project.id} className="space-y-2 rounded-md border p-3">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">Project {i + 1}</label>
                 <Button type="button" variant="ghost" size="sm" onClick={() => removeProject(i)}>

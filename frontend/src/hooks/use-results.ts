@@ -42,9 +42,10 @@ export function useResults(initialFilters?: Partial<ResultsFilters>) {
   const [cursorStack, setCursorStack] = useState<Array<string | undefined>>([]);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
 
+  const minScore = Number(filters.minScore);
   const queryParams: ResultsQueryParams = {
     ...(filters.status && { status: filters.status }),
-    ...(filters.minScore && { min_score: Number(filters.minScore) }),
+    ...(filters.minScore && !isNaN(minScore) && { min_score: minScore }),
     ...(filters.platform && { platform: filters.platform }),
     sort: filters.sort,
     ...(cursor !== undefined && { cursor }),

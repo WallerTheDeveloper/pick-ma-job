@@ -39,13 +39,15 @@ export async function deleteResult(resultId: string): Promise<void> {
   await api<void>(`/api/results/${resultId}`, { method: "DELETE" });
 }
 
-export interface BulkDismissParams {
+interface BulkActionParams {
   older_than_days?: number;
   status?: string;
   platform?: string;
   min_score?: number;
   max_score?: number;
 }
+
+export type BulkDismissParams = BulkActionParams;
 
 export interface BulkDismissResult {
   dismissed_count: number;
@@ -63,13 +65,7 @@ export async function bulkDismissResults(
   );
 }
 
-export interface BulkDeleteParams {
-  older_than_days?: number;
-  status?: string;
-  platform?: string;
-  min_score?: number;
-  max_score?: number;
-}
+export type BulkDeleteParams = BulkActionParams;
 
 export interface BulkDeleteResult {
   deleted_count: number;

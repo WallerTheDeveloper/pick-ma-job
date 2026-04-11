@@ -6,6 +6,7 @@ import { fetchCurrentUser, logout as logoutApi, requestMagicLink } from "@/api/a
 import type { UserInfo } from "@/types/schemas";
 
 const AUTH_QUERY_KEY = ["auth", "me"] as const;
+const AUTH_STALE_TIME_MS = 5 * 60 * 1000; // 5 minutes
 
 export function useAuth() {
   const queryClient = useQueryClient();
@@ -15,7 +16,7 @@ export function useAuth() {
     queryKey: AUTH_QUERY_KEY,
     queryFn: fetchCurrentUser,
     retry: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: AUTH_STALE_TIME_MS,
   });
 
   const user: UserInfo | null = data?.user ?? null;

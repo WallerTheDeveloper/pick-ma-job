@@ -109,17 +109,15 @@ export function ResultsPage() {
       <div className="flex flex-wrap items-end gap-3">
         {/* Status filter */}
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
+          <label htmlFor="status-filter" className="text-xs font-medium text-muted-foreground">
             Status
           </label>
           <Select
             value={filters.status}
-            onValueChange={(val) => updateFilter("status", val as string)}
+            onValueChange={(val) => updateFilter("status", val)}
           >
-            <SelectTrigger>
-              <SelectValue>
-                {(value) => statusLabels[value as string] ?? "All statuses"}
-              </SelectValue>
+            <SelectTrigger id="status-filter">
+              <SelectValue placeholder="All statuses" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="">All statuses</SelectItem>
@@ -134,17 +132,15 @@ export function ResultsPage() {
 
         {/* Platform filter */}
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
+          <label htmlFor="platform-filter" className="text-xs font-medium text-muted-foreground">
             Platform
           </label>
           <Select
             value={filters.platform}
-            onValueChange={(val) => updateFilter("platform", val as string)}
+            onValueChange={(val) => updateFilter("platform", val)}
           >
-            <SelectTrigger>
-              <SelectValue>
-                {(value) => platformLabels[value as string] ?? "All platforms"}
-              </SelectValue>
+            <SelectTrigger id="platform-filter">
+              <SelectValue placeholder="All platforms" />
             </SelectTrigger>
             <SelectContent>
               {platformOptions.map((p) => (
@@ -174,17 +170,15 @@ export function ResultsPage() {
 
         {/* Sort */}
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">
+          <label htmlFor="sort-filter" className="text-xs font-medium text-muted-foreground">
             Sort
           </label>
           <Select
             value={filters.sort}
-            onValueChange={(val) => updateFilter("sort", val as string)}
+            onValueChange={(val) => updateFilter("sort", val)}
           >
-            <SelectTrigger>
-              <SelectValue>
-                {(value) => sortLabels[value as string] ?? String(value)}
-              </SelectValue>
+            <SelectTrigger id="sort-filter">
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {Object.entries(sortLabels).map(([key, label]) => (

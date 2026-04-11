@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
 import { useLists } from "@/hooks/use-lists";
 import type { JobList } from "@/types/schemas";
 
@@ -32,8 +33,12 @@ export function ListManager({ selectedListId, onSelectList }: ListManagerProps) 
   async function handleCreate() {
     const name = newName.trim();
     if (!name) return;
-    await createList(name);
-    setNewName("");
+    try {
+      await createList(name);
+      setNewName("");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to create list");
+    }
   }
 
   function startEditing(list: JobList) {
@@ -45,7 +50,12 @@ export function ListManager({ selectedListId, onSelectList }: ListManagerProps) 
     if (!editingId) return;
     const name = editName.trim();
     if (name) {
-      await renameList({ listId: editingId, name });
+      try {
+        await renameList({ listId: editingId, name });
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : "Failed to rename list");
+        return;
+      }
     }
     setEditingId(null);
   }

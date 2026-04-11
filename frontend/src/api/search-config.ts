@@ -26,7 +26,7 @@ export async function createSearchConfig(
 }
 
 export async function deleteSearchConfig(id: string): Promise<void> {
-  await api<{ ok: boolean }>(`/api/search-configs/${id}`, {
+  await api<void>(`/api/search-configs/${id}`, {
     method: "DELETE",
   });
 }
