@@ -6,7 +6,7 @@ function getCsrfToken(): string | undefined {
   const match = document.cookie
     .split("; ")
     .find((row) => row.startsWith(`${CSRF_COOKIE}=`));
-  return match?.split("=")[1];
+  return match ? decodeURIComponent(match.split("=")[1]) : undefined;
 }
 
 export class ApiError extends Error {

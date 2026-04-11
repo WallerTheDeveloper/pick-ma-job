@@ -1,12 +1,11 @@
 """Dashboard JSON API — landing page data for the React SPA."""
 
 import logging
-import os
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from api.deps import get_current_user, get_db_pool, get_profile_service, get_search_config_service
+from api.deps import get_current_user, get_db_pool, get_profile_service, get_search_config_service, is_admin_email
 from api.schemas import DashboardResponse, PipelineRunInfo, UserInfo
 from repositories.pipeline_run import PipelineRunRepository
 from repositories.user import UserRow
@@ -26,9 +25,6 @@ async def api_dashboard(
     pool: Annotated[object, Depends(get_db_pool)],
 ) -> DashboardResponse:
     """Return dashboard data: user info, profile status, config count, recent runs."""
-    admin_email = os.environ.get("ADMIN_EMAIL", "").strip()
-    is_admin = bool(admin_email and user.email == admin_email)
-
     has_profile = await profile_svc.get_or_default(user.id) is not None
     configs = await search_config_svc.get_all(user.id)
 
@@ -48,7 +44,7 @@ async def api_dashboard(
     ]
 
     return DashboardResponse(
-        user=UserInfo(id=user.id, email=user.email, is_admin=is_admin),
+        user=UserInfo(id=user.id, email=user.email, is_admin=is_admin_email(user.email)),
         has_profile=has_profile,
         config_count=len(configs),
         recent_runs=recent_runs,

@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from api.csrf import CSRF_COOKIE, derive_csrf_token
-from api.deps import get_auth_service, get_current_user
+from api.deps import get_auth_service, get_current_user, is_admin_email
 from api.schemas import AuthMeResponse, UserInfo
 from repositories.user import UserRow
 from services.auth import AuthError, AuthService
@@ -32,9 +32,7 @@ def _is_secure() -> bool:
 
 def _make_user_info(user: UserRow) -> UserInfo:
     """Build a UserInfo response from a UserRow."""
-    admin_email = os.environ.get("ADMIN_EMAIL", "").strip()
-    is_admin = bool(admin_email and user.email == admin_email)
-    return UserInfo(id=user.id, email=user.email, is_admin=is_admin)
+    return UserInfo(id=user.id, email=user.email, is_admin=is_admin_email(user.email))
 
 
 # ── Session check ────────────────────────────────────────────────────────────
@@ -120,6 +118,18 @@ async def logout(
         await auth_service.logout(token)
 
     response = JSONResponse({"ok": True})
-    response.delete_cookie(key=_SESSION_COOKIE)
-    response.delete_cookie(key=CSRF_COOKIE)
+    response.delete_cookie(
+        key=_SESSION_COOKIE,
+        path="/",
+        httponly=True,
+        samesite="lax",
+        secure=_is_secure(),
+    )
+    response.delete_cookie(
+        key=CSRF_COOKIE,
+        path="/",
+        httponly=False,
+        samesite="lax",
+        secure=_is_secure(),
+    )
     return response

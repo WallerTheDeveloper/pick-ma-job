@@ -1,5 +1,6 @@
 """FastAPI dependency functions — injected into route handlers via Depends()."""
 
+import hmac
 import os
 from typing import Annotated
 
@@ -90,12 +91,17 @@ async def get_run_manager(request: Request) -> RunManager:
     return request.app.state.run_manager
 
 
+def is_admin_email(email: str) -> bool:
+    """Return True if email matches the configured ADMIN_EMAIL (timing-safe comparison)."""
+    admin_email = os.environ.get("ADMIN_EMAIL", "").strip()
+    return bool(admin_email and hmac.compare_digest(email, admin_email))
+
+
 async def get_admin_user(
     user: Annotated[UserRow, Depends(get_current_user)],
 ) -> UserRow:
     """Require an authenticated admin user. Raises HTTP 403 if user is not the admin."""
-    admin_email = os.environ.get("ADMIN_EMAIL", "").strip()
-    if not admin_email or user.email != admin_email:
+    if not is_admin_email(user.email):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return user
 

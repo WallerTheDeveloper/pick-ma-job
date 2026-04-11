@@ -38,6 +38,13 @@ async def require_csrf(
 
     Raises HTTP 403 if the token is missing or does not match the expected value
     derived from the session cookie.
+
+    IMPORTANT: This dependency MUST always be paired with ``get_current_user`` on
+    every mutating route. When no session cookie is present, this function returns
+    early without raising an error — it relies on ``get_current_user`` to raise
+    HTTP 401 for unauthenticated requests. A route that uses ``require_csrf``
+    without ``get_current_user`` would silently skip CSRF validation for
+    unauthenticated callers.
     """
     session_token = request.cookies.get(_SESSION_COOKIE)
     if not session_token:
