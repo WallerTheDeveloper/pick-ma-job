@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export function LandingPage() {
   return (
@@ -8,7 +9,10 @@ export function LandingPage() {
       {/* Top navbar */}
       <header className="border-b border-border px-6 py-4 flex items-center justify-between">
         <span className="text-lg font-semibold tracking-tight">Pick Ma Job</span>
-        <Link to="/login" className={cn(buttonVariants({ size: "sm" }))}>Sign In</Link>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Link to="/login" className={cn(buttonVariants({ size: "sm" }))}>Sign In</Link>
+        </div>
       </header>
 
       <main>

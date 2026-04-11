@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { requestMagicLink } from "@/api/auth";
 import { ApiError } from "@/api/client";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -47,6 +48,9 @@ export function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
+      <div className="fixed top-4 right-4">
+        <ThemeToggle />
+      </div>
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Pick Ma Job</CardTitle>

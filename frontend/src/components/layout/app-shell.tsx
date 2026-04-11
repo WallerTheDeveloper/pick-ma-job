@@ -3,6 +3,7 @@ import { LayoutDashboard, FileSearch, User, Settings, Shield, LogOut } from "luc
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -53,16 +54,19 @@ export function AppShell() {
               {user.email}
             </p>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start gap-2 text-sidebar-foreground/70 hover:text-sidebar-foreground"
-            onClick={() => logout()}
-            disabled={logoutStatus === "pending"}
-          >
-            <LogOut className="h-4 w-4" />
-            {logoutStatus === "pending" ? "Signing out..." : "Sign out"}
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex-1 justify-start gap-2 text-sidebar-foreground/70 hover:text-sidebar-foreground"
+              onClick={() => logout()}
+              disabled={logoutStatus === "pending"}
+            >
+              <LogOut className="h-4 w-4" />
+              {logoutStatus === "pending" ? "Signing out..." : "Sign out"}
+            </Button>
+            <ThemeToggle className="text-sidebar-foreground/70 hover:text-sidebar-foreground shrink-0" />
+          </div>
         </div>
       </aside>
 
