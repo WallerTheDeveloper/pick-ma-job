@@ -9,6 +9,7 @@ The React SPA is served by nginx in production. In development, Vite's dev
 server proxies API calls to this backend.
 """
 
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -27,6 +28,8 @@ from api.routes.api_results import router as api_results_router
 from api.routes.api_search_config import router as api_search_config_router
 from api.routes.auth import router as auth_router
 from db.pool import close_pool, create_pool
+from repositories.magic_link import MagicLinkRepository
+from repositories.session import SessionRepository
 from services.run_manager import RunManager
 
 load_dotenv()
@@ -57,6 +60,18 @@ def validate_env() -> None:
         )
 
 
+async def _cleanup_loop(session_repo: SessionRepository, magic_link_repo: MagicLinkRepository) -> None:
+    """Periodically delete expired sessions and magic links."""
+    while True:
+        await asyncio.sleep(3600)
+        try:
+            sessions_deleted = await session_repo.delete_expired()
+            links_deleted = await magic_link_repo.delete_expired()
+            logger.info("Cleanup: deleted %d sessions, %d magic links", sessions_deleted, links_deleted)
+        except Exception:
+            logger.exception("Cleanup task failed")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     validate_env()
@@ -66,10 +81,18 @@ async def lifespan(app: FastAPI):
         anthropic_api_key=os.environ["ANTHROPIC_API_KEY"],
         pool=app.state.db_pool,
     )
+
+    cleanup_task = asyncio.create_task(
+        _cleanup_loop(
+            SessionRepository(app.state.db_pool),
+            MagicLinkRepository(app.state.db_pool),
+        )
+    )
     logger.info("Application started")
 
     yield
 
+    cleanup_task.cancel()
     await close_pool(app.state.db_pool)
     logger.info("Application stopped")
 

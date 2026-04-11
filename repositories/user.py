@@ -72,8 +72,10 @@ class UserRepository:
         logger.info("Created user email=%s id=%s", email, row["id"])
         return _row_to_user(row)
 
-    async def list_users_with_stats(self) -> list[UserStatsRow]:
-        """Return all users with their job_results count."""
+    async def list_users_with_stats(
+        self, limit: int = 100, offset: int = 0
+    ) -> list[UserStatsRow]:
+        """Return users with their job_results count, paginated."""
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
                 """
@@ -83,7 +85,10 @@ class UserRepository:
                 LEFT JOIN job_results jr ON jr.user_id = u.id
                 GROUP BY u.id
                 ORDER BY u.created_at DESC
+                LIMIT $1 OFFSET $2
                 """,
+                limit,
+                offset,
             )
         return [
             UserStatsRow(
@@ -95,6 +100,12 @@ class UserRepository:
             )
             for r in rows
         ]
+
+    async def count_users(self) -> int:
+        """Return the total number of registered users."""
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT COUNT(*) AS cnt FROM users")
+        return row["cnt"]
 
     async def update_last_login(self, user_id: UUID) -> None:
         """Set last_login to now() for the given user."""

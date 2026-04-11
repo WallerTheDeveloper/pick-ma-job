@@ -27,6 +27,9 @@ npm ci --silent
 npm run build
 cd "$APP_DIR"
 
+echo "==> Running database migrations..."
+.venv/bin/python db/migrate.py
+
 echo "==> Restarting backend..."
 sudo systemctl restart pick-ma-job.service
 

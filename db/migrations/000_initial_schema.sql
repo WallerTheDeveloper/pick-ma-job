@@ -1,5 +1,7 @@
--- pick-ma-job database schema
--- Idempotent: safe to run multiple times (CREATE TABLE IF NOT EXISTS)
+-- Migration 000: initial schema (baseline)
+-- This file captures the full schema state as of the migration system introduction.
+-- Applied automatically on fresh installs. On existing DBs bootstrapped via schema.sql,
+-- this migration is pre-populated as already applied in schema_migrations.
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
@@ -44,21 +46,16 @@ CREATE INDEX IF NOT EXISTS idx_magic_links_user_id ON magic_links(user_id);
 CREATE TABLE IF NOT EXISTS profiles (
     id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id           UUID        UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    -- Identity
     role              TEXT,
     experience        TEXT,
     rate              TEXT,
-    -- Skills (tiered)
     primary_skills    TEXT[]      NOT NULL DEFAULT '{}',
     secondary_skills  TEXT[]      NOT NULL DEFAULT '{}',
     tertiary_skills   TEXT[]      NOT NULL DEFAULT '{}',
-    -- Fit criteria
     not_a_good_fit    TEXT[]      NOT NULL DEFAULT '{}',
-    -- Background
     background        TEXT[]      NOT NULL DEFAULT '{}',
     notable_projects  JSONB       NOT NULL DEFAULT '[]',
     languages         TEXT[]      NOT NULL DEFAULT '{}',
-    -- Evaluator config
     rubric            JSONB       NOT NULL DEFAULT '{}',
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -74,7 +71,7 @@ CREATE TABLE IF NOT EXISTS search_configs (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_search_configs_user_platform ON search_configs(user_id, platform);
+CREATE INDEX IF NOT EXISTS idx_search_configs_user_id ON search_configs(user_id);
 
 -- ── Job Results ───────────────────────────────────────────────────────────────
 
@@ -93,9 +90,8 @@ CREATE TABLE IF NOT EXISTS job_results (
     UNIQUE (user_id, platform, job_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_job_results_user_score_status
-    ON job_results(user_id, score DESC NULLS LAST, status)
-    INCLUDE (title, url, platform, created_at);
+CREATE INDEX IF NOT EXISTS idx_job_results_user_status ON job_results(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_job_results_user_score  ON job_results(user_id, score DESC);
 
 -- ── Pipeline Runs ────────────────────────────────────────────────────────────
 
@@ -110,7 +106,7 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
     completed_at TIMESTAMPTZ
 );
 
-CREATE INDEX IF NOT EXISTS idx_pipeline_runs_user_started ON pipeline_runs(user_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pipeline_runs_user_id ON pipeline_runs(user_id);
 
 -- ── Job Lists ─────────────────────────────────────────────────────────────────
 

@@ -220,4 +220,5 @@ class UserStatsResponse(BaseModel):
 
 
 class AdminUsersResponse(BaseModel):
+    total: int
     users: list[UserStatsResponse]

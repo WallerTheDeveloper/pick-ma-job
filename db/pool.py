@@ -36,15 +36,18 @@ async def init_db(conn: asyncpg.Connection) -> None:
 
 
 async def create_pool(database_url: str) -> asyncpg.Pool:
-    """Create and return an asyncpg connection pool, running schema on first connect."""
+    """Create and return an asyncpg connection pool.
+
+    DDL is no longer run automatically on startup. Migrations are handled by
+    db/migrate.py, which deploy.sh runs before restarting the service.
+    For local development, run: python db/migrate.py
+    """
     pool = await asyncpg.create_pool(
         dsn=database_url,
         min_size=2,
         max_size=10,
         init=_init_conn,
     )
-    async with pool.acquire() as conn:
-        await init_db(conn)
     logger.info("Database pool created (min=2, max=10)")
     return pool
 

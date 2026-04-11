@@ -79,7 +79,12 @@ class JobResultRepository:
         return _row_to_job_result(row)
 
     async def exists(self, user_id: UUID, platform: str, job_id: str) -> bool:
-        """Return True if this job has already been stored for this user."""
+        """Return True if this job has already been stored for this user.
+
+        This intentional round-trip is used by the pipeline service to skip
+        evaluation (Claude API calls) for already-seen jobs — not just the insert.
+        Removing it would evaluate duplicates unnecessarily before ON CONFLICT rejects them.
+        """
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
@@ -91,6 +96,35 @@ class JobResultRepository:
                 job_id,
             )
         return row is not None
+
+    def _build_filter(
+        self,
+        user_id: UUID,
+        status: str | None = None,
+        min_score: int | None = None,
+        platform: str | None = None,
+    ) -> tuple[list[str], list, int]:
+        """Build the shared filter for user-scoped queries.
+
+        Returns (conditions, params, next_param_index). Callers may append further
+        conditions (keyset cursor, etc.) then join with AND and append LIMIT/OFFSET params.
+        """
+        conditions = ["user_id = $1"]
+        params: list = [user_id]
+        idx = 2
+        if status is not None:
+            conditions.append(f"status = ${idx}")
+            params.append(status)
+            idx += 1
+        if min_score is not None:
+            conditions.append(f"score >= ${idx}")
+            params.append(min_score)
+            idx += 1
+        if platform is not None:
+            conditions.append(f"platform = ${idx}")
+            params.append(platform)
+            idx += 1
+        return conditions, params, idx
 
     # Sort clauses use `id DESC` as tiebreaker for deterministic keyset pagination.
     _SORT_CLAUSES: dict[str, str] = {
@@ -177,24 +211,7 @@ class JobResultRepository:
         if sort not in self._SORT_CLAUSES:
             raise ValueError(f"Unknown sort key: {sort!r}")
 
-        conditions = ["user_id = $1"]
-        params: list = [user_id]
-        idx = 2
-
-        if status is not None:
-            conditions.append(f"status = ${idx}")
-            params.append(status)
-            idx += 1
-
-        if min_score is not None:
-            conditions.append(f"score >= ${idx}")
-            params.append(min_score)
-            idx += 1
-
-        if platform is not None:
-            conditions.append(f"platform = ${idx}")
-            params.append(platform)
-            idx += 1
+        conditions, params, idx = self._build_filter(user_id, status, min_score, platform)
 
         if cursor_id is not None:
             keyset_cond, idx = self._build_keyset_condition(
@@ -354,24 +371,7 @@ class JobResultRepository:
         platform: str | None = None,
     ) -> int:
         """Return the total count of job results for a user, optionally filtered by status, min score, and platform."""
-        conditions = ["user_id = $1"]
-        params: list = [user_id]
-        idx = 2
-
-        if status is not None:
-            conditions.append(f"status = ${idx}")
-            params.append(status)
-            idx += 1
-
-        if min_score is not None:
-            conditions.append(f"score >= ${idx}")
-            params.append(min_score)
-            idx += 1
-
-        if platform is not None:
-            conditions.append(f"platform = ${idx}")
-            params.append(platform)
-
+        conditions, params, _ = self._build_filter(user_id, status, min_score, platform)
         where = " AND ".join(conditions)
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
