@@ -50,6 +50,7 @@ const platformLabels: Record<string, string> = {
 
 export function ResultsPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmDeleteAllOpen, setConfirmDeleteAllOpen] = useState(false);
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
 
   const {
@@ -64,6 +65,10 @@ export function ResultsPage() {
     isUpdatingStatus,
     bulkDismiss,
     isBulkDismissing,
+    deleteResult,
+    isDeletingResult,
+    bulkDelete,
+    isBulkDeleting,
   } = useResults();
 
   const { data: listJobsData, isLoading: listLoading } = useListJobs(selectedListId);
@@ -235,6 +240,46 @@ export function ResultsPage() {
             </DialogContent>
           </Dialog>
         )}
+
+        {/* Bulk delete */}
+        {results.length > 0 && (
+          <Dialog open={confirmDeleteAllOpen} onOpenChange={setConfirmDeleteAllOpen}>
+            <DialogTrigger render={
+              <Button variant="outline" size="sm">
+                Delete all filtered
+              </Button>
+            } />
+            <DialogContent showCloseButton={false}>
+              <DialogHeader>
+                <DialogTitle>Delete all filtered results?</DialogTitle>
+                <DialogDescription>
+                  This will permanently delete all{" "}
+                  {pagination ? pagination.total : results.length} currently
+                  filtered result{pagination && pagination.total !== 1 ? "s" : ""}. This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose render={<Button variant="outline">Cancel</Button>} />
+                <Button
+                  variant="destructive"
+                  disabled={isBulkDeleting}
+                  onClick={async () => {
+                    await bulkDelete({
+                      ...(filters.status && { status: filters.status }),
+                      ...(filters.platform && { platform: filters.platform }),
+                      ...(filters.minScore && {
+                        max_score: Number(filters.minScore),
+                      }),
+                    });
+                    setConfirmDeleteAllOpen(false);
+                  }}
+                >
+                  {isBulkDeleting ? "Deleting..." : "Delete all"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {/* Loading state */}
@@ -269,7 +314,9 @@ export function ResultsPage() {
               onStatusChange={(id, status) =>
                 updateStatus({ resultId: id, status })
               }
+              onDelete={(id) => deleteResult(id)}
               isUpdating={isUpdatingStatus}
+              isDeleting={isDeletingResult}
             />
           ))}
         </div>

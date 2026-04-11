@@ -10,6 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from api.csrf import require_csrf
 from api.deps import get_current_user, get_job_list_repo, get_job_result_repo
 from api.schemas import (
+    BulkDeleteRequest,
+    BulkDeleteResponse,
     BulkDismissRequest,
     BulkDismissResponse,
     JobResultResponse,
@@ -129,6 +131,22 @@ async def api_update_result_status(
     )
 
 
+@router.delete("/{result_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def api_delete_result(
+    result_id: UUID,
+    user: Annotated[UserRow, Depends(get_current_user)],
+    repo: Annotated[JobResultRepository, Depends(get_job_result_repo)],
+    _csrf: Annotated[None, Depends(require_csrf)],
+) -> None:
+    """Hard-delete a job result owned by the current user."""
+    deleted = await repo.delete_by_id(result_id, user.id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Result not found",
+        )
+
+
 @router.post("/bulk-dismiss")
 async def api_bulk_dismiss_results(
     body: BulkDismissRequest,
@@ -156,6 +174,34 @@ async def api_bulk_dismiss_results(
         older_than=older_than,
     )
     return BulkDismissResponse(dismissed_count=dismissed_count)
+
+
+@router.post("/bulk-delete")
+async def api_bulk_delete_results(
+    body: BulkDeleteRequest,
+    user: Annotated[UserRow, Depends(get_current_user)],
+    repo: Annotated[JobResultRepository, Depends(get_job_result_repo)],
+    _csrf: Annotated[None, Depends(require_csrf)],
+) -> BulkDeleteResponse:
+    """Hard-delete all job results matching the given filters for the current user."""
+    if body.status is not None and body.status not in VALID_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid status filter '{body.status}'. Must be one of: {sorted(VALID_STATUSES)}",
+        )
+
+    older_than: datetime | None = None
+    if body.older_than_days is not None:
+        older_than = datetime.now(timezone.utc) - timedelta(days=body.older_than_days)
+
+    deleted_count = await repo.bulk_delete(
+        user_id=user.id,
+        current_status=body.status,
+        platform=body.platform,
+        max_score=body.max_score,
+        older_than=older_than,
+    )
+    return BulkDeleteResponse(deleted_count=deleted_count)
 
 
 class JobResultListsResponse(OkResponse):

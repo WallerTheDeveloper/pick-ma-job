@@ -1,15 +1,25 @@
 /** Single result row — expandable with score, title, recommendation, details. */
 
 import { useState } from "react";
-import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
+import { ChevronDownIcon, ExternalLinkIcon, Trash2Icon } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -25,7 +35,9 @@ import { resultStatusValues, type JobResult, type ResultStatus } from "@/types/s
 interface ResultRowProps {
   result: JobResult;
   onStatusChange: (resultId: string, status: string) => void;
+  onDelete: (resultId: string) => Promise<void>;
   isUpdating: boolean;
+  isDeleting: boolean;
 }
 
 const statusLabels: Record<ResultStatus, string> = {
@@ -34,8 +46,9 @@ const statusLabels: Record<ResultStatus, string> = {
   dismissed: "Dismissed",
 };
 
-export function ResultRow({ result, onStatusChange, isUpdating }: ResultRowProps) {
+export function ResultRow({ result, onStatusChange, onDelete, isUpdating, isDeleting }: ResultRowProps) {
   const [open, setOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const evaluation = result.evaluation;
   const queryClient = useQueryClient();
   const { addJob, removeJob } = useLists();
@@ -53,6 +66,30 @@ export function ResultRow({ result, onStatusChange, isUpdating }: ResultRowProps
   }
 
   return (
+    <>
+    <Dialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+      <DialogContent showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>Delete this job?</DialogTitle>
+          <DialogDescription>
+            This will permanently remove "{result.title}" from your results. This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline">Cancel</Button>} />
+          <Button
+            variant="destructive"
+            disabled={isDeleting}
+            onClick={async () => {
+              await onDelete(result.id);
+              setConfirmDeleteOpen(false);
+            }}
+          >
+            {isDeleting ? "Deleting..." : "Delete"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     <Collapsible open={open} onOpenChange={setOpen}>
       <Card className="overflow-hidden">
         <div className="flex items-center gap-3 p-4">
@@ -101,6 +138,17 @@ export function ResultRow({ result, onStatusChange, isUpdating }: ResultRowProps
               onAdd={handleAddToList}
               onRemove={handleRemoveFromList}
             />
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 text-muted-foreground hover:text-destructive"
+              onClick={() => setConfirmDeleteOpen(true)}
+              disabled={isDeleting}
+              aria-label="Delete job"
+            >
+              <Trash2Icon className="size-4" />
+            </Button>
           </div>
         </div>
 
@@ -167,5 +215,6 @@ export function ResultRow({ result, onStatusChange, isUpdating }: ResultRowProps
         </CollapsibleContent>
       </Card>
     </Collapsible>
+    </>
   );
 }

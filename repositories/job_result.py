@@ -215,6 +215,64 @@ class JobResultRepository:
         logger.debug("Bulk updated %d results for user_id=%s to status=%s", updated_count, user_id, new_status)
         return updated_count
 
+    async def bulk_delete(
+        self,
+        user_id: UUID,
+        current_status: str | None = None,
+        platform: str | None = None,
+        max_score: int | None = None,
+        older_than: datetime | None = None,
+    ) -> int:
+        """Hard-delete all matching results for user_id. Returns the number of rows deleted."""
+        params: list = [user_id]
+        conditions = ["user_id = $1"]
+        idx = 2
+
+        if current_status is not None:
+            conditions.append(f"status = ${idx}")
+            params.append(current_status)
+            idx += 1
+
+        if platform is not None:
+            conditions.append(f"platform = ${idx}")
+            params.append(platform)
+            idx += 1
+
+        if max_score is not None:
+            conditions.append(f"score <= ${idx}")
+            params.append(max_score)
+            idx += 1
+
+        if older_than is not None:
+            conditions.append(f"created_at < ${idx}")
+            params.append(older_than)
+            idx += 1
+
+        where = " AND ".join(conditions)
+        async with self._pool.acquire() as conn:
+            result = await conn.execute(
+                f"DELETE FROM job_results WHERE {where}",
+                *params,
+            )
+        deleted_count = int(result.split()[-1])
+        logger.debug("Bulk deleted %d results for user_id=%s", deleted_count, user_id)
+        return deleted_count
+
+    async def delete_by_id(self, result_id: UUID, user_id: UUID) -> bool:
+        """Hard-delete a job result scoped to user_id.
+
+        Returns True if a row was deleted, False if not found or not owned by user.
+        """
+        async with self._pool.acquire() as conn:
+            result = await conn.execute(
+                "DELETE FROM job_results WHERE id = $1 AND user_id = $2",
+                result_id,
+                user_id,
+            )
+        deleted = int(result.split()[-1])
+        logger.debug("Deleted %d job result(s) id=%s user_id=%s", deleted, result_id, user_id)
+        return deleted > 0
+
     async def count_by_user(
         self,
         user_id: UUID,

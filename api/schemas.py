@@ -87,6 +87,17 @@ class BulkDismissResponse(BaseModel):
     dismissed_count: int
 
 
+class BulkDeleteRequest(BaseModel):
+    older_than_days: int | None = None
+    status: str | None = None
+    platform: str | None = None
+    max_score: int | None = None
+
+
+class BulkDeleteResponse(BaseModel):
+    deleted_count: int
+
+
 # ── Profile ──────────────────────────────────────────────────────────────────
 
 class NotableProject(BaseModel):

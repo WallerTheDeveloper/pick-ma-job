@@ -3,9 +3,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
+  bulkDeleteResults,
   bulkDismissResults,
+  deleteResult,
   fetchResults,
   updateResultStatus,
+  type BulkDeleteParams,
   type BulkDismissParams,
   type ResultsQueryParams,
 } from "@/api/results";
@@ -66,6 +69,22 @@ export function useResults(initialFilters?: Partial<ResultsFilters>) {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (resultId: string) => deleteResult(resultId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [RESULTS_KEY] });
+      queryClient.invalidateQueries({ queryKey: ["lists"] });
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (params: BulkDeleteParams) => bulkDeleteResults(params),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [RESULTS_KEY] });
+      queryClient.invalidateQueries({ queryKey: ["lists"] });
+    },
+  });
+
   function updateFilter<K extends keyof ResultsFilters>(
     key: K,
     value: ResultsFilters[K],
@@ -94,5 +113,9 @@ export function useResults(initialFilters?: Partial<ResultsFilters>) {
     isUpdatingStatus: statusMutation.isPending,
     bulkDismiss: bulkDismissMutation.mutateAsync,
     isBulkDismissing: bulkDismissMutation.isPending,
+    deleteResult: deleteMutation.mutateAsync,
+    isDeletingResult: deleteMutation.isPending,
+    bulkDelete: bulkDeleteMutation.mutateAsync,
+    isBulkDeleting: bulkDeleteMutation.isPending,
   };
 }
