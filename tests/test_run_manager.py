@@ -221,7 +221,10 @@ async def test_execute_transitions_to_failed_on_exception():
 
     final = manager.get_run(run_id)
     assert final.status == "failed"
-    assert "Claude API down" in final.error
+    # CR-8: raw exception messages are sanitized — the generic message is stored,
+    # not the internal "Claude API down" detail, to avoid leaking internals to clients.
+    assert final.error == "An internal error occurred. Please try again."
+    assert "Claude API down" not in final.error
     assert final.completed_at is not None
     assert final.result is None
 
