@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 from api.csrf import CSRF_COOKIE, derive_csrf_token
 from api.deps import get_auth_service, get_current_user, is_admin_email
+from api.limiter import limiter
 from api.schemas import AuthMeResponse, UserInfo
 from repositories.user import UserRow
 from services.auth import AuthError, AuthService
@@ -48,6 +49,7 @@ async def auth_me(
 # ── Magic link ───────────────────────────────────────────────────────────────
 
 @router.post("/magic-link")
+@limiter.limit("5/minute")
 async def request_magic_link(
     request: Request,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],

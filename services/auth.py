@@ -31,7 +31,6 @@ class AuthService:
         user_repo: UserRepository,
         magic_link_repo: MagicLinkRepository,
         session_repo: SessionRepository,
-        resend_api_key: str,
         email_from: str,
         base_url: str,
         skip_email: bool = False,
@@ -42,7 +41,6 @@ class AuthService:
         self._email_from = email_from
         self._base_url = base_url.rstrip("/")
         self._skip_email = skip_email
-        resend.api_key = resend_api_key
 
     # ── Public API ────────────────────────────────────────────────────────────
 

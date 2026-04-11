@@ -14,11 +14,16 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
+import resend
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
+from api.limiter import limiter
 from api.routes.api_admin import router as api_admin_router
 from api.routes.api_lists import router as api_lists_router
 from api.routes.api_dashboard import router as api_dashboard_router
@@ -76,6 +81,8 @@ async def _cleanup_loop(session_repo: SessionRepository, magic_link_repo: MagicL
 async def lifespan(app: FastAPI):
     validate_env()
 
+    resend.api_key = os.environ["RESEND_API_KEY"]
+
     app.state.db_pool = await create_pool(os.environ["DATABASE_URL"])
     app.state.run_manager = RunManager(
         anthropic_api_key=os.environ["ANTHROPIC_API_KEY"],
@@ -103,6 +110,11 @@ def create_app() -> FastAPI:
         version="0.3.0",
         lifespan=lifespan,
     )
+
+    # IP rate limiting
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
 
     # CORS — allow the Vite dev server and production domain
     app.add_middleware(

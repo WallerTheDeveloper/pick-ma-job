@@ -128,9 +128,10 @@ class JobListRepository:
         return row is not None
 
     async def remove_job(self, list_id: UUID, job_result_id: UUID, user_id: UUID) -> bool:
-        """Remove a job result from a list, verifying list ownership.
+        """Remove a job result from a list, verifying both list and job ownership.
 
-        Returns True if a row was deleted, False if not found or list not owned by user_id.
+        Returns True if a row was deleted, False if not found, list not owned by user_id,
+        or job result not owned by user_id.
         """
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
@@ -138,6 +139,7 @@ class JobListRepository:
                 DELETE FROM job_list_items
                 WHERE list_id = $1 AND job_result_id = $2
                   AND list_id IN (SELECT id FROM job_lists WHERE id = $1 AND user_id = $3)
+                  AND EXISTS (SELECT 1 FROM job_results WHERE id = $2 AND user_id = $3)
                 RETURNING list_id
                 """,
                 list_id,

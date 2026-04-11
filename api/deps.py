@@ -35,7 +35,6 @@ async def get_auth_service(
         user_repo=UserRepository(pool),
         magic_link_repo=MagicLinkRepository(pool),
         session_repo=SessionRepository(pool),
-        resend_api_key=os.environ["RESEND_API_KEY"],
         email_from=os.environ["EMAIL_FROM"],
         base_url=os.environ.get("BASE_URL", "http://localhost:8000"),
         skip_email=os.environ.get("SKIP_EMAIL", "").lower() in ("1", "true", "yes"),
