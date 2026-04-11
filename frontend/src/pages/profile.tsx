@@ -19,7 +19,6 @@ import {
   formToRequest,
   profileToForm,
   validateForm,
-  type BackgroundEntry,
   type FormState,
   type ProjectEntry,
   type RubricState,
@@ -70,7 +69,7 @@ export function ProfilePage() {
     }));
   }
 
-  function updateProject(index: number, field: keyof NotableProject, value: string) {
+  function updateProject(index: number, field: keyof ProjectEntry, value: string) {
     setForm((prev) => ({
       ...prev,
       notableProjects: prev.notableProjects.map((p, i) =>

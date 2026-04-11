@@ -114,7 +114,7 @@ export function ResultsPage() {
           </label>
           <Select
             value={filters.status}
-            onValueChange={(val) => updateFilter("status", val)}
+            onValueChange={(val) => updateFilter("status", val ?? "")}
           >
             <SelectTrigger id="status-filter">
               <SelectValue placeholder="All statuses" />
@@ -137,7 +137,7 @@ export function ResultsPage() {
           </label>
           <Select
             value={filters.platform}
-            onValueChange={(val) => updateFilter("platform", val)}
+            onValueChange={(val) => updateFilter("platform", val ?? "")}
           >
             <SelectTrigger id="platform-filter">
               <SelectValue placeholder="All platforms" />
@@ -175,7 +175,7 @@ export function ResultsPage() {
           </label>
           <Select
             value={filters.sort}
-            onValueChange={(val) => updateFilter("sort", val)}
+            onValueChange={(val) => updateFilter("sort", val ?? "")}
           >
             <SelectTrigger id="sort-filter">
               <SelectValue />
