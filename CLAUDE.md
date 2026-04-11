@@ -31,6 +31,7 @@ repositories/                   # All PostgreSQL access lives here
 ├── user.py                     # UserRepository
 ├── profile.py                  # ProfileRepository
 ├── job_result.py               # JobResultRepository (dedup via unique constraint)
+├── job_list.py                 # JobListRepository — named lists + list items
 ├── search_config.py            # SearchConfigRepository
 ├── session.py                  # SessionRepository
 ├── magic_link.py               # MagicLinkRepository
@@ -44,10 +45,12 @@ api/
 │   ├── api_profile.py          # GET/POST /api/profile
 │   ├── api_results.py          # GET /api/results, PATCH /api/results/{id}
 │   ├── api_search_config.py    # GET/POST/DELETE /api/search-configs
+│   ├── api_lists.py            # GET/POST/PATCH/DELETE /api/lists, GET/POST/DELETE /api/lists/{id}/jobs
 │   └── api_admin.py            # GET /api/admin/users
 ├── deps.py                     # FastAPI Depends() — get_current_user, get_pipeline_service
 ├── schemas.py                  # Pydantic response models for all API endpoints
-└── csrf.py                     # CSRF token validation (hmac-based)
+├── csrf.py                     # CSRF token validation (hmac-based)
+└── limiter.py                  # Shared slowapi rate limiter instance
 
 configs/prompts/                # Platform evaluation context and message templates
 ├── upwork_context.json
@@ -55,10 +58,18 @@ configs/prompts/                # Platform evaluation context and message templa
 
 frontend/                       # React SPA (built with Vite, served by nginx)
 ├── src/
-│   ├── api/                    # API client modules (client.ts, auth.ts, etc.)
+│   ├── api/                    # API client modules
+│   │   ├── client.ts           # Base fetch wrapper
+│   │   ├── auth.ts, dashboard.ts, pipeline.ts, profile.ts
+│   │   ├── results.ts, search-config.ts, lists.ts, admin.ts
 │   ├── components/             # Reusable UI components (shadcn/ui based)
-│   ├── hooks/                  # TanStack Query hooks (use-auth, use-results, etc.)
-│   ├── pages/                  # Route pages (dashboard, results, profile, etc.)
+│   ├── hooks/                  # TanStack Query + utility hooks
+│   │   ├── use-auth.ts, use-results.ts, use-profile.ts, use-run.ts
+│   │   ├── use-search-config.ts, use-lists.ts, use-theme.ts
+│   ├── pages/                  # Route pages
+│   │   ├── landing.tsx, login.tsx, check-email.tsx
+│   │   ├── dashboard.tsx, results.tsx, profile.tsx
+│   │   ├── search-config.tsx, admin.tsx
 │   └── types/                  # Zod schemas and TypeScript types
 └── dist/                       # Production build output (served by nginx)
 
@@ -167,11 +178,18 @@ The evaluator expects Claude to return a raw JSON object (no markdown, no backti
 users         — id, email, created_at, last_login
 sessions      — id, user_id, token, expires_at
 magic_links   — id, user_id, token, used, expires_at
-profiles      — id, user_id, skills, experience, rate, rubric (JSON), updated_at
+profiles      — id, user_id, role, experience, rate,
+                primary_skills TEXT[], secondary_skills TEXT[], tertiary_skills TEXT[],
+                not_a_good_fit TEXT[], background TEXT[],
+                notable_projects JSONB, languages TEXT[],
+                rubric JSONB, updated_at
 search_configs — id, user_id, platform, query, filters (JSON), updated_at
 job_results   — id, user_id, platform, job_id, title, url, score,
                 evaluation (JSON), created_at, status (new/applied/dismissed)
                 UNIQUE (user_id, platform, job_id)  -- dedup constraint
+job_lists     — id, user_id, name, created_at
+job_list_items — list_id, job_result_id, added_at
+                 PRIMARY KEY (list_id, job_result_id)
 ```
 
 ## Apify Input Notes
