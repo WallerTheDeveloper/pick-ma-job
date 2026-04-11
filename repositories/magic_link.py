@@ -75,15 +75,42 @@ class MagicLinkRepository:
                 SELECT COUNT(*) AS cnt
                 FROM magic_links
                 WHERE user_id = $1
-                  AND created_at > now() - ($2 || ' seconds')::interval
+                  AND created_at > now() - $2 * interval '1 second'
                 """,
                 user_id,
-                str(within_seconds),
+                within_seconds,
             )
         return row["cnt"]
 
+    async def claim(self, token: str) -> MagicLinkRow | None:
+        """Atomically mark a magic link as used and return it.
+
+        Returns the row if the token exists, is unused, and has not expired.
+        Returns None if the token is unknown, already used, or expired.
+
+        The single UPDATE eliminates the TOCTOU race that a
+        separate read-check-write sequence would introduce.
+        """
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                UPDATE magic_links
+                SET used = TRUE
+                WHERE token = $1
+                  AND used = FALSE
+                  AND expires_at > now()
+                RETURNING id, user_id, token, used, expires_at, created_at
+                """,
+                token,
+            )
+        return _row_to_magic_link(row) if row else None
+
     async def mark_used(self, link_id: UUID) -> None:
-        """Mark a magic link as used."""
+        """Mark a magic link as used by ID.
+
+        Prefer claim() for the auth hot path — it is atomic and race-free.
+        This method is retained for administrative use cases.
+        """
         async with self._pool.acquire() as conn:
             await conn.execute(
                 "UPDATE magic_links SET used = TRUE WHERE id = $1",

@@ -147,8 +147,8 @@ async def test_verify_valid_token_creates_session():
     token = "valid-token-abc"
     link = _make_magic_link(user.id, token)
 
-    ml_repo.find_by_token = AsyncMock(return_value=link)
-    ml_repo.mark_used = AsyncMock()
+    # claim() atomically marks the link used and returns it
+    ml_repo.claim = AsyncMock(return_value=link)
     user_repo.update_last_login = AsyncMock()
     session_repo.create = AsyncMock(return_value=_make_session(user.id))
 
@@ -156,14 +156,14 @@ async def test_verify_valid_token_creates_session():
     session_token = await svc.verify_magic_link(token)
 
     assert session_token is not None
-    ml_repo.mark_used.assert_awaited_once_with(link.id)
+    ml_repo.claim.assert_awaited_once_with(token)
     user_repo.update_last_login.assert_awaited_once_with(user.id)
     session_repo.create.assert_awaited_once()
 
 
 async def test_verify_nonexistent_token_raises():
     ml_repo = MagicMock()
-    ml_repo.find_by_token = AsyncMock(return_value=None)
+    ml_repo.claim = AsyncMock(return_value=None)
 
     svc = _make_service(magic_link_repo=ml_repo)
     with pytest.raises(AuthError, match="Invalid or expired"):
@@ -171,24 +171,22 @@ async def test_verify_nonexistent_token_raises():
 
 
 async def test_verify_used_token_raises():
+    # claim() returns None for used tokens — DB handles this atomically
     ml_repo = MagicMock()
-    user = _make_user()
-    link = _make_magic_link(user.id, "used-token", used=True)
-    ml_repo.find_by_token = AsyncMock(return_value=link)
+    ml_repo.claim = AsyncMock(return_value=None)
 
     svc = _make_service(magic_link_repo=ml_repo)
-    with pytest.raises(AuthError, match="already been used"):
+    with pytest.raises(AuthError, match="Invalid or expired"):
         await svc.verify_magic_link("used-token")
 
 
 async def test_verify_expired_token_raises():
+    # claim() returns None for expired tokens — DB handles this atomically
     ml_repo = MagicMock()
-    user = _make_user()
-    link = _make_magic_link(user.id, "expired-token", expired=True)
-    ml_repo.find_by_token = AsyncMock(return_value=link)
+    ml_repo.claim = AsyncMock(return_value=None)
 
     svc = _make_service(magic_link_repo=ml_repo)
-    with pytest.raises(AuthError, match="expired"):
+    with pytest.raises(AuthError, match="Invalid or expired"):
         await svc.verify_magic_link("expired-token")
 
 

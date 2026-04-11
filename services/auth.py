@@ -1,6 +1,5 @@
 """AuthService — magic link authentication business logic."""
 
-import hmac
 import logging
 import re
 import secrets
@@ -82,26 +81,13 @@ class AuthService:
         """Validate a magic link token and return a new session token.
 
         Raises AuthError if the token is invalid, expired, or already used.
+        The claim() call is atomic — no TOCTOU race between checking and marking used.
         """
-        link = await self._magic_link_repo.find_by_token(token)
-
-        # Use hmac.compare_digest as defense-in-depth against timing attacks
-        # even though the token is random and the DB lookup is already by equality.
-        token_valid = (
-            link is not None
-            and hmac.compare_digest(link.token, token)
-        )
-        if not token_valid:
+        link = await self._magic_link_repo.claim(token)
+        if link is None:
             raise AuthError("Invalid or expired login link.")
 
-        if link.used:
-            raise AuthError("This login link has already been used.")
-
         now = datetime.now(timezone.utc)
-        if link.expires_at.replace(tzinfo=timezone.utc) < now:
-            raise AuthError("This login link has expired. Please request a new one.")
-
-        await self._magic_link_repo.mark_used(link.id)
         await self._user_repo.update_last_login(link.user_id)
 
         session_token = secrets.token_urlsafe(32)
