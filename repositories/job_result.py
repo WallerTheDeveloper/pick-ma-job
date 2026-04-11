@@ -3,11 +3,21 @@
 import logging
 from dataclasses import dataclass
 from datetime import datetime
+from types import MappingProxyType
+from typing import Final
 from uuid import UUID
 
 import asyncpg
 
 logger = logging.getLogger(__name__)
+
+# Sort clauses use `id DESC` as tiebreaker for deterministic keyset pagination.
+_SORT_CLAUSES: Final = MappingProxyType({
+    "score_desc": "score DESC NULLS LAST, id DESC",
+    "score_asc": "score ASC NULLS LAST, id DESC",
+    "date_desc": "created_at DESC, id DESC",
+    "date_asc": "created_at ASC, id DESC",
+})
 
 VALID_STATUSES = frozenset({"new", "applied", "dismissed"})
 
@@ -126,14 +136,6 @@ class JobResultRepository:
             idx += 1
         return conditions, params, idx
 
-    # Sort clauses use `id DESC` as tiebreaker for deterministic keyset pagination.
-    _SORT_CLAUSES: dict[str, str] = {
-        "score_desc": "score DESC NULLS LAST, id DESC",
-        "score_asc": "score ASC NULLS LAST, id DESC",
-        "date_desc": "created_at DESC, id DESC",
-        "date_asc": "created_at ASC, id DESC",
-    }
-
     @staticmethod
     def _build_keyset_condition(
         sort: str,
@@ -208,7 +210,7 @@ class JobResultRepository:
         Pass cursor_id (plus cursor_score or cursor_created_at depending on sort) to
         retrieve the next page after the last seen row. Omit cursor_id for the first page.
         """
-        if sort not in self._SORT_CLAUSES:
+        if sort not in _SORT_CLAUSES:
             raise ValueError(f"Unknown sort key: {sort!r}")
 
         conditions, params, idx = self._build_filter(user_id, status, min_score, platform)
@@ -220,7 +222,7 @@ class JobResultRepository:
             conditions.append(keyset_cond)
 
         where = " AND ".join(conditions)
-        order = self._SORT_CLAUSES[sort]
+        order = _SORT_CLAUSES[sort]
         params.append(limit)
 
         async with self._pool.acquire() as conn:

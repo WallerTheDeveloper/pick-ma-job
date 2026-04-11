@@ -22,7 +22,7 @@ from api.schemas import RunStartResponse, RunStatusResponse
 from repositories.user import UserRow
 from services.profile import ProfileService
 from services.run_manager import RunActiveError, RunManager
-from services.search_config import SearchConfigService
+from services.search_config import KNOWN_PLATFORMS, SearchConfigService
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,11 @@ async def api_start_run(
         )
 
     if platform is not None:
+        if platform not in KNOWN_PLATFORMS:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Unknown platform. Supported: {', '.join(sorted(KNOWN_PLATFORMS))}",
+            )
         config = await search_config_svc.get_by_platform(user.id, platform)
         if config is None:
             raise HTTPException(

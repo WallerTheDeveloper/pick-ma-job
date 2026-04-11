@@ -31,6 +31,19 @@ class PipelineError(Exception):
 
 
 @dataclass(frozen=True)
+class PlatformResult:
+    """Immutable result from running the pipeline on a single platform."""
+
+    jobs_found: int
+    jobs_skipped_dedup: int
+    jobs_skipped_filter: int
+    jobs_skipped_low_score: int
+    jobs_evaluated: int
+    jobs_stored: int
+    errors: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class PipelineRunResult:
     """Immutable summary of a completed pipeline run."""
 
@@ -109,33 +122,23 @@ class PipelineService:
         prompt_dict = profile_row_to_prompt_dict(profile)
         evaluator = Evaluator(prompt_dict, self._settings, api_key=self._anthropic_api_key)
 
-        totals: dict[str, int] = {
-            "jobs_found": 0,
-            "jobs_skipped_dedup": 0,
-            "jobs_skipped_filter": 0,
-            "jobs_skipped_low_score": 0,
-            "jobs_evaluated": 0,
-            "jobs_stored": 0,
-        }
-        errors: list[str] = []
-
-        for config_row in search_configs:
+        platform_results = [
             await self._run_platform(
                 user_id=user_id,
                 config_row=config_row,
                 evaluator=evaluator,
-                totals=totals,
-                errors=errors,
             )
+            for config_row in search_configs
+        ]
 
         return PipelineRunResult(
-            jobs_found=totals["jobs_found"],
-            jobs_skipped_dedup=totals["jobs_skipped_dedup"],
-            jobs_skipped_filter=totals["jobs_skipped_filter"],
-            jobs_skipped_low_score=totals["jobs_skipped_low_score"],
-            jobs_evaluated=totals["jobs_evaluated"],
-            jobs_stored=totals["jobs_stored"],
-            errors=tuple(errors),
+            jobs_found=sum(r.jobs_found for r in platform_results),
+            jobs_skipped_dedup=sum(r.jobs_skipped_dedup for r in platform_results),
+            jobs_skipped_filter=sum(r.jobs_skipped_filter for r in platform_results),
+            jobs_skipped_low_score=sum(r.jobs_skipped_low_score for r in platform_results),
+            jobs_evaluated=sum(r.jobs_evaluated for r in platform_results),
+            jobs_stored=sum(r.jobs_stored for r in platform_results),
+            errors=tuple(e for r in platform_results for e in r.errors),
         )
 
     async def _run_platform(
@@ -143,9 +146,7 @@ class PipelineService:
         user_id: UUID,
         config_row: SearchConfigRow,
         evaluator: Evaluator,
-        totals: dict[str, int],
-        errors: list[str],
-    ) -> None:
+    ) -> PlatformResult:
         platform = config_row.platform
         logger.info("Pipeline starting: user_id=%s platform=%s", user_id, platform)
 
@@ -153,8 +154,7 @@ class PipelineService:
         if not platform_config_path.exists():
             msg = f"No platform config file for '{platform}'"
             logger.warning("%s — skipping.", msg)
-            errors.append(msg)
-            return
+            return PlatformResult(0, 0, 0, 0, 0, 0, (msg,))
 
         static_config = json.loads(platform_config_path.read_text(encoding="utf-8"))
         merged_config = _merge_config(static_config, config_row)
@@ -164,8 +164,7 @@ class PipelineService:
         except FileNotFoundError:
             msg = f"No platform context file for '{platform}'"
             logger.warning("%s — skipping.", msg)
-            errors.append(msg)
-            return
+            return PlatformResult(0, 0, 0, 0, 0, 0, (msg,))
 
         scraper = get_scraper(platform)
         try:
@@ -173,21 +172,27 @@ class PipelineService:
         except Exception as exc:
             msg = f"Scraper failed for '{platform}': {exc}"
             logger.error(msg)
-            errors.append(msg)
-            return
+            return PlatformResult(0, 0, 0, 0, 0, 0, (msg,))
 
-        totals["jobs_found"] += len(jobs)
-        logger.info("Fetched %d jobs from platform=%s", len(jobs), platform)
+        jobs_found = len(jobs)
+        logger.info("Fetched %d jobs from platform=%s", jobs_found, platform)
+
+        jobs_skipped_dedup = 0
+        jobs_skipped_filter = 0
+        jobs_skipped_low_score = 0
+        jobs_evaluated = 0
+        jobs_stored = 0
+        errors: list[str] = []
 
         for job in jobs:
             already_seen = await self._job_result_repo.exists(user_id, platform, job.id)
             if already_seen:
-                totals["jobs_skipped_dedup"] += 1
+                jobs_skipped_dedup += 1
                 continue
 
             if self._is_filtered(job.title):
                 logger.debug("Pre-filter skipped: '%s'", job.title)
-                totals["jobs_skipped_filter"] += 1
+                jobs_skipped_filter += 1
                 continue
 
             try:
@@ -199,9 +204,9 @@ class PipelineService:
                 continue
 
             if result.evaluation is None:
-                totals["jobs_skipped_low_score"] += 1
+                jobs_skipped_low_score += 1
             else:
-                totals["jobs_evaluated"] += 1
+                jobs_evaluated += 1
 
             try:
                 stored = await self._job_result_repo.insert(
@@ -214,7 +219,7 @@ class PipelineService:
                     evaluation=result.raw if result.evaluation is not None else None,
                 )
                 if stored is not None:
-                    totals["jobs_stored"] += 1
+                    jobs_stored += 1
             except Exception as exc:
                 msg = f"DB insert failed for '{job.title}': {exc}"
                 logger.error(msg)
@@ -223,12 +228,22 @@ class PipelineService:
         logger.info(
             "Pipeline done: platform=%s found=%d dedup=%d filter=%d low_score=%d evaluated=%d stored=%d",
             platform,
-            totals["jobs_found"],
-            totals["jobs_skipped_dedup"],
-            totals["jobs_skipped_filter"],
-            totals["jobs_skipped_low_score"],
-            totals["jobs_evaluated"],
-            totals["jobs_stored"],
+            jobs_found,
+            jobs_skipped_dedup,
+            jobs_skipped_filter,
+            jobs_skipped_low_score,
+            jobs_evaluated,
+            jobs_stored,
+        )
+
+        return PlatformResult(
+            jobs_found=jobs_found,
+            jobs_skipped_dedup=jobs_skipped_dedup,
+            jobs_skipped_filter=jobs_skipped_filter,
+            jobs_skipped_low_score=jobs_skipped_low_score,
+            jobs_evaluated=jobs_evaluated,
+            jobs_stored=jobs_stored,
+            errors=tuple(errors),
         )
 
     def _is_filtered(self, title: str) -> bool:

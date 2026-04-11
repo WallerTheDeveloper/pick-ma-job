@@ -163,17 +163,18 @@ class RunManager:
         except Exception as exc:
             logger.error("Run %s failed (user_id=%s): %s", run_id, user_id, exc, exc_info=True)
             completed_at = datetime.now(timezone.utc)
+            _generic_error = "An internal error occurred. Please try again."
             self._update(
                 run_id,
                 status="failed",
-                error=str(exc),
+                error=_generic_error,
                 completed_at=completed_at,
             )
             await self._persist_status(
                 run_id,
                 user_id,
                 status="failed",
-                error=str(exc),
+                error=_generic_error,
                 completed_at=completed_at,
             )
 
