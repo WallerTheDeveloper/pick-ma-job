@@ -176,6 +176,10 @@ class SearchConfigCreateResponse(BaseModel):
 
 # ── Pipeline ─────────────────────────────────────────────────────────────────
 
+class RunStartRequest(BaseModel):
+    platforms: list[str] | None = None
+
+
 class RunStartResponse(BaseModel):
     run_id: UUID
 

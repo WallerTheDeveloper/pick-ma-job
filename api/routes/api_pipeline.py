@@ -8,7 +8,7 @@ from typing import Annotated
 from uuid import UUID
 
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 
 from api.csrf import require_csrf
 from api.deps import (
@@ -18,7 +18,7 @@ from api.deps import (
     get_run_manager,
     get_search_config_service,
 )
-from api.schemas import RunStartResponse, RunStatusResponse
+from api.schemas import RunStartRequest, RunStartResponse, RunStatusResponse
 from repositories.user import UserRow
 from services.profile import ProfileService
 from services.run_manager import RunActiveError, RunManager
@@ -37,7 +37,7 @@ async def api_start_run(
     profile_svc: Annotated[ProfileService, Depends(get_profile_service)],
     search_config_svc: Annotated[SearchConfigService, Depends(get_search_config_service)],
     pool: Annotated[asyncpg.Pool, Depends(get_db_pool)],
-    platform: Annotated[str | None, Query()] = None,
+    body: RunStartRequest = Body(default=RunStartRequest()),
 ) -> RunStartResponse:
     """Start a background pipeline run. Returns the run_id immediately."""
     profile = await profile_svc.get_or_default(user.id)
@@ -47,18 +47,21 @@ async def api_start_run(
             detail="Please complete your profile before running the pipeline.",
         )
 
-    if platform is not None:
-        if platform not in KNOWN_PLATFORMS:
+    platforms = body.platforms
+    if platforms is not None:
+        unknown = [p for p in platforms if p not in KNOWN_PLATFORMS]
+        if unknown:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Unknown platform. Supported: {', '.join(sorted(KNOWN_PLATFORMS))}",
+                detail=f"Unknown platform(s): {unknown}. Supported: {sorted(KNOWN_PLATFORMS)}",
             )
-        config = await search_config_svc.get_by_platform(user.id, platform)
-        if config is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"No search config found for platform '{platform}'. Please configure it first.",
-            )
+        for platform in platforms:
+            config = await search_config_svc.get_by_platform(user.id, platform)
+            if config is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"No search config found for platform '{platform}'. Please configure it first.",
+                )
     else:
         configs = await search_config_svc.get_all(user.id)
         if not configs:
@@ -67,7 +70,6 @@ async def api_start_run(
                 detail="No search configurations found. Please set up at least one search config first.",
             )
 
-    platforms = [platform] if platform is not None else None
     try:
         run_id = run_manager.start_run(user.id, pool, platforms)
     except RunActiveError as exc:
