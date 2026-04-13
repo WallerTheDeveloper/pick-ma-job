@@ -1,6 +1,6 @@
 /** Results page — filter, sort, paginate, and manage job evaluation results. */
 
-import { useState } from "react";
+import { useState, useDeferredValue } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -52,6 +52,7 @@ export function ResultsPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmDeleteAllOpen, setConfirmDeleteAllOpen] = useState(false);
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const {
     results: allResults,
@@ -77,14 +78,28 @@ export function ResultsPage() {
 
   const { data: listJobsData, isLoading: listLoading } = useListJobs(selectedListId);
 
-  const results = selectedListId !== null ? (listJobsData?.jobs ?? []) : allResults;
+  const rawResults = selectedListId !== null ? (listJobsData?.jobs ?? []) : allResults;
   const isLoading = selectedListId !== null ? listLoading : allLoading;
   const error = selectedListId !== null ? null : allError;
+
+  const deferredSearch = useDeferredValue(searchTerm);
+  const results =
+    deferredSearch.trim() === ""
+      ? rawResults
+      : rawResults.filter((r) => {
+          const q = deferredSearch.toLowerCase();
+          return (
+            r.title.toLowerCase().includes(q) ||
+            (r.evaluation?.summary ?? "").toLowerCase().includes(q) ||
+            r.url.toLowerCase().includes(q)
+          );
+        });
 
   const hasActiveFilters =
     filters.status !== "" ||
     filters.minScore !== "" ||
-    filters.platform !== "";
+    filters.platform !== "" ||
+    searchTerm !== "";
 
   return (
     <div className="flex gap-6">
@@ -107,6 +122,21 @@ export function ResultsPage() {
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-end gap-3">
+        {/* Search */}
+        <div className="space-y-1">
+          <label htmlFor="search-field" className="text-xs font-medium text-muted-foreground">
+            Search
+          </label>
+          <Input
+            id="search-field"
+            type="search"
+            placeholder="Title, summary…"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="h-8 w-48"
+          />
+        </div>
+
         {/* Status filter */}
         <div className="space-y-1">
           <label htmlFor="status-filter" className="text-xs font-medium text-muted-foreground">
