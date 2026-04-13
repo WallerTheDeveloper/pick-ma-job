@@ -43,6 +43,7 @@ export const runResultSchema = z.object({
   jobs_found: z.number(),
   jobs_skipped_dedup: z.number(),
   jobs_skipped_filter: z.number(),
+  jobs_skipped_low_score: z.number(),
   jobs_evaluated: z.number(),
   jobs_stored: z.number(),
   errors: z.array(z.string()),

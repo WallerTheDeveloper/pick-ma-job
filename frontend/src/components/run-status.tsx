@@ -57,26 +57,37 @@ export function RunStatus({ run }: RunStatusProps) {
         )}
 
         {run.status === "completed" && run.result && (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-            <span className="text-muted-foreground">Jobs found</span>
-            <span className="font-medium">{run.result.jobs_found}</span>
-            <span className="text-muted-foreground">Skipped (dedup)</span>
-            <span className="font-medium">{run.result.jobs_skipped_dedup}</span>
-            <span className="text-muted-foreground">Skipped (filter)</span>
-            <span className="font-medium">{run.result.jobs_skipped_filter}</span>
-            <span className="text-muted-foreground">Evaluated</span>
-            <span className="font-medium">{run.result.jobs_evaluated}</span>
-            <span className="text-muted-foreground">Stored</span>
-            <span className="font-medium">{run.result.jobs_stored}</span>
+          <>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+              <span className="text-muted-foreground">Jobs found</span>
+              <span className="font-medium">{run.result.jobs_found}</span>
+              <span className="text-muted-foreground">Skipped (dedup)</span>
+              <span className="font-medium">{run.result.jobs_skipped_dedup}</span>
+              <span className="text-muted-foreground">Skipped (filter)</span>
+              <span className="font-medium">{run.result.jobs_skipped_filter}</span>
+              <span className="text-muted-foreground">Evaluated</span>
+              <span className="font-medium">{run.result.jobs_evaluated}</span>
+              <span className="text-muted-foreground">Stored</span>
+              <span className="font-medium">{run.result.jobs_stored}</span>
+              {run.result.errors.length > 0 && (
+                <>
+                  <span className="text-muted-foreground">Errors</span>
+                  <span className="font-medium text-destructive">
+                    {run.result.errors.length}
+                  </span>
+                </>
+              )}
+            </div>
             {run.result.errors.length > 0 && (
-              <>
-                <span className="text-muted-foreground">Errors</span>
-                <span className="font-medium text-destructive">
-                  {run.result.errors.length}
-                </span>
-              </>
+              <div className="mt-2 space-y-1">
+                {run.result.errors.map((err, i) => (
+                  <p key={i} className="text-xs text-destructive break-words">
+                    {err}
+                  </p>
+                ))}
+              </div>
             )}
-          </div>
+          </>
         )}
 
         {run.status === "failed" && run.error && (

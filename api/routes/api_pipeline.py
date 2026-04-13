@@ -98,6 +98,7 @@ async def api_get_run_status(
             "jobs_found": r.jobs_found,
             "jobs_skipped_dedup": r.jobs_skipped_dedup,
             "jobs_skipped_filter": r.jobs_skipped_filter,
+            "jobs_skipped_low_score": r.jobs_skipped_low_score,
             "jobs_evaluated": r.jobs_evaluated,
             "jobs_stored": r.jobs_stored,
             "errors": list(r.errors),
