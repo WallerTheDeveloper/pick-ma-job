@@ -175,7 +175,7 @@ async def test_run_pipeline_raises_if_profile_missing(
     profile_repo.find_by_user_id.return_value = None
     svc = _make_service(profile_repo, search_config_repo, job_result_repo)
 
-    with pytest.raises(PipelineError, match="Profile not configured"):
+    with pytest.raises(PipelineError, match="complete your profile"):
         await svc.run_pipeline(_USER_ID)
 
 
@@ -196,11 +196,78 @@ async def test_run_pipeline_single_platform_not_found_raises(
     profile_repo, job_result_repo
 ):
     search_config_repo = AsyncMock()
-    search_config_repo.find_by_user_and_platform.return_value = None
+    search_config_repo.find_by_user_id.return_value = []
     svc = _make_service(profile_repo, search_config_repo, job_result_repo)
 
     with pytest.raises(PipelineError, match="No search configurations"):
-        await svc.run_pipeline(_USER_ID, platform="upwork")
+        await svc.run_pipeline(_USER_ID, platforms=["upwork"])
+
+
+# ---------------------------------------------------------------------------
+# T-06 — platform list filtering and validation
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_run_pipeline_empty_platforms_raises():
+    svc = _make_service_no_repos()
+
+    with pytest.raises(PipelineError, match="No platforms selected"):
+        await svc.run_pipeline(_USER_ID, platforms=[])
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_unknown_platform_raises():
+    svc = _make_service_no_repos()
+
+    with pytest.raises(PipelineError, match="Unknown platform"):
+        await svc.run_pipeline(_USER_ID, platforms=["fakeplatform"])
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_filters_to_requested_platforms(
+    profile_repo, job_result_repo, mock_scraper, mock_evaluator
+):
+    """Two configs (upwork + linkedin); passing platforms=["upwork"] runs only Upwork."""
+    upwork_config = _make_search_config(platform="upwork")
+    linkedin_config = _make_search_config(platform="linkedin")
+
+    search_config_repo = AsyncMock()
+    search_config_repo.find_by_user_id.return_value = [upwork_config, linkedin_config]
+
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo)
+
+    with patch("services.pipeline.get_scraper", return_value=mock_scraper), \
+         patch("services.pipeline.Evaluator", return_value=mock_evaluator):
+        result = await svc.run_pipeline(_USER_ID, platforms=["upwork"])
+
+    # scraper should only be called once (for the one upwork config)
+    assert mock_scraper.fetch_jobs.call_count == 1
+    assert result.jobs_found == 1
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_none_platforms_runs_all(
+    profile_repo, job_result_repo, mock_evaluator
+):
+    """platforms=None (default) runs all configured platforms."""
+    upwork_config = _make_search_config(platform="upwork")
+    linkedin_config = _make_search_config(platform="linkedin")
+
+    search_config_repo = AsyncMock()
+    search_config_repo.find_by_user_id.return_value = [upwork_config, linkedin_config]
+
+    scraper = AsyncMock()
+    scraper.fetch_jobs.return_value = [_make_job()]
+
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo)
+
+    with patch("services.pipeline.get_scraper", return_value=scraper), \
+         patch("services.pipeline.Evaluator", return_value=mock_evaluator):
+        result = await svc.run_pipeline(_USER_ID)
+
+    # scraper called once per config (one upwork + one linkedin)
+    assert scraper.fetch_jobs.call_count == 2
+    assert result.jobs_found == 2
 
 
 # ---------------------------------------------------------------------------
@@ -246,9 +313,9 @@ async def test_run_pipeline_single_platform(
 
     with patch("services.pipeline.get_scraper", return_value=mock_scraper), \
          patch("services.pipeline.Evaluator", return_value=mock_evaluator):
-        result = await svc.run_pipeline(_USER_ID, platform="upwork")
+        result = await svc.run_pipeline(_USER_ID, platforms=["upwork"])
 
-    search_config_repo.find_by_user_and_platform.assert_called_once_with(_USER_ID, "upwork")
+    search_config_repo.find_by_user_id.assert_called_once_with(_USER_ID)
     assert result.jobs_found == 1
 
 
@@ -441,6 +508,7 @@ def test_pipeline_run_result_is_frozen():
         jobs_found=5,
         jobs_skipped_dedup=1,
         jobs_skipped_filter=1,
+        jobs_skipped_low_score=0,
         jobs_evaluated=3,
         jobs_stored=3,
         errors=(),
@@ -454,6 +522,7 @@ def test_pipeline_run_result_errors_is_tuple():
         jobs_found=1,
         jobs_skipped_dedup=0,
         jobs_skipped_filter=0,
+        jobs_skipped_low_score=0,
         jobs_evaluated=1,
         jobs_stored=1,
         errors=("some error",),

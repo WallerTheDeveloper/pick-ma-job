@@ -18,7 +18,7 @@ from core.prompt_adapter import load_platform_context, profile_row_to_prompt_dic
 from repositories.job_result import JobResultRepository
 from repositories.profile import ProfileRepository
 from repositories.search_config import SearchConfigRepository, SearchConfigRow
-from scrapers.registry import get_scraper
+from scrapers.registry import get_scraper, list_platforms
 
 logger = logging.getLogger(__name__)
 
@@ -87,20 +87,33 @@ class PipelineService:
     async def run_pipeline(
         self,
         user_id: UUID,
-        platform: str | None = None,
+        platforms: list[str] | None = None,
     ) -> PipelineRunResult:
         """Run the full pipeline for a user on one or all configured platforms.
 
         Args:
             user_id: The authenticated user.
-            platform: If given, only run this platform. Otherwise run all.
+            platforms: If given, only run these platforms. None means run all
+                configured platforms.
 
         Returns:
             A ``PipelineRunResult`` summarising counts and any non-fatal errors.
 
         Raises:
-            PipelineError: If the user has no profile or no search configs.
+            PipelineError: If platforms is empty, contains unknown slugs, the
+                user has no profile, or no matching search configs exist.
         """
+        if platforms is not None:
+            if len(platforms) == 0:
+                raise PipelineError("No platforms selected.")
+            known = set(list_platforms())
+            unknown = [p for p in platforms if p not in known]
+            if unknown:
+                raise PipelineError(
+                    f"Unknown platform(s): {', '.join(repr(p) for p in unknown)}. "
+                    f"Known: {', '.join(sorted(known))}."
+                )
+
         profile = await self._profile_repo.find_by_user_id(user_id)
         if profile is None:
             logger.warning("Pipeline blocked: no profile for user_id=%s", user_id)
@@ -108,10 +121,12 @@ class PipelineService:
                 "Please complete your profile before running the pipeline."
             )
 
-        if platform is not None:
-            search_configs: list[SearchConfigRow] = await self._search_config_repo.find_by_user_and_platform(user_id, platform)
+        all_configs: list[SearchConfigRow] = await self._search_config_repo.find_by_user_id(user_id)
+        if platforms is not None:
+            platform_set = set(platforms)
+            search_configs = [c for c in all_configs if c.platform in platform_set]
         else:
-            search_configs = await self._search_config_repo.find_by_user_id(user_id)
+            search_configs = all_configs
 
         if not search_configs:
             raise PipelineError(

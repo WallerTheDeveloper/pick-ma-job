@@ -35,6 +35,7 @@ def _make_result(**overrides) -> PipelineRunResult:
         jobs_found=5,
         jobs_skipped_dedup=1,
         jobs_skipped_filter=1,
+        jobs_skipped_low_score=0,
         jobs_evaluated=3,
         jobs_stored=3,
         errors=(),
@@ -251,7 +252,7 @@ async def test_execute_stores_pipeline_result():
 
 
 @pytest.mark.asyncio
-async def test_execute_passes_platform_to_pipeline():
+async def test_execute_passes_platforms_to_pipeline():
     manager = _make_manager()
     run_id = uuid4()
     manager._runs[run_id] = PipelineRunSnapshot(
@@ -265,9 +266,9 @@ async def test_execute_passes_platform_to_pipeline():
     mock_service.run_pipeline.return_value = _make_result()
 
     with patch("services.run_manager.PipelineService", return_value=mock_service):
-        await manager._execute(run_id, _USER_A, _mock_pool(), "upwork")
+        await manager._execute(run_id, _USER_A, _mock_pool(), ["upwork"])
 
-    mock_service.run_pipeline.assert_called_once_with(_USER_A, "upwork")
+    mock_service.run_pipeline.assert_called_once_with(_USER_A, ["upwork"])
 
 
 @pytest.mark.asyncio

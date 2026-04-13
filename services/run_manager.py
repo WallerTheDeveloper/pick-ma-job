@@ -75,7 +75,7 @@ class RunManager:
         self,
         user_id: UUID,
         pool: asyncpg.Pool,
-        platform: str | None = None,
+        platforms: list[str] | None = None,
     ) -> UUID:
         """Enqueue a pipeline run for the user and return the run_id immediately.
 
@@ -83,8 +83,8 @@ class RunManager:
             user_id: The authenticated user.
             pool: asyncpg pool — passed to the PipelineService constructed
                   inside the background task.
-            platform: Optional platform slug to restrict the run to one
-                      platform. None means run all configured platforms.
+            platforms: Optional list of platform slugs to restrict the run.
+                       None means run all configured platforms.
 
         Returns:
             A fresh ``run_id`` UUID that the caller can use to poll status.
@@ -110,7 +110,7 @@ class RunManager:
         )
         self._runs[run_id] = snapshot
         asyncio.create_task(self._persist_insert(run_id, user_id, now))
-        asyncio.create_task(self._execute(run_id, user_id, pool, platform))
+        asyncio.create_task(self._execute(run_id, user_id, pool, platforms))
         return run_id
 
     def get_run(self, run_id: UUID) -> PipelineRunSnapshot | None:
@@ -122,7 +122,7 @@ class RunManager:
         run_id: UUID,
         user_id: UUID,
         pool: asyncpg.Pool,
-        platform: str | None,
+        platforms: list[str] | None,
     ) -> None:
         """Background coroutine — runs the pipeline and updates snapshot state."""
         self._update(run_id, status="running")
@@ -136,7 +136,7 @@ class RunManager:
         )
 
         try:
-            result = await service.run_pipeline(user_id, platform)
+            result = await service.run_pipeline(user_id, platforms)
             completed_at = datetime.now(timezone.utc)
             self._update(
                 run_id,

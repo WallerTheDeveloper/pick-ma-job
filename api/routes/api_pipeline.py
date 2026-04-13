@@ -67,12 +67,13 @@ async def api_start_run(
                 detail="No search configurations found. Please set up at least one search config first.",
             )
 
+    platforms = [platform] if platform is not None else None
     try:
-        run_id = run_manager.start_run(user.id, pool, platform)
+        run_id = run_manager.start_run(user.id, pool, platforms)
     except RunActiveError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
 
-    logger.info("Run %s started for user_id=%s platform=%s", run_id, user.id, platform)
+    logger.info("Run %s started for user_id=%s platforms=%s", run_id, user.id, platforms)
     return RunStartResponse(run_id=run_id)
 
 
