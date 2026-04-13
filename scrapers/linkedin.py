@@ -70,6 +70,19 @@ class LinkedInScraper(BaseScraper):
                 )
             actor_input["jobType"] = valid
 
+        # Sanitize maxItems: the Apify actor requires a minimum of 150.
+        if "maxItems" in actor_input:
+            try:
+                max_items = int(actor_input["maxItems"])
+                if max_items < 150:
+                    logger.warning(
+                        "LinkedIn maxItems %d is below minimum 150; clamping to 150.", max_items
+                    )
+                    actor_input["maxItems"] = 150
+            except (TypeError, ValueError):
+                logger.warning("Invalid LinkedIn maxItems value %r; removing.", actor_input["maxItems"])
+                del actor_input["maxItems"]
+
         # Sanitize salaryBase: must be one of the allowed string values.
         _VALID_SALARY_BASE = frozenset({"", "40000", "60000", "80000", "100000", "120000"})
         if "salaryBase" in actor_input:

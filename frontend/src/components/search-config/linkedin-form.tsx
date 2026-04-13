@@ -75,7 +75,7 @@ export function emptyLinkedInFilters(): LinkedInFilters {
     experienceLevel: [],
     workType: [],
     salaryBase: "",
-    maxItems: "50",
+    maxItems: "150",
     saveOnlyUniqueItems: true,
   };
 }
@@ -314,10 +314,10 @@ export function LinkedInFiltersForm({ filters, onChange }: LinkedInFiltersFormPr
 
         {/* Max items */}
         <div className="space-y-1">
-          <label className="text-sm font-medium">Max Results (≤ 1000)</label>
+          <label className="text-sm font-medium">Max Results (150–1000)</label>
           <Input
             type="number"
-            min={1}
+            min={150}
             max={1000}
             value={filters.maxItems}
             onChange={(e) => updateFilter("maxItems", e.target.value)}

@@ -93,6 +93,9 @@ function validateForm(form: AddFormState): string | null {
       return "At least one keyword is required.";
     }
     const maxItems = parseInt(form.linkedInFilters.maxItems, 10);
+    if (!isNaN(maxItems) && maxItems < 150) {
+      return "Max results must be at least 150.";
+    }
     if (!isNaN(maxItems) && maxItems > 1000) {
       return "Max results cannot exceed 1000.";
     }
