@@ -6,7 +6,44 @@ import { startRun, getRunStatus } from "@/api/pipeline";
 import type { StartRunArgs } from "@/api/pipeline";
 import type { RunStatusResponse } from "@/types/schemas";
 
-const RUN_STATUS_KEY = "run-status";
+export const RUN_STATUS_KEY = "run-status";
+
+/**
+ * Polls a specific run's status until it reaches a terminal state.
+ * Safe to use standalone — e.g. for rehydrating an in-progress run on page reload (T-13).
+ * Stops polling when status is `completed` or `failed`, and never polls in the background.
+ * Invalidates `["results"]` and `["dashboard"]` queries on terminal transition.
+ */
+export function useRunStatus(runId: string | null) {
+  const queryClient = useQueryClient();
+  const prevStatusRef = useRef<string | undefined>(undefined);
+
+  const query = useQuery({
+    queryKey: [RUN_STATUS_KEY, runId],
+    queryFn: () => getRunStatus(runId!),
+    enabled: runId !== null,
+    refetchInterval: (q) => {
+      const status = q.state.data?.status;
+      if (status === "completed" || status === "failed") return false;
+      return 2000;
+    },
+    refetchIntervalInBackground: false,
+  });
+
+  useEffect(() => {
+    const status = query.data?.status;
+    if (
+      (status === "completed" || status === "failed") &&
+      prevStatusRef.current !== status
+    ) {
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["results"] });
+    }
+    prevStatusRef.current = status;
+  }, [query.data?.status, queryClient]);
+
+  return query;
+}
 
 export function useRun() {
   const queryClient = useQueryClient();
@@ -19,31 +56,7 @@ export function useRun() {
     },
   });
 
-  const statusQuery = useQuery({
-    queryKey: [RUN_STATUS_KEY, activeRunId],
-    queryFn: () => getRunStatus(activeRunId!),
-    enabled: activeRunId !== null,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      if (status === "completed" || status === "failed") {
-        return false;
-      }
-      return 2000;
-    },
-  });
-
-  // Invalidate dashboard exactly once when a run transitions to a terminal state
-  const prevStatusRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    const status = statusQuery.data?.status;
-    if (
-      (status === "completed" || status === "failed") &&
-      prevStatusRef.current !== status
-    ) {
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-    }
-    prevStatusRef.current = status;
-  }, [statusQuery.data?.status, queryClient]);
+  const statusQuery = useRunStatus(activeRunId);
 
   const runStatus: RunStatusResponse | null = statusQuery.data ?? null;
   const isRunning =
