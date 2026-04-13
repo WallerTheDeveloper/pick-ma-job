@@ -362,6 +362,21 @@ class JobResultRepository:
         logger.debug("Bulk deleted %d results for user_id=%s", deleted_count, user_id)
         return deleted_count
 
+    async def delete_many(self, user_id: UUID, ids: list[UUID]) -> int:
+        """Hard-delete job results by ID list, scoped to user_id. Returns the count deleted."""
+        async with self._pool.acquire() as conn:
+            result = await conn.execute(
+                """
+                DELETE FROM job_results
+                WHERE user_id = $1 AND id = ANY($2::uuid[])
+                """,
+                user_id,
+                ids,
+            )
+        deleted_count = int(result.split()[-1])
+        logger.debug("Deleted %d job results by id list for user_id=%s", deleted_count, user_id)
+        return deleted_count
+
     async def delete_by_id(self, result_id: UUID, user_id: UUID) -> bool:
         """Hard-delete a job result scoped to user_id.
 

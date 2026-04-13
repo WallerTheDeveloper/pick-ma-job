@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # ── Generic ──────────────────────────────────────────────────────────────────
@@ -103,6 +103,14 @@ class BulkDeleteRequest(BaseModel):
 
 class BulkDeleteResponse(BaseModel):
     deleted_count: int
+
+
+class BulkDeleteByIdsRequest(BaseModel):
+    ids: list[UUID] = Field(min_length=1, max_length=500)
+
+
+class BulkDeleteByIdsResponse(BaseModel):
+    deleted: int
 
 
 # ── Profile ──────────────────────────────────────────────────────────────────

@@ -51,8 +51,10 @@ const platformLabels: Record<string, string> = {
 export function ResultsPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmDeleteAllOpen, setConfirmDeleteAllOpen] = useState(false);
+  const [confirmBulkDeleteOpen, setConfirmBulkDeleteOpen] = useState(false);
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const {
     results: allResults,
@@ -74,6 +76,8 @@ export function ResultsPage() {
     isDeletingResult,
     bulkDelete,
     isBulkDeleting,
+    bulkDeleteByIds,
+    isBulkDeletingByIds,
   } = useResults();
 
   const { data: listJobsData, isLoading: listLoading } = useListJobs(selectedListId);
@@ -100,6 +104,36 @@ export function ResultsPage() {
     filters.minScore !== "" ||
     filters.platform !== "" ||
     searchTerm !== "";
+
+  const visibleIds = results.map((r) => r.id);
+  const allVisibleSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const someVisibleSelected =
+    visibleIds.some((id) => selectedIds.has(id)) && !allVisibleSelected;
+
+  function toggleSelectAll() {
+    if (allVisibleSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        visibleIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => new Set([...prev, ...visibleIds]));
+    }
+  }
+
+  function toggleSelectOne(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
 
   return (
     <div className="flex gap-6">
@@ -332,20 +366,91 @@ export function ResultsPage() {
         </p>
       )}
 
+      {/* Bulk-select action bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 rounded-md border bg-muted/50 px-4 py-2">
+          <span className="text-sm font-medium">
+            {selectedIds.size} selected
+          </span>
+          <Dialog open={confirmBulkDeleteOpen} onOpenChange={setConfirmBulkDeleteOpen}>
+            <DialogTrigger render={
+              <Button variant="destructive" size="sm">
+                Delete {selectedIds.size} selected
+              </Button>
+            } />
+            <DialogContent showCloseButton={false}>
+              <DialogHeader>
+                <DialogTitle>Delete {selectedIds.size} selected result{selectedIds.size !== 1 ? "s" : ""}?</DialogTitle>
+                <DialogDescription>
+                  This will permanently delete {selectedIds.size} selected result{selectedIds.size !== 1 ? "s" : ""}. This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose render={<Button variant="outline">Cancel</Button>} />
+                <Button
+                  variant="destructive"
+                  disabled={isBulkDeletingByIds}
+                  onClick={async () => {
+                    await bulkDeleteByIds([...selectedIds]);
+                    setSelectedIds(new Set());
+                    setConfirmBulkDeleteOpen(false);
+                  }}
+                >
+                  {isBulkDeletingByIds ? "Deleting..." : "Delete"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedIds(new Set())}
+          >
+            Clear selection
+          </Button>
+        </div>
+      )}
+
       {/* Results list */}
       {results.length > 0 && (
         <div className="space-y-3">
-          {results.map((result) => (
-            <ResultRow
-              key={result.id}
-              result={result}
-              onStatusChange={(id, status) =>
-                updateStatus({ resultId: id, status })
-              }
-              onDelete={(id) => deleteResult(id)}
-              isUpdating={isUpdatingStatus}
-              isDeleting={isDeletingResult}
+          {/* Header checkbox row */}
+          <div className="flex items-center gap-3 px-1">
+            <input
+              type="checkbox"
+              aria-label="Select all visible results"
+              checked={allVisibleSelected}
+              ref={(el) => {
+                if (el) el.indeterminate = someVisibleSelected;
+              }}
+              onChange={toggleSelectAll}
+              className="size-4 cursor-pointer rounded border-input accent-primary"
             />
+            <span className="text-xs text-muted-foreground">
+              Select all visible
+            </span>
+          </div>
+          {results.map((result) => (
+            <div key={result.id} className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                aria-label={`Select "${result.title}"`}
+                checked={selectedIds.has(result.id)}
+                onChange={() => toggleSelectOne(result.id)}
+                className="mt-4 size-4 cursor-pointer rounded border-input accent-primary"
+              />
+              <div className="min-w-0 flex-1">
+                <ResultRow
+                  result={result}
+                  onStatusChange={(id, status) =>
+                    updateStatus({ resultId: id, status })
+                  }
+                  onDelete={(id) => deleteResult(id)}
+                  isUpdating={isUpdatingStatus}
+                  isDeleting={isDeletingResult}
+                />
+              </div>
+            </div>
           ))}
         </div>
       )}

@@ -82,3 +82,19 @@ export async function bulkDeleteResults(
     bulkDeleteResultSchema,
   );
 }
+
+export interface BulkDeleteByIdsResult {
+  deleted: number;
+}
+
+const bulkDeleteByIdsResultSchema = z.object({ deleted: z.number() });
+
+export async function bulkDeleteResultsByIds(
+  ids: string[],
+): Promise<BulkDeleteByIdsResult> {
+  return api(
+    "/api/results/bulk-delete-ids",
+    { method: "POST", body: { ids } },
+    bulkDeleteByIdsResultSchema,
+  );
+}

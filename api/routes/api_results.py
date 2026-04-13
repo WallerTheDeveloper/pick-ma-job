@@ -12,6 +12,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from api.csrf import require_csrf
 from api.deps import get_current_user, get_job_list_repo, get_job_result_repo
 from api.schemas import (
+    BulkDeleteByIdsRequest,
+    BulkDeleteByIdsResponse,
     BulkDeleteRequest,
     BulkDeleteResponse,
     BulkDismissRequest,
@@ -249,6 +251,18 @@ async def api_bulk_delete_results(
         older_than=older_than,
     )
     return BulkDeleteResponse(deleted_count=deleted_count)
+
+
+@router.post("/bulk-delete-ids")
+async def api_bulk_delete_results_by_ids(
+    body: BulkDeleteByIdsRequest,
+    user: Annotated[UserRow, Depends(get_current_user)],
+    repo: Annotated[JobResultRepository, Depends(get_job_result_repo)],
+    _csrf: Annotated[None, Depends(require_csrf)],
+) -> BulkDeleteByIdsResponse:
+    """Hard-delete job results by explicit ID list for the current user."""
+    deleted = await repo.delete_many(user.id, body.ids)
+    return BulkDeleteByIdsResponse(deleted=deleted)
 
 
 class JobResultListsResponse(OkResponse):

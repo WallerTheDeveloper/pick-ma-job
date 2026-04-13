@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   bulkDeleteResults,
+  bulkDeleteResultsByIds,
   bulkDismissResults,
   deleteResult,
   fetchResults,
@@ -122,6 +123,14 @@ export function useResults(initialFilters?: Partial<ResultsFilters>) {
     },
   });
 
+  const bulkDeleteByIdsMutation = useMutation({
+    mutationFn: (ids: string[]) => bulkDeleteResultsByIds(ids),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [RESULTS_KEY] });
+      queryClient.invalidateQueries({ queryKey: ["lists"] });
+    },
+  });
+
   return {
     results: query.data?.results ?? [],
     pagination: query.data?.pagination ?? null,
@@ -142,5 +151,7 @@ export function useResults(initialFilters?: Partial<ResultsFilters>) {
     isDeletingResult: deleteMutation.isPending,
     bulkDelete: bulkDeleteMutation.mutateAsync,
     isBulkDeleting: bulkDeleteMutation.isPending,
+    bulkDeleteByIds: bulkDeleteByIdsMutation.mutateAsync,
+    isBulkDeletingByIds: bulkDeleteByIdsMutation.isPending,
   };
 }
