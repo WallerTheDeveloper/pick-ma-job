@@ -41,6 +41,15 @@ const workTypeOptions = [
   { value: "remote", label: "Remote" },
 ] as const;
 
+const salaryBaseOptions = [
+  { value: "", label: "Any" },
+  { value: "40000", label: "$40,000+" },
+  { value: "60000", label: "$60,000+" },
+  { value: "80000", label: "$80,000+" },
+  { value: "100000", label: "$100,000+" },
+  { value: "120000", label: "$120,000+" },
+] as const;
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface LinkedInFilters {
@@ -86,8 +95,7 @@ export function linkedInFiltersToDict(f: LinkedInFilters): Record<string, unknow
   if (f.experienceLevel.length > 0) dict.experienceLevel = f.experienceLevel;
   if (f.workType.length > 0) dict.workType = f.workType;
 
-  const salaryBase = parseInt(f.salaryBase, 10);
-  if (!isNaN(salaryBase) && salaryBase > 0) dict.salaryBase = String(salaryBase);
+  if (f.salaryBase !== "") dict.salaryBase = f.salaryBase;
 
   const maxItems = parseInt(f.maxItems, 10);
   if (!isNaN(maxItems) && maxItems > 0) dict.maxItems = Math.min(maxItems, 1000);
@@ -287,13 +295,21 @@ export function LinkedInFiltersForm({ filters, onChange }: LinkedInFiltersFormPr
         {/* Salary base */}
         <div className="space-y-1">
           <label className="text-sm font-medium">Minimum Salary</label>
-          <Input
-            type="number"
-            min={0}
-            placeholder="e.g. 50000"
+          <Select
             value={filters.salaryBase}
-            onChange={(e) => updateFilter("salaryBase", e.target.value)}
-          />
+            onValueChange={(val) => updateFilter("salaryBase", val ?? "")}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {salaryBaseOptions.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Max items */}

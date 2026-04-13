@@ -70,9 +70,18 @@ class LinkedInScraper(BaseScraper):
                 )
             actor_input["jobType"] = valid
 
-        # Sanitize salaryBase: the Apify actor requires a string, not a number.
-        if "salaryBase" in actor_input and not isinstance(actor_input["salaryBase"], str):
-            actor_input["salaryBase"] = str(actor_input["salaryBase"])
+        # Sanitize salaryBase: must be one of the allowed string values.
+        _VALID_SALARY_BASE = frozenset({"", "40000", "60000", "80000", "100000", "120000"})
+        if "salaryBase" in actor_input:
+            value = str(actor_input["salaryBase"]) if not isinstance(actor_input["salaryBase"], str) else actor_input["salaryBase"]
+            if value not in _VALID_SALARY_BASE:
+                logger.warning(
+                    "Removed invalid LinkedIn salaryBase value %r (not in allowed set)",
+                    actor_input["salaryBase"],
+                )
+                del actor_input["salaryBase"]
+            else:
+                actor_input["salaryBase"] = value
 
         extras_map: dict = mappings.get("extras", {})
 
