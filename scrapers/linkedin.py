@@ -54,6 +54,23 @@ class LinkedInScraper(BaseScraper):
         actor_input: dict = dict(config["scraper"]["input"])
         mappings: dict = config["field_mappings"]
 
+        # Map searchTerms (list) → keyword (string) as required by the Apify actor.
+        # The form stores keywords as searchTerms; the actor only accepts 'keyword' or 'startUrls'.
+        if "searchTerms" in actor_input:
+            terms = actor_input.pop("searchTerms")
+            if isinstance(terms, list) and terms:
+                actor_input.setdefault("keyword", ", ".join(str(t) for t in terms))
+
+        # Remove the 'query' display label injected by _merge_config — not an actor field.
+        actor_input.pop("query", None)
+
+        # Fail fast if neither keyword nor startUrls is present.
+        if "keyword" not in actor_input and "startUrls" not in actor_input:
+            raise ValueError(
+                "LinkedIn actor input requires 'keyword' or 'startUrls'. "
+                "Add at least one keyword to your LinkedIn search config."
+            )
+
         # Sanitize jobType: the Apify actor only accepts these exact values.
         _VALID_JOB_TYPES = frozenset(
             {"full-time", "part-time", "contract", "temporary", "internship"}
