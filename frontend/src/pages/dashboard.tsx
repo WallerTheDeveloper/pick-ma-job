@@ -1,5 +1,7 @@
 /** Dashboard page — welcome, stats, pipeline trigger, run status. */
 
+import { useState } from "react";
+import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, CheckCircle2, XCircle, Clock, Play, UserCircle, Settings2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { fetchDashboard } from "@/api/dashboard";
 import { useRun } from "@/hooks/use-run";
 import { RunStatus } from "@/components/run-status";
+import { RunPipelineDialog } from "@/components/run-pipeline-dialog";
 import type { DashboardResponse } from "@/types/schemas";
 
 function RunStatusIcon({ status }: { status: string }) {
@@ -31,6 +34,7 @@ export function DashboardPage() {
   });
 
   const { startRun, startStatus, startError, runStatus, isRunning } = useRun();
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   if (isLoading) {
     return <p className="text-muted-foreground">Loading dashboard...</p>;
@@ -47,8 +51,6 @@ export function DashboardPage() {
   if (!data) {
     return null;
   }
-
-  const canRun = data.has_profile && data.config_count > 0;
 
   return (
     <div className="space-y-6">
@@ -103,28 +105,31 @@ export function DashboardPage() {
       {/* Run pipeline */}
       <div className="space-y-4">
         <div className="flex items-center gap-4">
-          <Button
-            onClick={() => startRun()}
-            disabled={!canRun || isRunning || startStatus === "pending"}
-          >
-            {isRunning ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Running...
-              </>
-            ) : (
-              <>
-                <Play className="mr-2 h-4 w-4" />
-                Run Pipeline
-              </>
-            )}
-          </Button>
-          {!canRun && (
+          {!data.has_profile ? (
             <p className="text-sm text-muted-foreground">
-              {!data.has_profile
-                ? "Set up your profile first."
-                : "Add at least one search config."}
+              Set up your profile first.
             </p>
+          ) : data.config_count === 0 ? (
+            <Button asChild variant="outline">
+              <Link to="/search-config">Configure a search</Link>
+            </Button>
+          ) : (
+            <Button
+              onClick={() => setDialogOpen(true)}
+              disabled={isRunning || startStatus === "pending"}
+            >
+              {isRunning ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Running...
+                </>
+              ) : (
+                <>
+                  <Play className="mr-2 h-4 w-4" />
+                  Run Pipeline
+                </>
+              )}
+            </Button>
           )}
         </div>
 
@@ -136,6 +141,13 @@ export function DashboardPage() {
 
         {runStatus && <RunStatus run={runStatus} />}
       </div>
+
+      <RunPipelineDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onRun={(platforms) => startRun({ platforms })}
+        isRunning={isRunning}
+      />
 
       {/* Recent runs history */}
       {data.recent_runs.length > 0 && !runStatus && (
