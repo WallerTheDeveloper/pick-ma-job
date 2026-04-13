@@ -174,6 +174,11 @@ class SearchConfigCreateResponse(BaseModel):
     config: SearchConfigResponse
 
 
+class SearchConfigUpdateRequest(BaseModel):
+    query: str | None = None
+    filters: dict = {}
+
+
 # ── Pipeline ─────────────────────────────────────────────────────────────────
 
 class RunStartRequest(BaseModel):

@@ -89,6 +89,29 @@ class SearchConfigRepository:
         logger.debug("Created search config user_id=%s platform=%s", user_id, platform)
         return _row_to_search_config(row)
 
+    async def update(
+        self,
+        config_id: UUID,
+        user_id: UUID,
+        query: str | None,
+        filters: dict,
+    ) -> SearchConfigRow | None:
+        """Update query and filters for a search config. Returns None if not found or not owned."""
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                UPDATE search_configs
+                SET query = $3, filters = $4::jsonb, updated_at = now()
+                WHERE id = $1 AND user_id = $2
+                RETURNING id, user_id, platform, query, filters, updated_at
+                """,
+                config_id,
+                user_id,
+                query,
+                filters,
+            )
+        return _row_to_search_config(row) if row is not None else None
+
     async def delete(self, config_id: UUID, user_id: UUID) -> bool:
         """Delete a search config by id and user_id. Returns True if a row was deleted."""
         async with self._pool.acquire() as conn:

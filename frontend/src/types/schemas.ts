@@ -206,6 +206,13 @@ export const searchConfigCreateResponseSchema = z.object({
 
 export type SearchConfigCreateResponse = z.infer<typeof searchConfigCreateResponseSchema>;
 
+export const searchConfigUpdateRequestSchema = z.object({
+  query: z.string().nullable(),
+  filters: z.record(z.string(), z.unknown()).default({}),
+});
+
+export type SearchConfigUpdateRequest = z.infer<typeof searchConfigUpdateRequestSchema>;
+
 // ── Job Lists ─────────────────────────────────────────────────────────────
 
 export const jobListSchema = z.object({

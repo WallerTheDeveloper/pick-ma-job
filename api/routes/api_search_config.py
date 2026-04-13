@@ -13,6 +13,7 @@ from api.schemas import (
     SearchConfigCreateRequest,
     SearchConfigCreateResponse,
     SearchConfigResponse,
+    SearchConfigUpdateRequest,
     SearchConfigsListResponse,
 )
 from repositories.search_config import SearchConfigRow
@@ -67,6 +68,34 @@ async def api_create_search_config(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         )
+
+    return SearchConfigCreateResponse(config=_config_to_response(row))
+
+
+@router.put("/{config_id}")
+async def api_update_search_config(
+    config_id: UUID,
+    body: SearchConfigUpdateRequest,
+    user: Annotated[UserRow, Depends(get_current_user)],
+    _csrf: Annotated[None, Depends(require_csrf)],
+    svc: Annotated[SearchConfigService, Depends(get_search_config_service)],
+) -> SearchConfigCreateResponse:
+    """Update query and filters for an existing search config. Platform is immutable."""
+    try:
+        row = await svc.update(
+            user_id=user.id,
+            config_id=config_id,
+            query=body.query.strip() if body.query else None,
+            filters=body.filters,
+        )
+    except SearchConfigError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        )
+
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Search config not found.")
 
     return SearchConfigCreateResponse(config=_config_to_response(row))
 

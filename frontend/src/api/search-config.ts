@@ -1,4 +1,4 @@
-/** Search config API functions — list, create, delete. */
+/** Search config API functions — list, create, update, delete. */
 
 import { api } from "@/api/client";
 import {
@@ -8,6 +8,7 @@ import {
 import type {
   SearchConfigCreateRequest,
   SearchConfigCreateResponse,
+  SearchConfigUpdateRequest,
   SearchConfigsListResponse,
 } from "@/types/schemas";
 
@@ -21,6 +22,17 @@ export async function createSearchConfig(
   return api(
     "/api/search-configs",
     { method: "POST", body: data },
+    searchConfigCreateResponseSchema,
+  );
+}
+
+export async function updateSearchConfig(
+  id: string,
+  data: SearchConfigUpdateRequest,
+): Promise<SearchConfigCreateResponse> {
+  return api(
+    `/api/search-configs/${id}`,
+    { method: "PUT", body: data },
     searchConfigCreateResponseSchema,
   );
 }

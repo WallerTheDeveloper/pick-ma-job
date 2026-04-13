@@ -26,11 +26,12 @@ const configFiltersSchema = z.object({
 
 export interface SearchConfigCardProps {
   config: SearchConfigResponse;
+  onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   isDeleting: boolean;
 }
 
-export function SearchConfigCard({ config, onDelete, isDeleting }: SearchConfigCardProps) {
+export function SearchConfigCard({ config, onEdit, onDelete, isDeleting }: SearchConfigCardProps) {
   const parsed = configFiltersSchema.safeParse(config.filters);
   const { experienceLevel, jobType, paymentVerified, maxJobAge } = parsed.success
     ? parsed.data
@@ -89,7 +90,14 @@ export function SearchConfigCard({ config, onDelete, isDeleting }: SearchConfigC
           Updated: {new Date(config.updated_at).toLocaleDateString()}
         </div>
       </CardContent>
-      <CardFooter className="justify-end">
+      <CardFooter className="justify-end gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onEdit(config.id)}
+        >
+          Edit
+        </Button>
         <Button
           variant="destructive"
           size="sm"

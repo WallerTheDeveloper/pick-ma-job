@@ -79,6 +79,21 @@ export function emptyLinkedInFilters(): LinkedInFilters {
   };
 }
 
+export function dictToLinkedInFilters(d: Record<string, unknown>): LinkedInFilters {
+  return {
+    searchTerms: (d.searchTerms as string[]) ?? [],
+    location: (d.location as string) ?? "",
+    distance: d.distance !== undefined ? String(d.distance) : "",
+    publishedAt: (d.publishedAt as string) ?? "r86400",
+    jobType: (d.jobType as string[]) ?? [],
+    experienceLevel: (d.experienceLevel as string[]) ?? [],
+    workType: (d.workType as string[]) ?? [],
+    salaryBase: (d.salaryBase as string) ?? "",
+    maxItems: String((d.maxItems as number | undefined) ?? 150),
+    saveOnlyUniqueItems: (d.saveOnlyUniqueItems as boolean) ?? true,
+  };
+}
+
 export function linkedInFiltersToDict(f: LinkedInFilters): Record<string, unknown> {
   const dict: Record<string, unknown> = {};
 

@@ -24,12 +24,14 @@ import {
   UpworkFiltersForm,
   emptyUpworkFilters,
   upworkFiltersToDict,
+  dictToUpworkFilters,
   type UpworkFilters,
 } from "@/components/upwork-filters-form";
 import {
   LinkedInFiltersForm,
   emptyLinkedInFilters,
   linkedInFiltersToDict,
+  dictToLinkedInFilters,
   type LinkedInFilters,
 } from "@/components/search-config/linkedin-form";
 import { useSearchConfigs } from "@/hooks/use-search-config";
@@ -37,6 +39,7 @@ import { usePlatforms } from "@/hooks/use-platforms";
 import type {
   Platform,
   SearchConfigCreateRequest,
+  SearchConfigUpdateRequest,
   SearchConfigResponse,
 } from "@/types/schemas";
 
@@ -84,6 +87,32 @@ function formToRequest(form: AddFormState): SearchConfigCreateRequest {
   };
 }
 
+function formToUpdateRequest(form: AddFormState): SearchConfigUpdateRequest {
+  if (form.platform === "upwork") {
+    return {
+      query: form.query.trim() || null,
+      filters: upworkFiltersToDict(form.upworkFilters),
+    };
+  }
+  const { searchTerms } = form.linkedInFilters;
+  const query = searchTerms.length > 0 ? searchTerms.join(", ") : form.query.trim() || null;
+  return {
+    query,
+    filters: linkedInFiltersToDict(form.linkedInFilters),
+  };
+}
+
+function configToFormState(config: SearchConfigResponse): AddFormState {
+  const platform = config.platform as Platform;
+  const filters = config.filters as Record<string, unknown>;
+  return {
+    platform,
+    query: config.query ?? "",
+    upworkFilters: platform === "upwork" ? dictToUpworkFilters(filters) : emptyUpworkFilters(),
+    linkedInFilters: platform === "linkedin" ? dictToLinkedInFilters(filters) : emptyLinkedInFilters(),
+  };
+}
+
 function validateForm(form: AddFormState): string | null {
   if (form.platform === "upwork") {
     if (!form.query.trim()) return "Search query is required.";
@@ -105,6 +134,11 @@ function validateForm(form: AddFormState): string | null {
 
 // ── Platform tab ─────────────────────────────────────────────────────────────
 
+type FormMode =
+  | { kind: "none" }
+  | { kind: "create" }
+  | { kind: "edit"; configId: string };
+
 interface PlatformTabProps {
   platform: Platform;
   configs: SearchConfigResponse[];
@@ -113,6 +147,8 @@ interface PlatformTabProps {
   deleteTarget: string | null;
   onCreate: (req: SearchConfigCreateRequest) => Promise<unknown>;
   isCreating: boolean;
+  onUpdate: (id: string, req: SearchConfigUpdateRequest) => Promise<unknown>;
+  isUpdating: boolean;
 }
 
 function PlatformTab({
@@ -123,16 +159,30 @@ function PlatformTab({
   deleteTarget,
   onCreate,
   isCreating,
+  onUpdate,
+  isUpdating,
 }: PlatformTabProps) {
-  const [showForm, setShowForm] = useState(false);
+  const [formMode, setFormMode] = useState<FormMode>({ kind: "none" });
   const [form, setForm] = useState<AddFormState>(() => emptyAddForm(platform));
 
-  function resetForm() {
+  const isBusy = isCreating || isUpdating;
+
+  function openCreate() {
     setForm(emptyAddForm(platform));
-    setShowForm(false);
+    setFormMode({ kind: "create" });
   }
 
-  async function handleCreate(e: React.FormEvent) {
+  function openEdit(config: SearchConfigResponse) {
+    setForm(configToFormState(config));
+    setFormMode({ kind: "edit", configId: config.id });
+  }
+
+  function closeForm() {
+    setForm(emptyAddForm(platform));
+    setFormMode({ kind: "none" });
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     const validationError = validateForm(form);
@@ -141,24 +191,39 @@ function PlatformTab({
       return;
     }
 
-    try {
-      await onCreate(formToRequest(form));
-      toast.success("Search config created.");
-      resetForm();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create config.");
+    if (formMode.kind === "create") {
+      try {
+        await onCreate(formToRequest(form));
+        toast.success("Search config created.");
+        closeForm();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to create config.");
+      }
+    } else if (formMode.kind === "edit") {
+      try {
+        await onUpdate(formMode.configId, formToUpdateRequest(form));
+        toast.success("Search config updated.");
+        closeForm();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to update config.");
+      }
     }
   }
 
+  const showForm = formMode.kind !== "none";
+  const isEditMode = formMode.kind === "edit";
+
   return (
     <div className="space-y-4">
-      {/* Add form */}
+      {/* Create / edit form */}
       {showForm ? (
         <Card>
-          <form onSubmit={handleCreate}>
+          <form onSubmit={handleSubmit}>
             <CardHeader>
               <CardTitle className="text-base">
-                New {platformLabels[platform]} Config
+                {isEditMode
+                  ? `Edit ${platformLabels[platform]} Config`
+                  : `New ${platformLabels[platform]} Config`}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -192,20 +257,22 @@ function PlatformTab({
               <Button
                 type="button"
                 variant="outline"
-                onClick={resetForm}
-                disabled={isCreating}
+                onClick={closeForm}
+                disabled={isBusy}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isCreating}>
-                {isCreating ? "Creating..." : "Create Config"}
+              <Button type="submit" disabled={isBusy}>
+                {isEditMode
+                  ? isBusy ? "Saving..." : "Save Changes"
+                  : isBusy ? "Creating..." : "Create Config"}
               </Button>
             </CardFooter>
           </form>
         </Card>
       ) : (
         <div className="flex justify-end">
-          <Button onClick={() => setShowForm(true)}>
+          <Button onClick={openCreate}>
             Add {platformLabels[platform]} Config
           </Button>
         </div>
@@ -224,6 +291,10 @@ function PlatformTab({
             <SearchConfigCard
               key={config.id}
               config={config}
+              onEdit={(id) => {
+                const found = configs.find((c) => c.id === id);
+                if (found) openEdit(found);
+              }}
               onDelete={onDelete}
               isDeleting={isDeleting && deleteTarget === config.id}
             />
@@ -237,7 +308,7 @@ function PlatformTab({
 // ── Main page ────────────────────────────────────────────────────────────────
 
 export function SearchConfigPage() {
-  const { configs, isLoading, error, create, isCreating, remove, isDeleting } = useSearchConfigs();
+  const { configs, isLoading, error, create, isCreating, update, isUpdating, remove, isDeleting } = useSearchConfigs();
   const { platforms, isLoading: platformsLoading } = usePlatforms();
 
   const [activeTab, setActiveTab] = useState<Platform>("upwork");
@@ -316,6 +387,8 @@ export function SearchConfigPage() {
         deleteTarget={deleteTarget}
         onCreate={create}
         isCreating={isCreating}
+        onUpdate={(id, req) => update({ id, data: req })}
+        isUpdating={isUpdating}
       />
 
       {/* Delete confirmation dialog */}

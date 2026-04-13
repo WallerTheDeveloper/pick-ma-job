@@ -31,6 +31,17 @@ export function emptyUpworkFilters(): UpworkFilters {
   };
 }
 
+export function dictToUpworkFilters(d: Record<string, unknown>): UpworkFilters {
+  const maxJobAge = d.maxJobAge as { value?: number } | undefined;
+  return {
+    experienceLevel: (d.experienceLevel as string[]) ?? [],
+    jobType: (d.jobType as string[]) ?? [],
+    paymentVerified: (d.paymentVerified as boolean) ?? true,
+    perPage: String((d.perPage as number | undefined) ?? 50),
+    maxJobAgeHours: String(maxJobAge?.value ?? 24),
+  };
+}
+
 export function upworkFiltersToDict(f: UpworkFilters): Record<string, unknown> {
   const filters: Record<string, unknown> = {};
   if (f.experienceLevel.length > 0) filters.experienceLevel = f.experienceLevel;

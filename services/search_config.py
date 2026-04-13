@@ -49,6 +49,21 @@ class SearchConfigService:
         logger.info("Search config created user_id=%s platform=%s", user_id, data.platform)
         return row
 
+    async def update(
+        self,
+        user_id: UUID,
+        config_id: UUID,
+        query: str | None,
+        filters: dict,
+    ) -> SearchConfigRow | None:
+        """Update query and filters. Platform is immutable. Returns None if not found or not owned."""
+        if not isinstance(filters, dict):
+            raise SearchConfigError("Filters must be a JSON object.")
+        row = await self._repo.update(config_id, user_id, query, filters)
+        if row is not None:
+            logger.info("Search config updated id=%s user_id=%s", config_id, user_id)
+        return row
+
     async def delete(self, config_id: UUID, user_id: UUID) -> bool:
         """Delete a search config by id, scoped to user_id. Returns True if deleted."""
         deleted = await self._repo.delete(config_id, user_id)

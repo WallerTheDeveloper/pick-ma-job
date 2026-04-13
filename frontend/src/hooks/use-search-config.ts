@@ -1,14 +1,16 @@
-/** Hook for listing, creating, and deleting search configs. */
+/** Hook for listing, creating, updating, and deleting search configs. */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createSearchConfig,
   deleteSearchConfig,
   fetchSearchConfigs,
+  updateSearchConfig,
 } from "@/api/search-config";
 import type {
   SearchConfigCreateRequest,
   SearchConfigCreateResponse,
+  SearchConfigUpdateRequest,
   SearchConfigsListResponse,
 } from "@/types/schemas";
 
@@ -34,6 +36,17 @@ export function useSearchConfigs() {
     },
   });
 
+  const updateMutation = useMutation<
+    SearchConfigCreateResponse,
+    Error,
+    { id: string; data: SearchConfigUpdateRequest }
+  >({
+    mutationFn: ({ id, data }) => updateSearchConfig(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [CONFIGS_KEY] });
+    },
+  });
+
   const deleteMutation = useMutation<void, Error, string>({
     mutationFn: deleteSearchConfig,
     onSuccess: () => {
@@ -49,6 +62,9 @@ export function useSearchConfigs() {
     create: createMutation.mutateAsync,
     isCreating: createMutation.isPending,
     createError: createMutation.error,
+    update: updateMutation.mutateAsync,
+    isUpdating: updateMutation.isPending,
+    updateError: updateMutation.error,
     remove: deleteMutation.mutateAsync,
     isDeleting: deleteMutation.isPending,
     deleteError: deleteMutation.error,
