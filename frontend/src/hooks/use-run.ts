@@ -45,9 +45,23 @@ export function useRunStatus(runId: string | null) {
   return query;
 }
 
-export function useRun() {
+/**
+ * Starts a pipeline run and tracks its status via polling.
+ * Pass `initialRunId` to rehydrate an in-progress run after a page reload (T-13):
+ * the hook will immediately begin polling that run so the animated UI appears
+ * without a manual trigger.
+ */
+export function useRun(initialRunId?: string) {
   const queryClient = useQueryClient();
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
+
+  // Seed from dashboard data when the page reloads mid-run.
+  // The condition `activeRunId === null` prevents overwriting a user-initiated run.
+  useEffect(() => {
+    if (initialRunId !== undefined && activeRunId === null) {
+      setActiveRunId(initialRunId);
+    }
+  }, [initialRunId, activeRunId]);
 
   const startMutation = useMutation({
     mutationFn: (args?: StartRunArgs | void) => startRun(args ?? undefined),

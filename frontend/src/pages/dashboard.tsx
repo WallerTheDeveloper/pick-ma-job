@@ -10,7 +10,7 @@ import { fetchDashboard } from "@/api/dashboard";
 import { useRun } from "@/hooks/use-run";
 import { RunStatus } from "@/components/run-status";
 import { RunPipelineDialog } from "@/components/run-pipeline-dialog";
-import type { DashboardResponse } from "@/types/schemas";
+import type { DashboardResponse, PipelineRunInfo, RunStatusResponse } from "@/types/schemas";
 
 function RunStatusIcon({ status }: { status: string }) {
   switch (status) {
@@ -27,14 +27,44 @@ function RunStatusIcon({ status }: { status: string }) {
   }
 }
 
+/** Convert a PipelineRunInfo (from dashboard snapshot) into a RunStatusResponse
+ *  so RunStatus can render immediately before the first poll arrives. */
+function toRunStatusResponse(run: PipelineRunInfo): RunStatusResponse {
+  return {
+    run_id: run.id,
+    status: run.status,
+    started_at: run.started_at,
+    completed_at: run.completed_at,
+    result: null,
+    error: run.error,
+  };
+}
+
 export function DashboardPage() {
   const { data, isLoading, error } = useQuery<DashboardResponse>({
     queryKey: ["dashboard"],
     queryFn: fetchDashboard,
   });
 
-  const { startRun, startStatus, startError, runStatus, isRunning } = useRun();
+  // Rehydrate an in-progress run so polling restarts immediately after a reload.
+  const latestRun = data?.recent_runs[0];
+  const seedRunId =
+    latestRun?.status === "running" || latestRun?.status === "pending"
+      ? latestRun.id
+      : undefined;
+
+  const { startRun, startStatus, startError, runStatus, isRunning } = useRun(seedRunId);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Use the polled status when available; fall back to the dashboard snapshot
+  // for the brief window between page load and the first poll response.
+  // This prevents a flicker from static-icon → animated RunStatus.
+  const displayedRun: RunStatusResponse | null =
+    runStatus ?? (seedRunId && latestRun ? toRunStatusResponse(latestRun) : null);
+
+  // Treat seeded-but-not-yet-polled state as running so the button is
+  // immediately disabled and the static recent-runs list stays hidden.
+  const effectiveIsRunning = isRunning || (!!seedRunId && runStatus === null);
 
   if (isLoading) {
     return <p className="text-muted-foreground">Loading dashboard...</p>;
@@ -116,9 +146,9 @@ export function DashboardPage() {
           ) : (
             <Button
               onClick={() => setDialogOpen(true)}
-              disabled={isRunning || startStatus === "pending"}
+              disabled={effectiveIsRunning || startStatus === "pending"}
             >
-              {isRunning ? (
+              {effectiveIsRunning ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Running...
@@ -139,18 +169,18 @@ export function DashboardPage() {
           </p>
         )}
 
-        {runStatus && <RunStatus run={runStatus} />}
+        {displayedRun && <RunStatus run={displayedRun} />}
       </div>
 
       <RunPipelineDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onRun={(platforms) => startRun({ platforms })}
-        isRunning={isRunning}
+        isRunning={effectiveIsRunning}
       />
 
-      {/* Recent runs history */}
-      {data.recent_runs.length > 0 && !runStatus && (
+      {/* Recent runs history — hidden while a run is active or being rehydrated */}
+      {data.recent_runs.length > 0 && !displayedRun && (
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-muted-foreground">
             Recent Runs
