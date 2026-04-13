@@ -1,44 +1,38 @@
 {
   "platform": "linkedin",
-  "enabled": false,
+  "enabled": true,
   "scraper": {
-    "actor_id": "apify/linkedin-jobs-scraper",
+    "actor_id": "2rJKkhh7vjpX7pvjg",
     "input": {
-      "queries": ["unity developer"],
+      "searchTerms": ["unity developer"],
       "location": "Remote",
-      "maxResults": 50
+      "publishedAt": "r86400",
+      "jobType": [],
+      "experienceLevel": [],
+      "workType": [],
+      "maxItems": 50,
+      "saveOnlyUniqueItems": true
     }
   },
-  "schedule": {
-    "cron": "0 */12 * * *"
-  },
   "field_mappings": {
-    "id": "id",
-    "title": "title",
-    "description": "description",
-    "url": "url",
-    "skills": "skills",
-    "budget": null,
-    "job_type": "jobType",
+    "id": "jobId",
+    "title": "jobTitle",
+    "description": "jobDescription",
+    "url": "jobUrl",
+    "skills": null,
+    "budget": "salaryInfo",
+    "job_type": "contractType",
     "experience_level": "experienceLevel",
     "extras": {
       "company_name": "companyName",
-      "company_size": "companySize"
+      "location": "location",
+      "work_type": "workType",
+      "sector": "sector",
+      "applications_count": "applicationsCount",
+      "apply_type": "applyType",
+      "posted_time": "postedTime",
+      "poster_name": "posterName",
+      "company_url": "companyUrl"
     }
-  },
-  "sheet": {
-    "worksheet_name": "LinkedIn",
-    "columns": [
-      "relevancy_score",
-      "title",
-      "summary",
-      "recommendation",
-      "evaluation",
-      "flags",
-      "skills",
-      "company_name",
-      "company_size",
-      "url"
-    ]
   }
 }
