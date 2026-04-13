@@ -25,6 +25,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from api.limiter import limiter
 from api.routes.api_admin import router as api_admin_router
+from api.routes.api_version import router as api_version_router
 from api.routes.api_lists import router as api_lists_router
 from api.routes.api_dashboard import router as api_dashboard_router
 from api.routes.api_pipeline import router as api_pipeline_router
@@ -77,9 +78,25 @@ async def _cleanup_loop(session_repo: SessionRepository, magic_link_repo: MagicL
             logger.exception("Cleanup task failed")
 
 
+def _read_version() -> str:
+    """Read version from VERSION file at repo root. Fail fast if missing."""
+    version_path = os.path.join(os.path.dirname(__file__), "VERSION")
+    try:
+        with open(version_path) as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        raise RuntimeError(
+            f"VERSION file not found at {version_path}. "
+            "Ensure the VERSION file exists at the repo root."
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     validate_env()
+
+    app.state.version = _read_version()
+    logger.info("Application version: %s", app.state.version)
 
     resend.api_key = os.environ["RESEND_API_KEY"]
 
@@ -139,6 +156,7 @@ def create_app() -> FastAPI:
     app.include_router(api_pipeline_router)
     app.include_router(api_lists_router)
     app.include_router(api_admin_router)
+    app.include_router(api_version_router)
 
     return app
 

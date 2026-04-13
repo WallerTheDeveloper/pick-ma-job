@@ -12,6 +12,12 @@ class OkResponse(BaseModel):
     ok: bool = True
 
 
+# ── Version ───────────────────────────────────────────────────────────────────
+
+class VersionResponse(BaseModel):
+    version: str
+
+
 # ── Auth ─────────────────────────────────────────────────────────────────────
 
 class UserInfo(BaseModel):
