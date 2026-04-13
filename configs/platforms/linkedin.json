@@ -4,7 +4,7 @@
   "scraper": {
     "actor_id": "2rJKkhh7vjpX7pvjg",
     "input": {
-      "keyword": "unity developer",
+      "keyword": ["unity developer"],
       "location": "Remote",
       "publishedAt": "r86400",
       "jobType": [],

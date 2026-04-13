@@ -59,7 +59,7 @@ class LinkedInScraper(BaseScraper):
         if "searchTerms" in actor_input:
             terms = actor_input.pop("searchTerms")
             if isinstance(terms, list) and terms:
-                actor_input.setdefault("keyword", ", ".join(str(t) for t in terms))
+                actor_input.setdefault("keyword", [str(t) for t in terms])
 
         # Remove the 'query' display label injected by _merge_config — not an actor field.
         actor_input.pop("query", None)
