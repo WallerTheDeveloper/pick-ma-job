@@ -166,6 +166,22 @@ class JobListRepository:
             )
         return [_row_to_job_result(r) for r in rows]
 
+    async def add_items(self, list_id: UUID, job_result_ids: list[UUID]) -> None:
+        """Bulk-insert job result IDs into a list. Silently skips duplicates."""
+        if not job_result_ids:
+            return
+        async with self._pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO job_list_items (list_id, job_result_id)
+                SELECT $1, unnest($2::uuid[])
+                ON CONFLICT DO NOTHING
+                """,
+                list_id,
+                job_result_ids,
+            )
+        logger.debug("Added %d items to list %s", len(job_result_ids), list_id)
+
     async def get_list_ids_for_job(self, job_result_id: UUID, user_id: UUID) -> list[UUID]:
         """Return all list IDs that contain this job result, scoped to user_id."""
         async with self._pool.acquire() as conn:

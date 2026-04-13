@@ -10,11 +10,13 @@ import copy
 import json
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
 from core.evaluator import Evaluator
 from core.prompt_adapter import load_platform_context, profile_row_to_prompt_dict
+from repositories.job_list import JobListRepository
 from repositories.job_result import JobResultRepository
 from repositories.profile import ProfileRepository
 from repositories.search_config import SearchConfigRepository, SearchConfigRow
@@ -71,11 +73,13 @@ class PipelineService:
         profile_repo: ProfileRepository,
         search_config_repo: SearchConfigRepository,
         job_result_repo: JobResultRepository,
+        job_list_repo: JobListRepository,
         anthropic_api_key: str,
     ) -> None:
         self._profile_repo = profile_repo
         self._search_config_repo = search_config_repo
         self._job_result_repo = job_result_repo
+        self._job_list_repo = job_list_repo
         self._anthropic_api_key = anthropic_api_key
         settings = json.loads(_SETTINGS_PATH.read_text(encoding="utf-8"))
         self._settings = settings
@@ -136,12 +140,14 @@ class PipelineService:
 
         prompt_dict = profile_row_to_prompt_dict(profile)
         evaluator = Evaluator(prompt_dict, self._settings, api_key=self._anthropic_api_key)
+        run_started_at = datetime.now(timezone.utc)
 
         platform_results = [
             await self._run_platform(
                 user_id=user_id,
                 config_row=config_row,
                 evaluator=evaluator,
+                run_started_at=run_started_at,
             )
             for config_row in search_configs
         ]
@@ -161,6 +167,7 @@ class PipelineService:
         user_id: UUID,
         config_row: SearchConfigRow,
         evaluator: Evaluator,
+        run_started_at: datetime,
     ) -> PlatformResult:
         platform = config_row.platform
         logger.info("Pipeline starting: user_id=%s platform=%s", user_id, platform)
@@ -198,6 +205,7 @@ class PipelineService:
         jobs_evaluated = 0
         jobs_stored = 0
         errors: list[str] = []
+        new_job_ids: list[UUID] = []
 
         for job in jobs:
             already_seen = await self._job_result_repo.exists(user_id, platform, job.id)
@@ -235,10 +243,31 @@ class PipelineService:
                 )
                 if stored is not None:
                     jobs_stored += 1
+                    new_job_ids.append(stored.id)
             except Exception as exc:
                 msg = f"DB insert failed for '{job.title}': {exc}"
                 logger.error(msg)
                 errors.append(msg)
+
+        if new_job_ids:
+            list_name = f"{platform}-{run_started_at.strftime('%Y-%m-%d-%H:%M')}"
+            try:
+                job_list = await self._job_list_repo.create(user_id, list_name)
+                await self._job_list_repo.add_items(job_list.id, new_job_ids)
+                logger.info(
+                    "Auto-created list %r (id=%s) with %d jobs for user_id=%s",
+                    list_name,
+                    job_list.id,
+                    len(new_job_ids),
+                    user_id,
+                )
+            except Exception as exc:
+                logger.error(
+                    "Auto-list creation failed for platform=%s user_id=%s: %s",
+                    platform,
+                    user_id,
+                    exc,
+                )
 
         logger.info(
             "Pipeline done: platform=%s found=%d dedup=%d filter=%d low_score=%d evaluated=%d stored=%d",

@@ -24,6 +24,7 @@ import asyncpg
 
 from dataclasses import asdict
 
+from repositories.job_list import JobListRepository
 from repositories.job_result import JobResultRepository
 from repositories.pipeline_run import PipelineRunRepository
 from repositories.profile import ProfileRepository
@@ -132,6 +133,7 @@ class RunManager:
             profile_repo=ProfileRepository(pool),
             search_config_repo=SearchConfigRepository(pool),
             job_result_repo=JobResultRepository(pool),
+            job_list_repo=JobListRepository(pool),
             anthropic_api_key=self._api_key,
         )
 
