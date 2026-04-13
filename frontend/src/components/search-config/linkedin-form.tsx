@@ -19,12 +19,11 @@ const publishedAtOptions = [
 ] as const;
 
 const jobTypeOptions = [
-  { value: "full_time", label: "Full-time" },
-  { value: "part_time", label: "Part-time" },
+  { value: "full-time", label: "Full-time" },
+  { value: "part-time", label: "Part-time" },
   { value: "contract", label: "Contract" },
   { value: "temporary", label: "Temporary" },
   { value: "internship", label: "Internship" },
-  { value: "other", label: "Other" },
 ] as const;
 
 const experienceLevelOptions = [
