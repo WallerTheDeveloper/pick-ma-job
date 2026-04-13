@@ -51,8 +51,25 @@ class LinkedInScraper(BaseScraper):
         """Synchronous implementation — runs in a thread via fetch_jobs."""
         token = os.environ["APIFY_API_TOKEN"]
         actor_id: str = config["scraper"]["actor_id"]
-        actor_input: dict = config["scraper"]["input"]
+        actor_input: dict = dict(config["scraper"]["input"])
         mappings: dict = config["field_mappings"]
+
+        # Sanitize jobType: the Apify actor only accepts these exact values.
+        _VALID_JOB_TYPES = frozenset(
+            {"full-time", "part-time", "contract", "temporary", "internship"}
+        )
+        if "jobType" in actor_input:
+            original = actor_input["jobType"]
+            valid = [v for v in original if v in _VALID_JOB_TYPES]
+            if len(valid) != len(original):
+                invalid = [v for v in original if v not in _VALID_JOB_TYPES]
+                logger.warning(
+                    "Removed invalid LinkedIn jobType values %s; keeping %s",
+                    invalid,
+                    valid,
+                )
+            actor_input["jobType"] = valid
+
         extras_map: dict = mappings.get("extras", {})
 
         client = ApifyClient(token)
