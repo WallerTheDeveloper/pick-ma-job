@@ -2,16 +2,31 @@ import { Link } from "react-router";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useAuth } from "@/hooks/use-auth";
 
 export function LandingPage() {
+  const { isAuthenticated, isLoading, user } = useAuth();
+
   return (
     <div className="min-h-screen bg-background text-foreground">
+      {/* Authenticated banner */}
+      {!isLoading && isAuthenticated && (
+        <div className="bg-primary text-primary-foreground px-6 py-2 flex items-center justify-between text-sm">
+          <span>Logged in as <strong>{user?.email}</strong></span>
+          <Link to="/dashboard" className={cn(buttonVariants({ size: "sm", variant: "secondary" }))}>
+            Go to Dashboard →
+          </Link>
+        </div>
+      )}
+
       {/* Top navbar */}
       <header className="border-b border-border px-6 py-4 flex items-center justify-between">
         <span className="text-lg font-semibold tracking-tight">Pick Ma Job</span>
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <Link to="/login" className={cn(buttonVariants({ size: "sm" }))}>Sign In</Link>
+          {!isLoading && !isAuthenticated && (
+            <Link to="/login" className={cn(buttonVariants({ size: "sm" }))}>Sign In</Link>
+          )}
         </div>
       </header>
 
@@ -28,7 +43,11 @@ export function LandingPage() {
             Pick Ma Job scrapes Upwork and LinkedIn, then uses Claude AI to score
             each posting against your profile — so you only see jobs worth your time.
           </p>
-          <Link to="/login" className={cn(buttonVariants({ size: "lg" }))}>Get Started</Link>
+          {!isLoading && (
+            isAuthenticated
+              ? <Link to="/dashboard" className={cn(buttonVariants({ size: "lg" }))}>Go to Dashboard →</Link>
+              : <Link to="/login" className={cn(buttonVariants({ size: "lg" }))}>Get Started</Link>
+          )}
         </section>
 
         {/* How it works */}
@@ -123,12 +142,11 @@ export function LandingPage() {
 
       {/* Footer */}
       <footer className="border-t border-border px-6 py-8 text-center text-sm text-muted-foreground">
-        <p>
-          Ready to get started?{" "}
-          <Link to="/login" className="underline underline-offset-4 hover:text-foreground">
-            Sign in
-          </Link>
-        </p>
+        {!isLoading && (
+          isAuthenticated
+            ? <p>Welcome back — <Link to="/dashboard" className="underline underline-offset-4 hover:text-foreground">go to your dashboard</Link>.</p>
+            : <p>Ready to get started?{" "}<Link to="/login" className="underline underline-offset-4 hover:text-foreground">Sign in</Link></p>
+        )}
       </footer>
     </div>
   );
