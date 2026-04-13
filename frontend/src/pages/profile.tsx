@@ -12,6 +12,17 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { TagInput } from "@/components/tag-input";
 import { useProfile } from "@/hooks/use-profile";
 import {
@@ -95,6 +106,17 @@ export function ProfilePage() {
     }));
   }
 
+  async function handleClearAll() {
+    const empty = emptyForm();
+    setForm(empty);
+    try {
+      await save(formToRequest(empty));
+      toast.success("Profile cleared.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to clear profile.");
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
@@ -137,9 +159,32 @@ export function ProfilePage() {
               : "Set up your profile so the pipeline can evaluate jobs against your skills."}
           </p>
         </div>
-        <Button type="submit" disabled={isSaving}>
-          {isSaving ? "Saving..." : "Save Profile"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button type="button" variant="destructive" disabled={isSaving}>
+                Clear all
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear all profile fields?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This cannot be undone. All profile data will be permanently removed.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleClearAll}>
+                  Clear all
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <Button type="submit" disabled={isSaving}>
+            {isSaving ? "Saving..." : "Save Profile"}
+          </Button>
+        </div>
       </div>
 
       {/* Basic info */}
