@@ -71,6 +71,25 @@ class LinkedInScraper(BaseScraper):
                 "Add at least one keyword to your LinkedIn search config."
             )
 
+        # Map experienceLevel values to the actor's expected format.
+        _EXPERIENCE_LEVEL_MAP = {
+            "internship": "internship",
+            "entry_level": "entry-level",
+            "associate": "associate",
+            "mid_senior_level": "mid-senior",
+            "director": "director",
+            # "executive" has no equivalent in the actor's allowed values — drop it.
+        }
+        if "experienceLevel" in actor_input:
+            original = actor_input["experienceLevel"]
+            mapped = [_EXPERIENCE_LEVEL_MAP[v] for v in original if v in _EXPERIENCE_LEVEL_MAP]
+            dropped = [v for v in original if v not in _EXPERIENCE_LEVEL_MAP]
+            if dropped:
+                logger.warning(
+                    "Dropped unsupported LinkedIn experienceLevel values %s", dropped
+                )
+            actor_input["experienceLevel"] = mapped
+
         # Sanitize jobType: the Apify actor only accepts these exact values.
         _VALID_JOB_TYPES = frozenset(
             {"full-time", "part-time", "contract", "temporary", "internship"}

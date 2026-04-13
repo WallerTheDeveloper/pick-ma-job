@@ -28,11 +28,10 @@ const jobTypeOptions = [
 
 const experienceLevelOptions = [
   { value: "internship", label: "Internship" },
-  { value: "entry_level", label: "Entry Level" },
+  { value: "entry-level", label: "Entry Level" },
   { value: "associate", label: "Associate" },
-  { value: "mid_senior_level", label: "Mid-Senior Level" },
+  { value: "mid-senior", label: "Mid-Senior Level" },
   { value: "director", label: "Director" },
-  { value: "executive", label: "Executive" },
 ] as const;
 
 const workTypeOptions = [
