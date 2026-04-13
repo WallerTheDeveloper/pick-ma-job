@@ -2,13 +2,13 @@
   "platform": "linkedin",
   "evaluation_notes": [
     "LinkedIn postings do not include a skills array — evaluate fit based on the job title, description, and any keywords in the text.",
-    "The 'applications_count' field is a competition signal — fewer applicants on AR/VR, Unity, or Rust roles is a positive signal; very high counts (200+) are a mild red flag.",
-    "The 'work_type' field indicates remote/hybrid/on-site — weight 'Remote' positively for the Berlin-based developer; flag on-site requirements outside Germany.",
+    "The 'applications_count' field is a competition signal — fewer applicants on niche or specialized roles is a positive signal; very high counts (200+) are a mild red flag.",
+    "The 'work_type' field indicates remote/hybrid/on-site — weight 'Remote' positively if the developer prefers remote work; flag on-site requirements that conflict with the developer's location or work preference.",
     "Salary comes from 'salary' (derived from salaryInfo). If absent, evaluate the role on company profile, sector, and experience level instead. Flag roles with no salary info and vague scope.",
     "LinkedIn roles are typically full-time or contract, not freelance hourly. Evaluate 'job_type' accordingly — 'Full-time' is relevant for employment, 'Contract' for freelance work.",
-    "The 'sector' field provides industry context — Technology, Gaming, and XR/AR sectors are strong signals; unrelated sectors with Unity roles are worth flagging.",
+    "The 'sector' field provides industry context — sectors that align with the developer's primary skills are strong signals; unrelated sectors for the same job title are worth flagging.",
     "The 'apply_type' field indicates EASY_APPLY vs external — not a quality signal on its own.",
-    "LinkedIn-specific red flags: 'game developer' used as a catch-all for non-Unity stacks, senior-only roles with no flexibility, on-site requirements mismatched with remote preference, vague descriptions with no stack details."
+    "LinkedIn-specific red flags: broad job titles used as catch-alls for mismatched technology stacks, senior-only roles with no flexibility, on-site requirements mismatched with remote preference, vague descriptions with no stack details."
   ],
   "available_fields": [
     "title", "description", "budget", "job_type", "experience_level",

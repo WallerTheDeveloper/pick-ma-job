@@ -1,63 +1,38 @@
 {
   "developer": {
-    "name": "Danylo Golosov",
-    "role": "Unity Developer",
-    "experience_years": 4,
+    "role": "Example Developer",
+    "experience_years": 3,
     "level": "mid-level",
-    "location": "Berlin, Germany",
-    "work_preference": "remote only",
     "rate": {
-      "hourly_eur": "10-30",
-      "annual_eur": 50000
+      "hourly_eur": "20-40",
+      "annual_eur": 60000
     }
   },
   "background": [
-    "2 years as AR & Web Developer at ZAUBAR (Berlin) — AR SDK development, cross-platform mobile app shipping, CI/CD pipelines, VR haptics integration",
-    "2 years as Backend Developer at Intelligent Project (Kyiv) — server-side architecture, database integration, WordPress backend",
-    "BSc Computer Science from Lublin University of Technology (thesis: 4X strategy game in Unity)"
+    "Example background entry — describe relevant work history here"
   ],
   "skills": {
     "primary": [
-      "Unity Engine (C#) — mobile apps, AR/VR, games",
-      "AR/VR SDKs: AR Foundation, ARKit, ARCore, XR Interaction Toolkit, OpenXR",
-      "Cross-platform mobile shipping (iOS & Android) from start to release",
-      "CI/CD for mobile builds: Jenkins, Firebase App Distribution",
-      "Performance profiling and optimization: Unity Profiler, Android Logcat"
+      "Primary skill 1",
+      "Primary skill 2"
     ],
     "secondary": [
-      "Rust — multiplayer game server development, networking, authoritative server architecture",
-      "C++ and OpenGL — custom rendering, graphics programming, shader development",
-      "Backend architecture and server-side systems",
-      "Python scripting",
-      "Swift — native iOS plugins"
+      "Secondary skill 1"
     ],
     "tertiary": [
-      "Vue.js, TypeScript, Tailwind CSS — web component development",
-      "Blender — 3D modeling",
-      "WordPress backend configuration"
+      "Tertiary skill 1"
     ]
   },
   "not_a_good_fit": [
-    "Pure frontend/web development (unless tied to Unity or AR/VR pipeline)",
-    "Generic mobile development without Unity (native Android Kotlin / native iOS SwiftUI as primary)",
-    "Data science, machine learning engineering, DevOps-only, database administration",
-    "Roles requiring Unreal Engine, Godot, or other non-Unity game engines as primary tool"
+    "Example exclusion — roles or domains to avoid"
   ],
   "notable_projects": [
     {
-      "name": "Rust Multiplayer Game (Paper.io 2 clone)",
-      "description": "Fully authoritative game server from scratch in Rust, 200+ concurrent players, full client-server pipeline with cheat prevention"
-    },
-    {
-      "name": "Solar System Simulation",
-      "description": "C++17 + OpenGL 3.3, custom rendering engine, no game engine dependency"
-    },
-    {
-      "name": "VR Tower Defense",
-      "description": "Unity + XR Interaction Toolkit, spatial tower placement, state machine AI architecture"
+      "name": "Example Project",
+      "description": "Brief description of a notable project"
     }
   ],
-  "languages": ["English", "Ukrainian", "German (actively studying)", "Russian", "Polish"],
+  "languages": ["English"],
   "scoring_rubric": {
     "9-10": "Excellent match — hits primary strengths, appropriate level and budget, apply immediately",
     "7-8": "Good match — primarily relevant with minor gaps, likely worth applying",
@@ -67,12 +42,12 @@
   },
   "evaluation_factors": [
     "Skills Match: How well required skills align with primary > secondary > tertiary strengths",
-    "Experience Level: Mid-level is ideal. Junior is fine. Senior in AR/VR is acceptable.",
-    "Project Type: Prioritize AR/VR, Unity games, multiplayer servers (Rust), graphics programming (OpenGL/C++), mobile shipping",
-    "Budget/Rate: For Upwork: €10–30/hour or reasonable fixed-price. For full-time: ~€50k/year. Flag lowball budgets.",
-    "Project Scope: Both full project ownership and SDK/feature contribution are fine. Fixed-price and hourly both acceptable.",
-    "Client Quality: Flag vague requirements, unrealistic expectations, no verified payment, spec work. Positive: clear scope, hire history, domain knowledge.",
-    "Competition: AR/VR and Rust game server roles have less competition — factor this in positively."
+    "Experience Level: Match the developer's stated level",
+    "Project Type: Prioritize roles that use the developer's primary skills",
+    "Budget/Rate: Flag budgets that fall outside the developer's stated range",
+    "Project Scope: Both full project ownership and feature contribution are acceptable",
+    "Client Quality: Flag vague requirements, unrealistic expectations, spec work",
+    "Competition: Niche roles with fewer applicants are a positive signal"
   ],
-  "system_instructions": "You are a job-fit evaluator. Assess the provided job posting against the developer profile above. Return ONLY a raw JSON object — no markdown, no backticks, no explanation outside the JSON. The JSON must include exactly these fields: evaluation, relevancy_score, recommendation, flags, summary. All fields except relevancy_score must be plain strings — no nested objects or arrays."
+  "system_instructions": "You are a job-fit evaluator. Assess the provided job posting against the developer profile above. Return ONLY a raw JSON object — no markdown, no backticks, no explanation outside the JSON. The JSON must include exactly these fields: scratchpad, evaluation, relevancy_score, recommendation, flags, summary. All fields except relevancy_score must be plain strings — no nested objects or arrays. relevancy_score MUST be an integer between 1 and 10 (inclusive). Do not use any other scale."
 }

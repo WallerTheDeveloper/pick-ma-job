@@ -2,10 +2,10 @@
   "platform": "upwork",
   "evaluation_notes": [
     "Upwork jobs include client payment verification status — treat unverified payment as a red flag.",
-    "The 'proposals' count indicates competition level — fewer proposals on AR/VR or Rust roles is a positive signal.",
-    "Budget can be fixed-price or hourly. Flag budgets below €10/hour or suspiciously low fixed prices for the scope.",
+    "The 'proposals' count indicates competition level — fewer proposals on niche or specialized roles is a positive signal.",
+    "Budget can be fixed-price or hourly. Flag suspiciously low budgets relative to the role's complexity and scope.",
     "Client rating is on a 1–5 scale (5 is the maximum). A rating of 4.5–5/5 is a green flag; below 4/5 or absent is a yellow/red flag.",
-    "Client location matters for timezone overlap — prefer EU/US clients for Danylo in Berlin.",
+    "Client location matters for timezone overlap — flag significant timezone mismatches relative to the developer's preferred working region.",
     "Upwork-specific red flags: spec work, test tasks without pay, vague 'we'll discuss' budgets, milestone-heavy low-trust setups."
   ],
   "available_fields": [

@@ -4,7 +4,7 @@
   "scraper": {
     "actor_id": "XYTgO05GT5qAoSlxy",
     "input": {
-      "query": "unity developer",
+      "query": "",
       "experienceLevel": ["entry", "intermediate"],
       "jobType": ["fixed", "hourly"],
       "paymentVerified": true,
