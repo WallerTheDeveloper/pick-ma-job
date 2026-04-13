@@ -70,6 +70,10 @@ class LinkedInScraper(BaseScraper):
                 )
             actor_input["jobType"] = valid
 
+        # Sanitize salaryBase: the Apify actor requires a string, not a number.
+        if "salaryBase" in actor_input and not isinstance(actor_input["salaryBase"], str):
+            actor_input["salaryBase"] = str(actor_input["salaryBase"])
+
         extras_map: dict = mappings.get("extras", {})
 
         client = ApifyClient(token)

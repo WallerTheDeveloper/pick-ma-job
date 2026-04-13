@@ -87,7 +87,7 @@ export function linkedInFiltersToDict(f: LinkedInFilters): Record<string, unknow
   if (f.workType.length > 0) dict.workType = f.workType;
 
   const salaryBase = parseInt(f.salaryBase, 10);
-  if (!isNaN(salaryBase) && salaryBase > 0) dict.salaryBase = salaryBase;
+  if (!isNaN(salaryBase) && salaryBase > 0) dict.salaryBase = String(salaryBase);
 
   const maxItems = parseInt(f.maxItems, 10);
   if (!isNaN(maxItems) && maxItems > 0) dict.maxItems = Math.min(maxItems, 1000);
