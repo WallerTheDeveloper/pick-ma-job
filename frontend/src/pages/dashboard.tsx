@@ -5,7 +5,7 @@ import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, CheckCircle2, XCircle, Clock, Play, UserCircle, Settings2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { fetchDashboard } from "@/api/dashboard";
 import { useRun } from "@/hooks/use-run";
 import { RunStatus } from "@/components/run-status";
@@ -140,9 +140,9 @@ export function DashboardPage() {
               Set up your profile first.
             </p>
           ) : data.config_count === 0 ? (
-            <Button asChild variant="outline">
-              <Link to="/search-config">Configure a search</Link>
-            </Button>
+            <Link to="/search-config" className={buttonVariants({ variant: "outline" })}>
+              Configure a search
+            </Link>
           ) : (
             <Button
               onClick={() => setDialogOpen(true)}

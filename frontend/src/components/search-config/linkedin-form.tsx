@@ -193,7 +193,7 @@ export function LinkedInFiltersForm({ filters, onChange }: LinkedInFiltersFormPr
         <label className="text-sm font-medium">Date Posted</label>
         <Select
           value={filters.publishedAt}
-          onValueChange={(val) => updateFilter("publishedAt", val)}
+          onValueChange={(val) => updateFilter("publishedAt", val ?? filters.publishedAt)}
         >
           <SelectTrigger>
             <SelectValue />

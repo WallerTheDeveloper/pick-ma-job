@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -161,10 +161,11 @@ export function ProfilePage() {
         </div>
         <div className="flex items-center gap-2">
           <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button type="button" variant="destructive" disabled={isSaving}>
-                Clear all
-              </Button>
+            <AlertDialogTrigger
+              className={buttonVariants({ variant: "destructive" })}
+              disabled={isSaving}
+            >
+              Clear all
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
