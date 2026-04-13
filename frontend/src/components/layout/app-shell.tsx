@@ -4,6 +4,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { VersionFooter } from "@/components/version-footer";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -54,6 +55,7 @@ export function AppShell() {
               {user.email}
             </p>
           )}
+          <VersionFooter />
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"

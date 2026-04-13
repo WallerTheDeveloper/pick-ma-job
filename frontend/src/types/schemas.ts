@@ -245,6 +245,14 @@ export const adminUsersResponseSchema = z.object({
 
 export type AdminUsersResponse = z.infer<typeof adminUsersResponseSchema>;
 
+// ── Version ────────────────────────────────────────────────────────────────
+
+export const versionResponseSchema = z.object({
+  version: z.string(),
+});
+
+export type VersionResponse = z.infer<typeof versionResponseSchema>;
+
 // ── Dashboard ───────────────────────────────────────────────────────────────
 
 export const pipelineRunInfoSchema = z.object({
