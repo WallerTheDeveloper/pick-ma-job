@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useRef } from "react";
 import { startRun, getRunStatus } from "@/api/pipeline";
+import type { StartRunArgs } from "@/api/pipeline";
 import type { RunStatusResponse } from "@/types/schemas";
 
 const RUN_STATUS_KEY = "run-status";
@@ -12,7 +13,7 @@ export function useRun() {
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
 
   const startMutation = useMutation({
-    mutationFn: (platform?: string | void) => startRun(platform ?? undefined),
+    mutationFn: (args?: StartRunArgs | void) => startRun(args ?? undefined),
     onSuccess: (data) => {
       setActiveRunId(data.run_id);
     },

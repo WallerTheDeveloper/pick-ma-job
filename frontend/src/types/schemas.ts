@@ -245,6 +245,21 @@ export const adminUsersResponseSchema = z.object({
 
 export type AdminUsersResponse = z.infer<typeof adminUsersResponseSchema>;
 
+// ── Platforms ─────────────────────────────────────────────────────────────
+
+export const platformInfoSchema = z.object({
+  slug: z.string(),
+  has_config: z.boolean(),
+});
+
+export type PlatformInfo = z.infer<typeof platformInfoSchema>;
+
+export const platformsListResponseSchema = z.object({
+  platforms: z.array(platformInfoSchema),
+});
+
+export type PlatformsListResponse = z.infer<typeof platformsListResponseSchema>;
+
 // ── Version ────────────────────────────────────────────────────────────────
 
 export const versionResponseSchema = z.object({
