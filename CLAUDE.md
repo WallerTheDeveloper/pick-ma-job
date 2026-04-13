@@ -41,7 +41,9 @@ api/
 ├── routes/
 │   ├── auth.py                 # GET /auth/me, POST /auth/magic-link, GET /auth/verify, POST /auth/logout
 │   ├── api_dashboard.py        # GET /api/dashboard
-│   ├── api_pipeline.py         # POST /api/run, GET /api/run/{id}/status
+│   ├── api_pipeline.py         # POST /api/run {platforms?}, GET /api/run/{id}/status
+│   ├── api_platforms.py        # GET /api/platforms — registry-driven platform list with has_config flag
+│   ├── api_version.py          # GET /api/version — no auth required
 │   ├── api_profile.py          # GET/POST /api/profile
 │   ├── api_results.py          # GET /api/results, PATCH /api/results/{id}
 │   ├── api_search_config.py    # GET/POST/DELETE /api/search-configs
@@ -62,10 +64,16 @@ frontend/                       # React SPA (built with Vite, served by nginx)
 │   │   ├── client.ts           # Base fetch wrapper
 │   │   ├── auth.ts, dashboard.ts, pipeline.ts, profile.ts
 │   │   ├── results.ts, search-config.ts, lists.ts, admin.ts
+│   │   ├── platforms.ts        # GET /api/platforms
+│   │   └── version.ts          # GET /api/version
 │   ├── components/             # Reusable UI components (shadcn/ui based)
+│   │   ├── run-pipeline-dialog.tsx  # Platform selection dialog before starting a run
+│   │   └── version-footer.tsx       # Displays app version on all authenticated pages
 │   ├── hooks/                  # TanStack Query + utility hooks
 │   │   ├── use-auth.ts, use-results.ts, use-profile.ts, use-run.ts
 │   │   ├── use-search-config.ts, use-lists.ts, use-theme.ts
+│   │   ├── use-platforms.ts    # Fetches /api/platforms
+│   │   └── use-version.ts      # Fetches /api/version (stale-time Infinity)
 │   ├── pages/                  # Route pages
 │   │   ├── landing.tsx, login.tsx, check-email.tsx
 │   │   ├── dashboard.tsx, results.tsx, profile.tsx
