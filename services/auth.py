@@ -71,7 +71,7 @@ class AuthService:
         magic_url = f"{self._base_url}/auth/verify?token={token}"
 
         if self._skip_email:
-            logger.debug("SKIP_EMAIL=true — magic link for %s: %s...", email, magic_url[:40])
+            logger.info("SKIP_EMAIL=true — magic link for %s: %s", email, magic_url)
         else:
             await self._send_magic_link_email(email, magic_url)
 

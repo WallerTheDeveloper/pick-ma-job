@@ -95,6 +95,7 @@ async def verify_magic_link(
         httponly=True,
         secure=_is_secure(),
         samesite="lax",
+        path="/",
     )
     redirect.set_cookie(
         key=CSRF_COOKIE,
@@ -103,6 +104,7 @@ async def verify_magic_link(
         httponly=False,
         secure=_is_secure(),
         samesite="lax",
+        path="/",
     )
     return redirect
 

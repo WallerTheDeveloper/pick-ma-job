@@ -137,8 +137,21 @@ async def test_verify_valid_token_sets_cookie_and_redirects(client, test_app):
     test_app.dependency_overrides.clear()
 
     assert resp.status_code == 302
-    assert resp.headers["location"] == "/"
+    assert resp.headers["location"] == "/dashboard"
     assert "session_token" in resp.cookies
+
+
+async def test_verify_valid_token_cookies_have_path_root(client, test_app):
+    svc = _mock_auth_service(verify_magic_link=AsyncMock(return_value="new-session-token"))
+    test_app.dependency_overrides[get_auth_service] = lambda: svc
+
+    resp = await client.get("/auth/verify?token=valid-token", follow_redirects=False)
+    test_app.dependency_overrides.clear()
+
+    set_cookie_headers = resp.headers.get_list("set-cookie")
+    assert len(set_cookie_headers) == 2, "Expected two Set-Cookie headers"
+    for header in set_cookie_headers:
+        assert "Path=/" in header, f"Cookie missing Path=/: {header}"
 
 
 async def test_verify_invalid_token_redirects_with_error(client, test_app):
