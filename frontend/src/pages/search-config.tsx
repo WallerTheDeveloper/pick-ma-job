@@ -34,6 +34,13 @@ import {
   dictToLinkedInFilters,
   type LinkedInFilters,
 } from "@/components/search-config/linkedin-form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useSearchConfigs } from "@/hooks/use-search-config";
 import { usePlatforms } from "@/hooks/use-platforms";
 import type {
@@ -164,11 +171,13 @@ function PlatformTab({
 }: PlatformTabProps) {
   const [formMode, setFormMode] = useState<FormMode>({ kind: "none" });
   const [form, setForm] = useState<AddFormState>(() => emptyAddForm(platform));
+  const [cloneSourceId, setCloneSourceId] = useState<string>("");
 
   const isBusy = isCreating || isUpdating;
 
   function openCreate() {
     setForm(emptyAddForm(platform));
+    setCloneSourceId("");
     setFormMode({ kind: "create" });
   }
 
@@ -179,7 +188,20 @@ function PlatformTab({
 
   function closeForm() {
     setForm(emptyAddForm(platform));
+    setCloneSourceId("");
     setFormMode({ kind: "none" });
+  }
+
+  function handleCloneSelect(value: string) {
+    setCloneSourceId(value);
+    if (!value) {
+      setForm(emptyAddForm(platform));
+      return;
+    }
+    const source = configs.find((c) => c.id === value);
+    if (source) {
+      setForm(configToFormState(source));
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -227,6 +249,25 @@ function PlatformTab({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {!isEditMode && configs.length > 0 && (
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Start from existing</label>
+                  <Select value={cloneSourceId} onValueChange={handleCloneSelect}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="None / start fresh" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None / start fresh</SelectItem>
+                      {configs.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.query ?? `Config ${c.id.slice(0, 6)}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {platform === "upwork" && (
                 <>
                   <div className="space-y-1">
