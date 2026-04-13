@@ -221,6 +221,17 @@ class AddJobToListRequest(BaseModel):
     job_result_id: UUID
 
 
+# ── Platforms ────────────────────────────────────────────────────────────────
+
+class PlatformInfo(BaseModel):
+    slug: str
+    has_config: bool
+
+
+class PlatformsListResponse(BaseModel):
+    platforms: list[PlatformInfo]
+
+
 # ── Admin ────────────────────────────────────────────────────────────────────
 
 class UserStatsResponse(BaseModel):
