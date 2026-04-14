@@ -193,7 +193,7 @@ function PlatformTab({
   }
 
   function handleCloneSelect(value: string | null) {
-    setCloneSourceId(value);
+    setCloneSourceId(value ?? "");
     if (!value) {
       setForm(emptyAddForm(platform));
       return;
