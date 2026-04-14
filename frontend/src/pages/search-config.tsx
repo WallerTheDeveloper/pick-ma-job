@@ -192,7 +192,7 @@ function PlatformTab({
     setFormMode({ kind: "none" });
   }
 
-  function handleCloneSelect(value: string) {
+  function handleCloneSelect(value: string | null) {
     setCloneSourceId(value);
     if (!value) {
       setForm(emptyAddForm(platform));
