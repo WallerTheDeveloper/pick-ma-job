@@ -250,7 +250,7 @@ class PipelineService:
                 errors.append(msg)
 
         if new_job_ids:
-            list_name = f"{platform}-{run_started_at.strftime('%Y-%m-%d-%H:%M')}"
+            list_name = f"{platform}-{run_started_at.strftime('%Y-%m-%d')}"
             try:
                 job_list = await self._job_list_repo.create(user_id, list_name)
                 await self._job_list_repo.add_items(job_list.id, new_job_ids)

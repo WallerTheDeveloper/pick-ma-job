@@ -119,11 +119,17 @@ export function ListManager({ selectedListId, onSelectList }: ListManagerProps) 
                 <button
                   type="button"
                   onClick={() => onSelectList(list.id)}
-                  className={`flex-1 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent truncate ${
+                  className={`flex-1 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent truncate min-w-0 ${
                     selectedListId === list.id ? "bg-accent font-medium" : ""
                   }`}
                 >
-                  {list.name}
+                  <span className="block truncate">{list.name}</span>
+                  <span className="block truncate text-xs text-muted-foreground font-normal">
+                    {new Date(list.created_at).toLocaleString(undefined, {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                  </span>
                 </button>
                 <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button
