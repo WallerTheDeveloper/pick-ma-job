@@ -48,12 +48,22 @@ const platformLabels: Record<string, string> = {
   linkedin: "LinkedIn",
 };
 
+type DateRange = "" | "today" | "last7" | "last30";
+
+const dateRangeLabels: Record<DateRange, string> = {
+  "": "All time",
+  today: "Today",
+  last7: "Last 7 days",
+  last30: "Last 30 days",
+};
+
 export function ResultsPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmDeleteAllOpen, setConfirmDeleteAllOpen] = useState(false);
   const [confirmBulkDeleteOpen, setConfirmBulkDeleteOpen] = useState(false);
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [dateRange, setDateRange] = useState<DateRange>("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const {
@@ -87,7 +97,7 @@ export function ResultsPage() {
   const error = selectedListId !== null ? null : allError;
 
   const deferredSearch = useDeferredValue(searchTerm);
-  const results =
+  const searchFiltered =
     deferredSearch.trim() === ""
       ? rawResults
       : rawResults.filter((r) => {
@@ -99,11 +109,26 @@ export function ResultsPage() {
           );
         });
 
+  const results = (() => {
+    if (dateRange === "") return searchFiltered;
+    const now = new Date();
+    let cutoff: Date;
+    if (dateRange === "today") {
+      cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    } else if (dateRange === "last7") {
+      cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    } else {
+      cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    }
+    return searchFiltered.filter((r) => new Date(r.created_at) >= cutoff);
+  })();
+
   const hasActiveFilters =
     filters.status !== "" ||
     filters.minScore !== "" ||
     filters.platform !== "" ||
-    searchTerm !== "";
+    searchTerm !== "" ||
+    dateRange !== "";
 
   const visibleIds = results.map((r) => r.id);
   const allVisibleSelected =
@@ -216,6 +241,28 @@ export function ResultsPage() {
           </Select>
         </div>
 
+        {/* Date range filter */}
+        <div className="space-y-1">
+          <label htmlFor="date-filter" className="text-xs font-medium text-muted-foreground">
+            Date added
+          </label>
+          <Select
+            value={dateRange}
+            onValueChange={(val) => setDateRange(val as DateRange)}
+          >
+            <SelectTrigger id="date-filter">
+              <SelectValue placeholder="All time" />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.entries(dateRangeLabels) as [DateRange, string][]).map(([key, label]) => (
+                <SelectItem key={key} value={key}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Min score filter */}
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">
@@ -256,7 +303,15 @@ export function ResultsPage() {
 
         {/* Reset */}
         {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={resetFilters}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              resetFilters();
+              setSearchTerm("");
+              setDateRange("");
+            }}
+          >
             Clear filters
           </Button>
         )}
