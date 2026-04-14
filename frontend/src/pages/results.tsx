@@ -422,9 +422,11 @@ export function ResultsPage() {
         </p>
       )}
 
-      {/* Bulk-select action bar */}
-      {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 rounded-md border bg-muted/50 px-4 py-2">
+      {/* Bulk-select action bar — fixed floating bar, always in DOM to prevent layout shift */}
+      <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 transition-opacity duration-150 ${
+        selectedIds.size > 0 ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+      }`}>
+        <div className="flex items-center gap-3 rounded-md border bg-background shadow-lg px-4 py-2">
           <span className="text-sm font-medium">
             {selectedIds.size} selected
           </span>
@@ -465,7 +467,7 @@ export function ResultsPage() {
             Clear selection
           </Button>
         </div>
-      )}
+      </div>
 
       {/* Results list */}
       {results.length > 0 && (
