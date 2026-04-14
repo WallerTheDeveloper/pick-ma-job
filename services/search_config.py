@@ -40,6 +40,12 @@ class SearchConfigService:
     async def create(self, user_id: UUID, data: SearchConfigData) -> SearchConfigRow:
         """Validate and create a search config. Raises SearchConfigError on invalid input."""
         _validate(data)
+        existing = await self._repo.find_by_user_and_platform(user_id, data.platform)
+        for config in existing:
+            if config.query == data.query and config.filters == data.filters:
+                raise SearchConfigError(
+                    "An identical search config already exists for this platform."
+                )
         row = await self._repo.create(
             user_id=user_id,
             platform=data.platform,
