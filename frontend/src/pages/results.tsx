@@ -20,6 +20,7 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ResultRow } from "@/components/result-row";
 import { ListManager } from "@/components/list-manager";
 import { useResults } from "@/hooks/use-results";
@@ -471,28 +472,22 @@ export function ResultsPage() {
         <div className="space-y-3">
           {/* Header checkbox row */}
           <div className="flex items-center gap-3 px-1">
-            <input
-              type="checkbox"
+            <Checkbox
               aria-label="Select all visible results"
               checked={allVisibleSelected}
-              ref={(el) => {
-                if (el) el.indeterminate = someVisibleSelected;
-              }}
-              onChange={toggleSelectAll}
-              className="size-4 cursor-pointer rounded border-input accent-primary"
+              indeterminate={someVisibleSelected}
+              onCheckedChange={() => toggleSelectAll()}
             />
             <span className="text-xs text-muted-foreground">
               Select all visible
             </span>
           </div>
           {results.map((result) => (
-            <div key={result.id} className="flex items-start gap-3">
-              <input
-                type="checkbox"
+            <div key={result.id} className="flex items-center gap-3">
+              <Checkbox
                 aria-label={`Select "${result.title}"`}
                 checked={selectedIds.has(result.id)}
-                onChange={() => toggleSelectOne(result.id)}
-                className="mt-4 size-4 cursor-pointer rounded border-input accent-primary"
+                onCheckedChange={() => toggleSelectOne(result.id)}
               />
               <div className="min-w-0 flex-1">
                 <ResultRow
