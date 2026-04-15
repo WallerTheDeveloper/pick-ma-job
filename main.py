@@ -99,7 +99,6 @@ async def lifespan(app: FastAPI):
     if os.environ.get("SKIP_EMAIL", "").lower() in ("1", "true", "yes"):
         logger.warning("SKIP_EMAIL is enabled — magic link emails will NOT be sent. Never use in production.")
 
-    app.state.version = _read_version()
     logger.info("Application version: %s", app.state.version)
 
     resend.api_key = os.environ["RESEND_API_KEY"]
@@ -126,11 +125,13 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
+    version = _read_version()
     app = FastAPI(
         title="pick-ma-job",
-        version="0.3.0",
+        version=version,
         lifespan=lifespan,
     )
+    app.state.version = version
 
     # IP rate limiting
     app.state.limiter = limiter

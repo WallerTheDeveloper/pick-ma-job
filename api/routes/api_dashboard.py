@@ -3,6 +3,7 @@
 import logging
 from typing import Annotated
 
+import asyncpg
 from fastapi import APIRouter, Depends
 
 from api.deps import get_current_user, get_db_pool, get_profile_service, get_search_config_service, is_admin_email
@@ -22,7 +23,7 @@ async def api_dashboard(
     user: Annotated[UserRow, Depends(get_current_user)],
     profile_svc: Annotated[ProfileService, Depends(get_profile_service)],
     search_config_svc: Annotated[SearchConfigService, Depends(get_search_config_service)],
-    pool: Annotated[object, Depends(get_db_pool)],
+    pool: Annotated[asyncpg.Pool, Depends(get_db_pool)],
 ) -> DashboardResponse:
     """Return dashboard data: user info, profile status, config count, recent runs."""
     has_profile = await profile_svc.get_or_default(user.id) is not None

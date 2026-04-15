@@ -11,7 +11,7 @@ import time
 
 from apify_client import ApifyClient
 
-from scrapers.base import BaseScraper, NormalizedJob
+from scrapers.base import BaseScraper, NormalizedJob, _get, _str_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -150,11 +150,3 @@ class UpworkScraper(BaseScraper):
         )
 
 
-def _get(item: dict, key: str) -> object:
-    """Return ``item[key]``, or None if the key is absent."""
-    return item.get(key)
-
-
-def _str_or_none(value: object) -> str | None:
-    """Return str(value) if value is truthy, else None."""
-    return str(value) if value else None

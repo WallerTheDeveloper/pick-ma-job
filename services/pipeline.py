@@ -27,6 +27,11 @@ logger = logging.getLogger(__name__)
 _PLATFORMS_DIR = Path(__file__).parent.parent / "configs" / "platforms"
 _SETTINGS_PATH = Path(__file__).parent.parent / "configs" / "settings.json"
 
+try:
+    _SETTINGS: dict = json.loads(_SETTINGS_PATH.read_text(encoding="utf-8"))
+except FileNotFoundError:
+    raise RuntimeError(f"settings.json not found at {_SETTINGS_PATH}") from None
+
 
 class PipelineError(Exception):
     """Raised for expected pipeline failures (missing profile, bad config, etc.)."""
@@ -81,11 +86,10 @@ class PipelineService:
         self._job_result_repo = job_result_repo
         self._job_list_repo = job_list_repo
         self._anthropic_api_key = anthropic_api_key
-        settings = json.loads(_SETTINGS_PATH.read_text(encoding="utf-8"))
-        self._settings = settings
+        self._settings = _SETTINGS
         self._exclude_keywords: tuple[str, ...] = tuple(
             kw.lower()
-            for kw in settings.get("pre_filters", {}).get("exclude_title_keywords", [])
+            for kw in _SETTINGS.get("pre_filters", {}).get("exclude_title_keywords", [])
         )
 
     async def run_pipeline(

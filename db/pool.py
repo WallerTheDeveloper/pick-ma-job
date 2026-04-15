@@ -1,5 +1,6 @@
 """asyncpg connection pool — created once at app startup, closed on shutdown."""
 
+import json
 import logging
 from pathlib import Path
 
@@ -14,15 +15,15 @@ async def _init_conn(conn: asyncpg.Connection) -> None:
     """Register JSON/JSONB codec so asyncpg returns dicts instead of strings."""
     await conn.set_type_codec(
         "jsonb",
-        encoder=lambda v: __import__("json").dumps(v),
-        decoder=lambda v: __import__("json").loads(v),
+        encoder=json.dumps,
+        decoder=json.loads,
         schema="pg_catalog",
         format="text",
     )
     await conn.set_type_codec(
         "json",
-        encoder=lambda v: __import__("json").dumps(v),
-        decoder=lambda v: __import__("json").loads(v),
+        encoder=json.dumps,
+        decoder=json.loads,
         schema="pg_catalog",
         format="text",
     )

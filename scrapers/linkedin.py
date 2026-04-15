@@ -11,9 +11,22 @@ import time
 
 from apify_client import ApifyClient
 
-from scrapers.base import BaseScraper, NormalizedJob
+from scrapers.base import BaseScraper, NormalizedJob, _get, _str_or_none
 
 logger = logging.getLogger(__name__)
+
+_EXPERIENCE_LEVEL_MAP: dict[str, str] = {
+    "internship": "internship",
+    "entry_level": "entry-level",
+    "associate": "associate",
+    "mid_senior_level": "mid-senior",
+    "director": "director",
+    # "executive" has no equivalent in the actor's allowed values — drop it.
+}
+
+_VALID_JOB_TYPES: frozenset[str] = frozenset(
+    {"full-time", "part-time", "contract", "temporary", "internship"}
+)
 
 
 class LinkedInScraper(BaseScraper):
@@ -73,14 +86,6 @@ class LinkedInScraper(BaseScraper):
             )
 
         # Map experienceLevel values to the actor's expected format.
-        _EXPERIENCE_LEVEL_MAP = {
-            "internship": "internship",
-            "entry_level": "entry-level",
-            "associate": "associate",
-            "mid_senior_level": "mid-senior",
-            "director": "director",
-            # "executive" has no equivalent in the actor's allowed values — drop it.
-        }
         if "experienceLevel" in actor_input:
             original = actor_input["experienceLevel"]
             mapped = [_EXPERIENCE_LEVEL_MAP[v] for v in original if v in _EXPERIENCE_LEVEL_MAP]
@@ -92,9 +97,6 @@ class LinkedInScraper(BaseScraper):
             actor_input["experienceLevel"] = mapped
 
         # Sanitize jobType: the Apify actor only accepts these exact values.
-        _VALID_JOB_TYPES = frozenset(
-            {"full-time", "part-time", "contract", "temporary", "internship"}
-        )
         if "jobType" in actor_input:
             original = actor_input["jobType"]
             valid = [v for v in original if v in _VALID_JOB_TYPES]
@@ -257,11 +259,3 @@ def _normalize_salary(salary_info: object) -> str | None:
     return f"{parts[0]} – {parts[1]}"
 
 
-def _get(item: dict, key: str) -> object:
-    """Return ``item[key]``, or None if the key is absent."""
-    return item.get(key)
-
-
-def _str_or_none(value: object) -> str | None:
-    """Return str(value) if value is truthy, else None."""
-    return str(value) if value else None

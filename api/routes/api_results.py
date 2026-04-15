@@ -1,6 +1,7 @@
 """Results JSON API — view and manage job evaluation results."""
 
 import base64
+import binascii
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -55,7 +56,7 @@ def _decode_cursor(
         raw = base64.urlsafe_b64decode(cursor_str + "==").decode()
         data = json.loads(raw)
         cursor_id = UUID(data["id"])
-    except Exception:
+    except (ValueError, KeyError, binascii.Error, json.JSONDecodeError):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Invalid cursor value",

@@ -30,6 +30,16 @@ class NormalizedJob:
     extras: dict = field(default_factory=dict)
 
 
+def _get(item: dict, key: str) -> object:
+    """Return ``item[key]``, or None if the key is absent."""
+    return item.get(key)
+
+
+def _str_or_none(value: object) -> str | None:
+    """Return str(value) if value is truthy, else None."""
+    return str(value) if value else None
+
+
 class BaseScraper(ABC):
     """Abstract base class for all platform scraper adapters.
 

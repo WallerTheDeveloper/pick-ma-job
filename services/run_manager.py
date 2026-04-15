@@ -16,13 +16,11 @@ transition.
 import asyncio
 import logging
 import os
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 import asyncpg
-
-from dataclasses import asdict
 
 from repositories.job_list import JobListRepository
 from repositories.job_result import JobResultRepository
