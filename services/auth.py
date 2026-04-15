@@ -1,5 +1,6 @@
 """AuthService — magic link authentication business logic."""
 
+import asyncio
 import logging
 import re
 import secrets
@@ -23,6 +24,14 @@ RATE_LIMIT_WINDOW_SECONDS = 10 * 60    # 10 minutes
 
 class AuthError(Exception):
     """Raised for expected auth failures (invalid token, rate limit, etc.)."""
+
+
+class AuthValidationError(AuthError):
+    """Raised for input validation failures (e.g. bad email format)."""
+
+
+class AuthRateLimitError(AuthError):
+    """Raised when a rate limit is exceeded."""
 
 
 class AuthService:
@@ -52,7 +61,7 @@ class AuthService:
         Raises AuthError if the email is invalid or rate limit is exceeded.
         """
         if not _EMAIL_RE.match(email):
-            raise AuthError("Invalid email address.")
+            raise AuthValidationError("Invalid email address.")
 
         user = await self._user_repo.find_by_email(email)
         if user is None:
@@ -62,7 +71,7 @@ class AuthService:
             user.id, RATE_LIMIT_WINDOW_SECONDS
         )
         if recent >= RATE_LIMIT_MAX:
-            raise AuthError("Too many login attempts. Please wait a few minutes and try again.")
+            raise AuthRateLimitError("Too many login attempts. Please wait a few minutes and try again.")
 
         token = secrets.token_urlsafe(32)
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=MAGIC_LINK_TTL_SECONDS)
@@ -113,7 +122,7 @@ class AuthService:
     async def _send_magic_link_email(self, to: str, magic_url: str) -> None:
         """Send the magic link email via Resend."""
         try:
-            resend.Emails.send({
+            await asyncio.to_thread(resend.Emails.send, {
                 "from": self._email_from,
                 "to": to,
                 "subject": "Your pick-ma-job login link",

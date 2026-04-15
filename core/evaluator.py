@@ -14,6 +14,7 @@ Two-pass evaluation:
 Jobs below the threshold are stored with their score and null evaluation fields.
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -27,6 +28,32 @@ from scrapers.base import NormalizedJob
 logger = logging.getLogger(__name__)
 
 SCORE_THRESHOLD = 5  # Jobs scoring below this skip the full evaluation pass
+RETRYABLE_STATUS_CODES = {429, 503, 529}
+
+
+async def _with_retry(coro_fn, *, max_attempts: int = 3):
+    """Call coro_fn() with exponential backoff on retryable Anthropic API errors.
+
+    Retries on status codes in RETRYABLE_STATUS_CODES (overloaded / unavailable).
+    Non-retryable errors (400, 401, 403, etc.) are raised immediately.
+    Logs a WARNING on each retry attempt.
+    """
+    for attempt in range(max_attempts):
+        try:
+            return await coro_fn()
+        except anthropic.APIStatusError as exc:
+            if exc.status_code in RETRYABLE_STATUS_CODES and attempt < max_attempts - 1:
+                wait = 2 ** attempt
+                logger.warning(
+                    "Anthropic API transient error %d (attempt %d/%d), retrying in %ds",
+                    exc.status_code,
+                    attempt + 1,
+                    max_attempts,
+                    wait,
+                )
+                await asyncio.sleep(wait)
+            else:
+                raise
 
 
 @dataclass(frozen=True)
@@ -135,12 +162,14 @@ class Evaluator:
         system_prompt = self._assemble_system_prompt(platform_context)
         user_message = self._assemble_user_message(job, platform_context)
 
-        response = await self._client.messages.create(
-            model=self._model,
-            max_tokens=2048,
-            temperature=self._temperature,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_message}],
+        response = await _with_retry(
+            lambda: self._client.messages.create(
+                model=self._model,
+                max_tokens=2048,
+                temperature=self._temperature,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_message}],
+            )
         )
 
         content = response.content[0].text
@@ -160,12 +189,14 @@ class Evaluator:
         system_prompt = self._build_score_system_prompt()
         user_message = f"Job Title: {job.title}\n\nDescription:\n{job.description}"
 
-        response = await self._client.messages.create(
-            model=self._model,
-            max_tokens=16,
-            temperature=self._temperature,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_message}],
+        response = await _with_retry(
+            lambda: self._client.messages.create(
+                model=self._model,
+                max_tokens=16,
+                temperature=self._temperature,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_message}],
+            )
         )
         return self._parse_score(response.content[0].text)
 

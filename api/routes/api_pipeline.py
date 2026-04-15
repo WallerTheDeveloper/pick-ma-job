@@ -8,7 +8,7 @@ from typing import Annotated
 from uuid import UUID
 
 import asyncpg
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 
 from api.csrf import require_csrf
 from api.deps import (
@@ -21,6 +21,7 @@ from api.deps import (
 from api.schemas import RunStartRequest, RunStartResponse, RunStatusResponse
 from repositories.user import UserRow
 from services.profile import ProfileService
+from api.limiter import limiter
 from services.run_manager import RunActiveError, RunManager
 from services.search_config import KNOWN_PLATFORMS, SearchConfigService
 
@@ -30,7 +31,9 @@ router = APIRouter(prefix="/api/run", tags=["api-pipeline"])
 
 
 @router.post("", status_code=status.HTTP_202_ACCEPTED)
+@limiter.limit("5/hour")
 async def api_start_run(
+    request: Request,
     user: Annotated[UserRow, Depends(get_current_user)],
     _csrf: Annotated[None, Depends(require_csrf)],
     run_manager: Annotated[RunManager, Depends(get_run_manager)],

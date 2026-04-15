@@ -30,21 +30,6 @@ class ProfileData:
     rubric: dict
 
 
-_EMPTY_PROFILE = ProfileData(
-    role=None,
-    experience=None,
-    rate=None,
-    primary_skills=[],
-    secondary_skills=[],
-    tertiary_skills=[],
-    not_a_good_fit=[],
-    background=[],
-    notable_projects=[],
-    languages=[],
-    rubric={},
-)
-
-
 class ProfileService:
     def __init__(self, profile_repo: ProfileRepository) -> None:
         self._profile_repo = profile_repo
@@ -88,4 +73,16 @@ def _validate(data: ProfileData) -> None:
 
 def empty_profile_data() -> ProfileData:
     """Return a blank ProfileData instance for new users."""
-    return _EMPTY_PROFILE
+    return ProfileData(
+        role=None,
+        experience=None,
+        rate=None,
+        primary_skills=[],
+        secondary_skills=[],
+        tertiary_skills=[],
+        not_a_good_fit=[],
+        background=[],
+        notable_projects=[],
+        languages=[],
+        rubric={},
+    )

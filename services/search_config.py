@@ -33,9 +33,10 @@ class SearchConfigService:
         """Return all search configs for a user."""
         return await self._repo.find_by_user_id(user_id)
 
-    async def get_by_platform(self, user_id: UUID, platform: str) -> list[SearchConfigRow]:
-        """Return all configs for a specific platform."""
-        return await self._repo.find_by_user_and_platform(user_id, platform)
+    async def get_by_platform(self, user_id: UUID, platform: str) -> SearchConfigRow | None:
+        """Return the search config for a specific platform, or None if not configured."""
+        results = await self._repo.find_by_user_and_platform(user_id, platform)
+        return results[0] if results else None
 
     async def create(self, user_id: UUID, data: SearchConfigData) -> SearchConfigRow:
         """Validate and create a search config. Raises SearchConfigError on invalid input."""

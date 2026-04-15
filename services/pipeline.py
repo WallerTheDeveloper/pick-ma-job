@@ -221,9 +221,13 @@ class PipelineService:
             try:
                 result = await evaluator.evaluate(job, platform_context)
             except Exception as exc:
-                msg = f"Evaluation failed for '{job.title}': {exc}"
-                logger.error(msg)
-                errors.append(msg)
+                logger.error(
+                    "Evaluation failed for '%s': %s",
+                    job.title,
+                    exc,
+                    exc_info=True,
+                )
+                errors.append(f"Evaluation failed for '{job.title}': {type(exc).__name__}: {exc}")
                 continue
 
             if result.evaluation is None:
@@ -245,9 +249,13 @@ class PipelineService:
                     jobs_stored += 1
                     new_job_ids.append(stored.id)
             except Exception as exc:
-                msg = f"DB insert failed for '{job.title}': {exc}"
-                logger.error(msg)
-                errors.append(msg)
+                logger.error(
+                    "DB insert failed for '%s': %s",
+                    job.title,
+                    exc,
+                    exc_info=True,
+                )
+                errors.append(f"DB insert failed for '{job.title}': {type(exc).__name__}: {exc}")
 
         if new_job_ids:
             list_name = f"{platform}-{run_started_at.strftime('%Y-%m-%d')}"

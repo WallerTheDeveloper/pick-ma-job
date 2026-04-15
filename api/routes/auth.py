@@ -13,9 +13,9 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from api.csrf import CSRF_COOKIE, derive_csrf_token
 from api.deps import get_auth_service, get_current_user, is_admin_email
 from api.limiter import limiter
-from api.schemas import AuthMeResponse, UserInfo
+from api.schemas import AuthMeResponse, MagicLinkRequest, UserInfo
 from repositories.user import UserRow
-from services.auth import AuthError, AuthService
+from services.auth import AuthError, AuthRateLimitError, AuthValidationError, AuthService
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,7 @@ async def auth_me(
 @limiter.limit("5/minute")
 async def request_magic_link(
     request: Request,
+    body: MagicLinkRequest,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> JSONResponse:
     """Accept an email address and send a magic link.
@@ -59,14 +60,15 @@ async def request_magic_link(
     Expects ``{"email": "..."}`` JSON body, returns ``{"ok": true}``.
     Always returns success — never reveals whether the address exists.
     """
-    body = await request.json()
-    email = str(body.get("email", "")).strip().lower()
-    if not email:
-        return JSONResponse({"ok": False, "error": "Email is required"}, status_code=422)
+    email = body.email.strip().lower()
     try:
         await auth_service.request_magic_link(email)
-    except AuthError as exc:
+    except AuthValidationError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=422)
+    except AuthRateLimitError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=429)
+    except AuthError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
     return JSONResponse({"ok": True})
 
 

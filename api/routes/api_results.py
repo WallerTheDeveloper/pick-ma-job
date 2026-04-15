@@ -7,10 +7,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from api.csrf import require_csrf
 from api.deps import get_current_user, get_job_list_repo, get_job_result_repo
+from api.limiter import limiter
 from api.schemas import (
     BulkDeleteByIdsRequest,
     BulkDeleteByIdsResponse,
@@ -195,7 +196,9 @@ async def api_delete_result(
 
 
 @router.post("/bulk-dismiss")
+@limiter.limit("60/minute")
 async def api_bulk_dismiss_results(
+    request: Request,
     body: BulkDismissRequest,
     user: Annotated[UserRow, Depends(get_current_user)],
     repo: Annotated[JobResultRepository, Depends(get_job_result_repo)],
@@ -225,7 +228,9 @@ async def api_bulk_dismiss_results(
 
 
 @router.post("/bulk-delete")
+@limiter.limit("60/minute")
 async def api_bulk_delete_results(
+    request: Request,
     body: BulkDeleteRequest,
     user: Annotated[UserRow, Depends(get_current_user)],
     repo: Annotated[JobResultRepository, Depends(get_job_result_repo)],
@@ -254,7 +259,9 @@ async def api_bulk_delete_results(
 
 
 @router.post("/bulk-delete-ids")
+@limiter.limit("60/minute")
 async def api_bulk_delete_results_by_ids(
+    request: Request,
     body: BulkDeleteByIdsRequest,
     user: Annotated[UserRow, Depends(get_current_user)],
     repo: Annotated[JobResultRepository, Depends(get_job_result_repo)],

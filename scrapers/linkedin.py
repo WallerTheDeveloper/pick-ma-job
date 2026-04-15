@@ -7,6 +7,7 @@ Authentication is handled internally by the Apify actor — no user cookies need
 import asyncio
 import logging
 import os
+import time
 
 from apify_client import ApifyClient
 
@@ -137,7 +138,29 @@ class LinkedInScraper(BaseScraper):
         client = ApifyClient(token)
 
         logger.info("Starting Apify actor %s for platform=linkedin", actor_id)
-        run = client.actor(actor_id).call(run_input=actor_input)
+        _MAX_APIFY_ATTEMPTS = 3
+        run = None
+        for _attempt in range(_MAX_APIFY_ATTEMPTS):
+            try:
+                run = client.actor(actor_id).call(run_input=actor_input)
+                if _attempt > 0:
+                    logger.info(
+                        "Apify call succeeded on attempt %d/%d", _attempt + 1, _MAX_APIFY_ATTEMPTS
+                    )
+                break
+            except Exception as exc:
+                if _attempt < _MAX_APIFY_ATTEMPTS - 1:
+                    _wait = 2 ** _attempt
+                    logger.warning(
+                        "Apify call failed (attempt %d/%d), retrying in %ds: %s",
+                        _attempt + 1,
+                        _MAX_APIFY_ATTEMPTS,
+                        _wait,
+                        exc,
+                    )
+                    time.sleep(_wait)
+                else:
+                    raise
 
         if run is None:
             logger.error("Apify actor run returned None for actor=%s", actor_id)
