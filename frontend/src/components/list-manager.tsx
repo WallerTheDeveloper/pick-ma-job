@@ -65,11 +65,15 @@ export function ListManager({ selectedListId, onSelectList }: ListManagerProps) 
   }
 
   async function handleDelete(list: JobList) {
-    if (selectedListId === list.id) {
-      onSelectList(null);
+    try {
+      await deleteList(list.id);
+      if (selectedListId === list.id) {
+        onSelectList(null);
+      }
+      setDeleteTarget(null);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete list");
     }
-    await deleteList(list.id);
-    setDeleteTarget(null);
   }
 
   return (

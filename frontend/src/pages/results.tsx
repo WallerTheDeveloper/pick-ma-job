@@ -1,6 +1,7 @@
 /** Results page — filter, sort, paginate, and manage job evaluation results. */
 
 import { useState, useDeferredValue } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -497,7 +498,13 @@ export function ResultsPage() {
                   onStatusChange={(id, status) =>
                     updateStatus({ resultId: id, status })
                   }
-                  onDelete={(id) => deleteResult(id)}
+                  onDelete={async (id) => {
+                    try {
+                      await deleteResult(id);
+                    } catch (err: unknown) {
+                      toast.error(err instanceof Error ? err.message : "Failed to delete result");
+                    }
+                  }}
                   isUpdating={isUpdatingStatus}
                   isDeleting={isDeletingResult}
                 />

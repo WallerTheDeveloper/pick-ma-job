@@ -35,7 +35,7 @@ function toRunStatusResponse(run: PipelineRunInfo): RunStatusResponse {
     status: run.status,
     started_at: run.started_at,
     completed_at: run.completed_at,
-    result: null,
+    result: run.result ?? null,
     error: run.error,
   };
 }

@@ -21,6 +21,7 @@ export interface UpworkFilters {
   maxJobAgeHours: string;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function emptyUpworkFilters(): UpworkFilters {
   return {
     experienceLevel: [],
@@ -31,6 +32,7 @@ export function emptyUpworkFilters(): UpworkFilters {
   };
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function dictToUpworkFilters(d: Record<string, unknown>): UpworkFilters {
   const maxJobAgeRaw = d.maxJobAge != null && typeof d.maxJobAge === "object" ? (d.maxJobAge as { value?: number }) : undefined;
   return {
@@ -42,6 +44,7 @@ export function dictToUpworkFilters(d: Record<string, unknown>): UpworkFilters {
   };
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function upworkFiltersToDict(f: UpworkFilters): Record<string, unknown> {
   const filters: Record<string, unknown> = {};
   if (f.experienceLevel.length > 0) filters.experienceLevel = f.experienceLevel;

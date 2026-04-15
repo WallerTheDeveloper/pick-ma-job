@@ -1,5 +1,6 @@
 /** LinkedInFiltersForm — form controls for LinkedIn-specific search filters. */
 
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -64,6 +65,7 @@ export interface LinkedInFilters {
   saveOnlyUniqueItems: boolean;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function emptyLinkedInFilters(): LinkedInFilters {
   return {
     searchTerms: [],
@@ -79,6 +81,7 @@ export function emptyLinkedInFilters(): LinkedInFilters {
   };
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function dictToLinkedInFilters(d: Record<string, unknown>): LinkedInFilters {
   return {
     searchTerms: Array.isArray(d.searchTerms) ? (d.searchTerms as string[]) : [],
@@ -94,6 +97,7 @@ export function dictToLinkedInFilters(d: Record<string, unknown>): LinkedInFilte
   };
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function linkedInFiltersToDict(f: LinkedInFilters): Record<string, unknown> {
   const dict: Record<string, unknown> = {};
 
@@ -135,19 +139,23 @@ interface LinkedInFiltersFormProps {
 }
 
 export function LinkedInFiltersForm({ filters, onChange }: LinkedInFiltersFormProps) {
+  const [keywordInput, setKeywordInput] = useState("");
+
   function updateFilter<K extends keyof LinkedInFilters>(key: K, value: LinkedInFilters[K]) {
     onChange({ ...filters, [key]: value });
+  }
+
+  function addKeyword(term: string) {
+    if (term && !filters.searchTerms.includes(term)) {
+      updateFilter("searchTerms", [...filters.searchTerms, term]);
+    }
+    setKeywordInput("");
   }
 
   function handleKeywordKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter" && e.key !== ",") return;
     e.preventDefault();
-    const input = e.currentTarget;
-    const term = input.value.trim();
-    if (term && !filters.searchTerms.includes(term)) {
-      updateFilter("searchTerms", [...filters.searchTerms, term]);
-    }
-    input.value = "";
+    addKeyword(keywordInput.trim());
   }
 
   function removeKeyword(term: string) {
@@ -179,6 +187,8 @@ export function LinkedInFiltersForm({ filters, onChange }: LinkedInFiltersFormPr
             type="text"
             className="min-w-24 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
             placeholder={filters.searchTerms.length === 0 ? "Type and press Enter" : "Add more..."}
+            value={keywordInput}
+            onChange={(e) => setKeywordInput(e.target.value)}
             onKeyDown={handleKeywordKeyDown}
           />
         </div>

@@ -12,8 +12,15 @@ export default defineConfig([
     extends: [
       js.configs.recommended,
       tseslint.configs.recommended,
-      reactHooks.configs.flat.recommended,
+      reactHooks.configs['recommended-latest'],
       reactRefresh.configs.vite,
+      {
+        rules: {
+          // Project intentionally co-locates component variants (cva) and form
+          // helpers with their components; demote from error to warn.
+          'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+        },
+      },
     ],
     languageOptions: {
       ecmaVersion: 2020,

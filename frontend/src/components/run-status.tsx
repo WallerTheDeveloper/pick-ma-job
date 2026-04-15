@@ -81,7 +81,7 @@ export function RunStatus({ run }: RunStatusProps) {
             {run.result.errors.length > 0 && (
               <div className="mt-2 space-y-1">
                 {run.result.errors.map((err, i) => (
-                  <p key={i} className="text-xs text-destructive break-words">
+                  <p key={`${i}-${err.slice(0, 30)}`} className="text-xs text-destructive break-words">
                     {err}
                   </p>
                 ))}

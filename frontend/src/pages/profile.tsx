@@ -40,14 +40,12 @@ import {
 export function ProfilePage() {
   const { profile, isLoading, error, save, isSaving } = useProfile();
   const [form, setForm] = useState<FormState>(emptyForm);
-  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    if (!initialized && !isLoading) {
-      setForm(profile ? profileToForm(profile) : emptyForm());
-      setInitialized(true);
+    if (profile && !isLoading) {
+      setForm(profileToForm(profile));
     }
-  }, [profile, isLoading, initialized]);
+  }, [profile, isLoading]);
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));

@@ -171,7 +171,7 @@ export type Platform = (typeof platformValues)[number];
 
 export const searchConfigResponseSchema = z.object({
   id: z.string().uuid(),
-  platform: z.string(),
+  platform: z.enum(platformValues),
   query: z.string().nullable(),
   filters: z.record(z.string(), z.unknown()),
   updated_at: z.string(),
@@ -276,7 +276,7 @@ export const pipelineRunInfoSchema = z.object({
   status: z.string(),
   started_at: z.string(),
   completed_at: z.string().nullable(),
-  result: z.record(z.string(), z.unknown()).nullable(),
+  result: runResultSchema.nullable(),
   error: z.string().nullable(),
 });
 

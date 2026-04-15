@@ -110,7 +110,7 @@ function formToUpdateRequest(form: AddFormState): SearchConfigUpdateRequest {
 }
 
 function configToFormState(config: SearchConfigResponse): AddFormState {
-  const platform = config.platform as Platform;
+  const platform = config.platform;
   const filters = config.filters as Record<string, unknown>;
   return {
     platform,

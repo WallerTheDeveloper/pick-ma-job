@@ -85,7 +85,9 @@ export async function api<T>(
     try {
       return schema.parse(json);
     } catch (err) {
-      console.error(`[API] Response validation failed for ${method} ${path}:`, err, json);
+      if (import.meta.env.DEV) {
+        console.error(`[API] Response validation failed for ${method} ${path}:`, err, json);
+      }
       throw err;
     }
   }
