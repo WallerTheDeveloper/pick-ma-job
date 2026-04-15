@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from "react-router";
+import { BrowserRouter, Outlet, Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ErrorBoundary } from "react-error-boundary";
 import { ProtectedRoute } from "@/components/protected-route";
@@ -36,13 +36,13 @@ export default function App() {
           {/* Protected routes — redirect to / if not authenticated */}
           <Route element={<ProtectedRoute />}>
             <Route element={<AppShell />}>
-              <ErrorBoundary FallbackComponent={AppErrorFallback}>
+              <Route element={<ErrorBoundary FallbackComponent={AppErrorFallback}><Outlet /></ErrorBoundary>}>
                 <Route path="dashboard" element={<DashboardPage />} />
                 <Route path="results" element={<ResultsPage />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="search-config" element={<SearchConfigPage />} />
                 <Route path="admin" element={<AdminPage />} />
-              </ErrorBoundary>
+              </Route>
             </Route>
           </Route>
         </Routes>
