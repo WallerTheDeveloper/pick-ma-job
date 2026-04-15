@@ -1,7 +1,9 @@
 import { BrowserRouter, Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ErrorBoundary } from "react-error-boundary";
 import { ProtectedRoute } from "@/components/protected-route";
 import { AppShell } from "@/components/layout/app-shell";
+import { AppErrorFallback } from "@/components/app-error-fallback";
 import { DashboardPage } from "@/pages/dashboard";
 import { ResultsPage } from "@/pages/results";
 import { ProfilePage } from "@/pages/profile";
@@ -34,11 +36,13 @@ export default function App() {
           {/* Protected routes — redirect to / if not authenticated */}
           <Route element={<ProtectedRoute />}>
             <Route element={<AppShell />}>
-              <Route path="dashboard" element={<DashboardPage />} />
-              <Route path="results" element={<ResultsPage />} />
-              <Route path="profile" element={<ProfilePage />} />
-              <Route path="search-config" element={<SearchConfigPage />} />
-              <Route path="admin" element={<AdminPage />} />
+              <ErrorBoundary FallbackComponent={AppErrorFallback}>
+                <Route path="dashboard" element={<DashboardPage />} />
+                <Route path="results" element={<ResultsPage />} />
+                <Route path="profile" element={<ProfilePage />} />
+                <Route path="search-config" element={<SearchConfigPage />} />
+                <Route path="admin" element={<AdminPage />} />
+              </ErrorBoundary>
             </Route>
           </Route>
         </Routes>

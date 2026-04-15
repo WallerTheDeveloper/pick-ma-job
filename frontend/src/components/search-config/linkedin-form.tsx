@@ -81,16 +81,16 @@ export function emptyLinkedInFilters(): LinkedInFilters {
 
 export function dictToLinkedInFilters(d: Record<string, unknown>): LinkedInFilters {
   return {
-    searchTerms: (d.searchTerms as string[]) ?? [],
-    location: (d.location as string) ?? "",
+    searchTerms: Array.isArray(d.searchTerms) ? (d.searchTerms as string[]) : [],
+    location: typeof d.location === "string" ? d.location : "",
     distance: d.distance !== undefined ? String(d.distance) : "",
-    publishedAt: (d.publishedAt as string) ?? "r86400",
-    jobType: (d.jobType as string[]) ?? [],
-    experienceLevel: (d.experienceLevel as string[]) ?? [],
-    workType: (d.workType as string[]) ?? [],
-    salaryBase: (d.salaryBase as string) ?? "",
-    maxItems: String((d.maxItems as number | undefined) ?? 150),
-    saveOnlyUniqueItems: (d.saveOnlyUniqueItems as boolean) ?? true,
+    publishedAt: typeof d.publishedAt === "string" ? d.publishedAt : "r86400",
+    jobType: Array.isArray(d.jobType) ? (d.jobType as string[]) : [],
+    experienceLevel: Array.isArray(d.experienceLevel) ? (d.experienceLevel as string[]) : [],
+    workType: Array.isArray(d.workType) ? (d.workType as string[]) : [],
+    salaryBase: typeof d.salaryBase === "string" ? d.salaryBase : "",
+    maxItems: String(typeof d.maxItems === "number" ? d.maxItems : 150),
+    saveOnlyUniqueItems: typeof d.saveOnlyUniqueItems === "boolean" ? d.saveOnlyUniqueItems : true,
   };
 }
 

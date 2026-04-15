@@ -9,10 +9,7 @@ export async function fetchCurrentUser(): Promise<AuthMeResponse> {
 }
 
 export async function requestMagicLink(email: string): Promise<OkResponse> {
-  return api("/auth/magic-link", {
-    method: "POST",
-    body: { email },
-  });
+  return api("/auth/magic-link", { method: "POST", body: { email } }, okResponseSchema);
 }
 
 export async function logout(): Promise<OkResponse> {

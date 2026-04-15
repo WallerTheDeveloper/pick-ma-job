@@ -32,13 +32,13 @@ export function emptyUpworkFilters(): UpworkFilters {
 }
 
 export function dictToUpworkFilters(d: Record<string, unknown>): UpworkFilters {
-  const maxJobAge = d.maxJobAge as { value?: number } | undefined;
+  const maxJobAgeRaw = d.maxJobAge != null && typeof d.maxJobAge === "object" ? (d.maxJobAge as { value?: number }) : undefined;
   return {
-    experienceLevel: (d.experienceLevel as string[]) ?? [],
-    jobType: (d.jobType as string[]) ?? [],
-    paymentVerified: (d.paymentVerified as boolean) ?? true,
-    perPage: String((d.perPage as number | undefined) ?? 50),
-    maxJobAgeHours: String(maxJobAge?.value ?? 24),
+    experienceLevel: Array.isArray(d.experienceLevel) ? (d.experienceLevel as string[]) : [],
+    jobType: Array.isArray(d.jobType) ? (d.jobType as string[]) : [],
+    paymentVerified: typeof d.paymentVerified === "boolean" ? d.paymentVerified : true,
+    perPage: String(typeof d.perPage === "number" ? d.perPage : 50),
+    maxJobAgeHours: String(typeof maxJobAgeRaw?.value === "number" ? maxJobAgeRaw.value : 24),
   };
 }
 

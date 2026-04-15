@@ -24,13 +24,6 @@ export const okResponseSchema = z.object({
 
 export type OkResponse = z.infer<typeof okResponseSchema>;
 
-export const magicLinkErrorResponseSchema = z.object({
-  ok: z.literal(false),
-  error: z.string(),
-});
-
-export type MagicLinkErrorResponse = z.infer<typeof magicLinkErrorResponseSchema>;
-
 // ── Pipeline ────────────────────────────────────────────────────────────────
 
 export const runStartResponseSchema = z.object({

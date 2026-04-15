@@ -114,11 +114,17 @@ export function AddToListMenu({ jobResultId, onAdd, onRemove }: AddToListMenuPro
                 return (
                   <DropdownMenuItem
                     key={list.id}
-                    onClick={() => {
-                      const promise = inList ? onRemove(list.id) : onAdd(list.id);
-                      promise.catch((err: unknown) => {
+                    onClick={async () => {
+                      try {
+                        if (inList) {
+                          await onRemove(list.id);
+                        } else {
+                          await onAdd(list.id);
+                        }
+                        setOpen(false);
+                      } catch (err: unknown) {
                         toast.error(err instanceof Error ? err.message : "Failed to update list");
-                      });
+                      }
                     }}
                   >
                     <span className="flex-1 truncate">{list.name}</span>

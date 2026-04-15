@@ -63,7 +63,12 @@ export function buildRubric(r: RubricState): Record<string, unknown> {
   if (r.avoidKeywords.length > 0) rubric.avoid_keywords = r.avoidKeywords;
 
   if (r.advanced.trim()) {
-    const extra = JSON.parse(r.advanced) as Record<string, unknown>;
+    let extra: Record<string, unknown>;
+    try {
+      extra = JSON.parse(r.advanced) as Record<string, unknown>;
+    } catch {
+      throw new Error(`Invalid JSON in advanced rubric field: ${r.advanced}`);
+    }
     return { ...rubric, ...extra };
   }
   return rubric;
