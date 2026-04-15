@@ -96,6 +96,9 @@ def _read_version() -> str:
 async def lifespan(app: FastAPI):
     validate_env()
 
+    if os.environ.get("SKIP_EMAIL", "").lower() in ("1", "true", "yes"):
+        logger.warning("SKIP_EMAIL is enabled — magic link emails will NOT be sent. Never use in production.")
+
     app.state.version = _read_version()
     logger.info("Application version: %s", app.state.version)
 
