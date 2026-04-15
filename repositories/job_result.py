@@ -119,6 +119,10 @@ class JobResultRepository:
         Returns (conditions, params, next_param_index). Callers may append further
         conditions (keyset cursor, etc.) then join with AND and append LIMIT/OFFSET params.
         """
+        # SAFETY: column names below are hardcoded literals, never derived from
+        # user-controlled input. If you add a column name here from an external
+        # source, use a compile-time allowlist (e.g. MappingProxyType) and verify
+        # the value before interpolation.
         conditions = ["user_id = $1"]
         params: list = [user_id]
         idx = 2
@@ -222,6 +226,9 @@ class JobResultRepository:
             conditions.append(keyset_cond)
 
         where = " AND ".join(conditions)
+        # SAFETY: `order` is drawn from _SORT_CLAUSES (a compile-time MappingProxyType
+        # allowlist) and validated above. `where` is built entirely from hardcoded column
+        # name literals and $N placeholders — no user-controlled strings are interpolated.
         order = _SORT_CLAUSES[sort]
         params.append(limit)
 
@@ -274,6 +281,10 @@ class JobResultRepository:
             raise ValueError(f"Invalid status '{new_status}'. Must be one of: {VALID_STATUSES}")
 
         # $1 = new_status, $2 = user_id, remaining params start at $3
+        # SAFETY: column names below are hardcoded literals, never derived from
+        # user-controlled input. If you add a column name here from an external
+        # source, use a compile-time allowlist (e.g. MappingProxyType) and verify
+        # the value before interpolation.
         params: list = [new_status, user_id]
         conditions = ["user_id = $2"]
         idx = 3
@@ -323,6 +334,10 @@ class JobResultRepository:
         older_than: datetime | None = None,
     ) -> int:
         """Hard-delete all matching results for user_id. Returns the number of rows deleted."""
+        # SAFETY: column names below are hardcoded literals, never derived from
+        # user-controlled input. If you add a column name here from an external
+        # source, use a compile-time allowlist (e.g. MappingProxyType) and verify
+        # the value before interpolation.
         params: list = [user_id]
         conditions = ["user_id = $1"]
         idx = 2
@@ -402,6 +417,8 @@ class JobResultRepository:
         """Return the total count of job results for a user, optionally filtered by status, min score, and platform."""
         conditions, params, _ = self._build_filter(user_id, status, min_score, platform)
         where = " AND ".join(conditions)
+        # SAFETY: `where` is built by _build_filter from hardcoded column name literals
+        # and $N placeholders only — no user-controlled strings are interpolated.
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 f"SELECT COUNT(*) AS cnt FROM job_results WHERE {where}",
