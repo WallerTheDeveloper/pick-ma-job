@@ -71,6 +71,7 @@ class RunManager:
         self._api_key = anthropic_api_key
         self._pool = pool
         self._runs: dict[UUID, PipelineRunSnapshot] = {}
+        self._active_tasks: set[asyncio.Task] = set()
 
     def start_run(
         self,
@@ -110,8 +111,13 @@ class RunManager:
             started_at=now,
         )
         self._runs[run_id] = snapshot
-        asyncio.create_task(self._persist_insert(run_id, user_id, now))
-        asyncio.create_task(self._execute(run_id, user_id, pool, platforms))
+        persist_task = asyncio.create_task(self._persist_insert(run_id, user_id, now))
+        self._active_tasks.add(persist_task)
+        persist_task.add_done_callback(self._active_tasks.discard)
+
+        execute_task = asyncio.create_task(self._execute(run_id, user_id, pool, platforms))
+        self._active_tasks.add(execute_task)
+        execute_task.add_done_callback(self._active_tasks.discard)
         return run_id
 
     def get_run(self, run_id: UUID) -> PipelineRunSnapshot | None:
