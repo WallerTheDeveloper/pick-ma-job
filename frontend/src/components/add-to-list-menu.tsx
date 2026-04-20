@@ -114,6 +114,7 @@ export function AddToListMenu({ jobResultId, onAdd, onRemove }: AddToListMenuPro
                 return (
                   <DropdownMenuItem
                     key={list.id}
+                    onSelect={(e) => e.preventDefault()}
                     onClick={async () => {
                       try {
                         if (inList) {
@@ -121,7 +122,7 @@ export function AddToListMenu({ jobResultId, onAdd, onRemove }: AddToListMenuPro
                         } else {
                           await onAdd(list.id);
                         }
-                        setOpen(false);
+                        await queryClient.invalidateQueries({ queryKey: ["result-lists", jobResultId] });
                       } catch (err: unknown) {
                         toast.error(err instanceof Error ? err.message : "Failed to update list");
                       }

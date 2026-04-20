@@ -36,7 +36,7 @@ const experienceLevelOptions = [
 ] as const;
 
 const workTypeOptions = [
-  { value: "onsite", label: "On-site" },
+  { value: "on-site", label: "On-site" },
   { value: "hybrid", label: "Hybrid" },
   { value: "remote", label: "Remote" },
 ] as const;
@@ -90,7 +90,9 @@ export function dictToLinkedInFilters(d: Record<string, unknown>): LinkedInFilte
     publishedAt: typeof d.publishedAt === "string" ? d.publishedAt : "r86400",
     jobType: Array.isArray(d.jobType) ? (d.jobType as string[]) : [],
     experienceLevel: Array.isArray(d.experienceLevel) ? (d.experienceLevel as string[]) : [],
-    workType: Array.isArray(d.workType) ? (d.workType as string[]) : [],
+    workType: Array.isArray(d.workType)
+      ? (d.workType as string[]).map((v) => (v === "onsite" ? "on-site" : v))
+      : [],
     salaryBase: typeof d.salaryBase === "string" ? d.salaryBase : "",
     maxItems: String(typeof d.maxItems === "number" ? d.maxItems : 150),
     saveOnlyUniqueItems: typeof d.saveOnlyUniqueItems === "boolean" ? d.saveOnlyUniqueItems : true,

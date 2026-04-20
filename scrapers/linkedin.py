@@ -28,6 +28,15 @@ _VALID_JOB_TYPES: frozenset[str] = frozenset(
     {"full-time", "part-time", "contract", "temporary", "internship"}
 )
 
+_WORK_TYPE_MAP: dict[str, str] = {
+    "onsite": "on-site",
+    "on-site": "on-site",
+    "remote": "remote",
+    "hybrid": "hybrid",
+}
+
+_VALID_WORK_TYPES: frozenset[str] = frozenset({"on-site", "remote", "hybrid"})
+
 
 class LinkedInScraper(BaseScraper):
     """Fetches LinkedIn job postings via the Apify LinkedIn Jobs actor.
@@ -95,6 +104,15 @@ class LinkedInScraper(BaseScraper):
                     "Dropped unsupported LinkedIn experienceLevel values %s", dropped
                 )
             actor_input["experienceLevel"] = mapped
+
+        # Sanitize workType: map aliases (e.g. "onsite" → "on-site") and drop unknowns.
+        if "workType" in actor_input:
+            original = actor_input["workType"]
+            mapped = [_WORK_TYPE_MAP[v] for v in original if v in _WORK_TYPE_MAP]
+            dropped = [v for v in original if v not in _WORK_TYPE_MAP]
+            if dropped:
+                logger.warning("Dropped unsupported LinkedIn workType values %s", dropped)
+            actor_input["workType"] = mapped
 
         # Sanitize jobType: the Apify actor only accepts these exact values.
         if "jobType" in actor_input:
