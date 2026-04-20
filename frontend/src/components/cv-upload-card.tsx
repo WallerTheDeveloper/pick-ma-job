@@ -72,15 +72,17 @@ export function CVUploadCard() {
                 {isUploading ? "Uploading..." : "Replace"}
               </Button>
               <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    disabled={isUploading || isDeleting}
-                  >
-                    {isDeleting ? "Deleting..." : "Delete"}
-                  </Button>
+                <AlertDialogTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      disabled={isUploading || isDeleting}
+                    />
+                  }
+                >
+                  {isDeleting ? "Deleting..." : "Delete"}
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
