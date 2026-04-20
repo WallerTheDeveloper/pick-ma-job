@@ -34,8 +34,8 @@ export function useDeleteCV() {
 }
 
 export function useCustomizeCV() {
-  return useMutation<CVCustomizeResponse, Error, { jobResultId: string; forceRegenerate?: boolean }>({
-    mutationFn: ({ jobResultId, forceRegenerate = false }) =>
-      customizeCV(jobResultId, forceRegenerate),
+  return useMutation<CVCustomizeResponse, Error, { jobResultId: string; forceRegenerate?: boolean; adjustmentNotes?: string }>({
+    mutationFn: ({ jobResultId, forceRegenerate = false, adjustmentNotes }) =>
+      customizeCV(jobResultId, forceRegenerate, adjustmentNotes),
   });
 }

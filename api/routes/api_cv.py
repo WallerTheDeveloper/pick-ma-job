@@ -132,6 +132,7 @@ async def api_customize_cv(
             job_result_id=body.job_result_id,
             cv_customize_threshold=threshold,
             force_regenerate=body.force_regenerate,
+            adjustment_notes=body.adjustment_notes,
         )
     except CVError as exc:
         raise HTTPException(

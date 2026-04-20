@@ -55,12 +55,17 @@ export async function deleteCV(): Promise<OkResponse> {
 export async function customizeCV(
   jobResultId: string,
   forceRegenerate = false,
+  adjustmentNotes?: string,
 ): Promise<CVCustomizeResponse> {
   return api(
     "/api/cv/customize",
     {
       method: "POST",
-      body: { job_result_id: jobResultId, force_regenerate: forceRegenerate },
+      body: {
+        job_result_id: jobResultId,
+        force_regenerate: forceRegenerate,
+        adjustment_notes: adjustmentNotes || null,
+      },
     },
     cvCustomizeResponseSchema,
   );

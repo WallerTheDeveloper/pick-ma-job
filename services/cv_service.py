@@ -89,6 +89,7 @@ class CVService:
         job_result_id: UUID,
         cv_customize_threshold: int = 7,
         force_regenerate: bool = False,
+        adjustment_notes: str | None = None,
     ) -> tuple[str, bool]:
         """Return (customized_text, from_cache).
 
@@ -122,6 +123,7 @@ class CVService:
             cv_raw_text=cv.raw_text,
             job_title=job.title,
             job_description=job_description,
+            adjustment_notes=adjustment_notes,
         )
 
         await self._cv_customization_repo.upsert(
@@ -155,6 +157,7 @@ class CVService:
         cv_raw_text: str,
         job_title: str,
         job_description: str,
+        adjustment_notes: str | None = None,
     ) -> str:
         """Call Claude to produce a tailored CV text for the given job."""
         system = _CUSTOMIZE_PROMPT["system"]
@@ -163,6 +166,8 @@ class CVService:
             job_title=job_title,
             job_description=job_description or "No additional description available.",
         )
+        if adjustment_notes:
+            user_message += f"\n\nUser feedback on previous version:\n{adjustment_notes}\n\nApply this feedback in the new version."
 
         response = await self._client.messages.create(
             model=_CUSTOMIZE_PROMPT.get("model", "claude-haiku-4-5-20251001"),

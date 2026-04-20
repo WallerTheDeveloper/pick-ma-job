@@ -277,6 +277,7 @@ class CVGetResponse(BaseModel):
 class CVCustomizeRequest(BaseModel):
     job_result_id: UUID
     force_regenerate: bool = False
+    adjustment_notes: str | None = None
 
 
 class CVCustomizeResponse(BaseModel):
