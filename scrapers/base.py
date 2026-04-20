@@ -29,6 +29,12 @@ class NormalizedJob:
     experience_level: str | None = None
     extras: dict = field(default_factory=dict)
 
+    @property
+    def company_name(self) -> str | None:
+        """Extract company/client name from extras, platform-agnostic."""
+        value = self.extras.get("company_name") or self.extras.get("client_name")
+        return str(value) if value else None
+
 
 def _get(item: dict, key: str) -> object:
     """Return ``item[key]``, or None if the key is absent."""
