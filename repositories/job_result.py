@@ -377,6 +377,24 @@ class JobResultRepository:
         logger.debug("Bulk deleted %d results for user_id=%s", deleted_count, user_id)
         return deleted_count
 
+    async def update_status_many(self, user_id: UUID, ids: list[UUID], new_status: str) -> int:
+        """Set status for a specific list of IDs scoped to user_id. Returns rows updated."""
+        if new_status not in VALID_STATUSES:
+            raise ValueError(f"Invalid status '{new_status}'. Must be one of: {VALID_STATUSES}")
+        async with self._pool.acquire() as conn:
+            result = await conn.execute(
+                """
+                UPDATE job_results SET status = $1
+                WHERE user_id = $2 AND id = ANY($3::uuid[])
+                """,
+                new_status,
+                user_id,
+                ids,
+            )
+        updated_count = int(result.split()[-1])
+        logger.debug("Bulk status updated %d results for user_id=%s to status=%s", updated_count, user_id, new_status)
+        return updated_count
+
     async def delete_many(self, user_id: UUID, ids: list[UUID]) -> int:
         """Hard-delete job results by ID list, scoped to user_id. Returns the count deleted."""
         async with self._pool.acquire() as conn:

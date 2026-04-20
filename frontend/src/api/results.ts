@@ -98,3 +98,20 @@ export async function bulkDeleteResultsByIds(
     bulkDeleteByIdsResultSchema,
   );
 }
+
+export interface BulkStatusUpdateResult {
+  updated: number;
+}
+
+const bulkStatusUpdateResultSchema = z.object({ updated: z.number() });
+
+export async function bulkUpdateStatus(
+  ids: string[],
+  status: string,
+): Promise<BulkStatusUpdateResult> {
+  return api(
+    "/api/results/bulk-status",
+    { method: "POST", body: { ids, status } },
+    bulkStatusUpdateResultSchema,
+  );
+}

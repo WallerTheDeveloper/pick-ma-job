@@ -113,6 +113,15 @@ class BulkDeleteByIdsResponse(BaseModel):
     deleted: int
 
 
+class BulkStatusUpdateRequest(BaseModel):
+    ids: list[UUID] = Field(min_length=1, max_length=500)
+    status: str
+
+
+class BulkStatusUpdateResponse(BaseModel):
+    updated: int
+
+
 # ── Profile ──────────────────────────────────────────────────────────────────
 
 class NotableProject(BaseModel):

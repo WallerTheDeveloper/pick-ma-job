@@ -21,6 +21,13 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ResultRow } from "@/components/result-row";
 import { ListManager } from "@/components/list-manager";
@@ -90,6 +97,8 @@ export function ResultsPage() {
     isBulkDeleting,
     bulkDeleteByIds,
     isBulkDeletingByIds,
+    bulkUpdateStatusByIds,
+    isBulkUpdatingStatus,
   } = useResults();
 
   const listJobsParams = selectedListId !== null
@@ -439,6 +448,29 @@ export function ResultsPage() {
           <span className="text-sm font-medium">
             {selectedIds.size} selected
           </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              disabled={isBulkUpdatingStatus}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              Mark as…
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {(["new", "applied", "dismissed"] as const).map((s) => (
+                <DropdownMenuItem
+                  key={s}
+                  onClick={async () => {
+                    const ids = [...selectedIds];
+                    await bulkUpdateStatusByIds({ ids, status: s });
+                    toast.success(`Marked ${ids.length} job${ids.length !== 1 ? "s" : ""} as ${s.charAt(0).toUpperCase() + s.slice(1)}`);
+                    setSelectedIds(new Set());
+                  }}
+                >
+                  {s.charAt(0).toUpperCase() + s.slice(1)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Dialog open={confirmBulkDeleteOpen} onOpenChange={setConfirmBulkDeleteOpen}>
             <DialogTrigger render={
               <Button variant="destructive" size="sm">

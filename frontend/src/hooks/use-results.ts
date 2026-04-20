@@ -6,6 +6,7 @@ import {
   bulkDeleteResults,
   bulkDeleteResultsByIds,
   bulkDismissResults,
+  bulkUpdateStatus,
   deleteResult,
   fetchResults,
   updateResultStatus,
@@ -131,6 +132,15 @@ export function useResults(initialFilters?: Partial<ResultsFilters>) {
     },
   });
 
+  const bulkUpdateStatusMutation = useMutation({
+    mutationFn: ({ ids, status }: { ids: string[]; status: string }) =>
+      bulkUpdateStatus(ids, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [RESULTS_KEY] });
+      queryClient.invalidateQueries({ queryKey: ["lists"] });
+    },
+  });
+
   return {
     results: query.data?.results ?? [],
     pagination: query.data?.pagination ?? null,
@@ -153,5 +163,7 @@ export function useResults(initialFilters?: Partial<ResultsFilters>) {
     isBulkDeleting: bulkDeleteMutation.isPending,
     bulkDeleteByIds: bulkDeleteByIdsMutation.mutateAsync,
     isBulkDeletingByIds: bulkDeleteByIdsMutation.isPending,
+    bulkUpdateStatusByIds: bulkUpdateStatusMutation.mutateAsync,
+    isBulkUpdatingStatus: bulkUpdateStatusMutation.isPending,
   };
 }

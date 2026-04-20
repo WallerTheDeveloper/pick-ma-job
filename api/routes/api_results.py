@@ -20,6 +20,8 @@ from api.schemas import (
     BulkDeleteResponse,
     BulkDismissRequest,
     BulkDismissResponse,
+    BulkStatusUpdateRequest,
+    BulkStatusUpdateResponse,
     JobResultResponse,
     OkResponse,
     PaginationMeta,
@@ -257,6 +259,30 @@ async def api_bulk_delete_results(
         older_than=older_than,
     )
     return BulkDeleteResponse(deleted_count=deleted_count)
+
+
+@router.post("/bulk-status")
+@limiter.limit("60/minute")
+async def api_bulk_status_results(
+    request: Request,
+    body: BulkStatusUpdateRequest,
+    user: Annotated[UserRow, Depends(get_current_user)],
+    repo: Annotated[JobResultRepository, Depends(get_job_result_repo)],
+    _csrf: Annotated[None, Depends(require_csrf)],
+) -> BulkStatusUpdateResponse:
+    """Update status for an explicit list of job result IDs for the current user."""
+    if body.status not in VALID_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid status '{body.status}'. Must be one of: {sorted(VALID_STATUSES)}",
+        )
+    if not body.ids:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="ids must not be empty",
+        )
+    updated = await repo.update_status_many(user.id, body.ids, body.status)
+    return BulkStatusUpdateResponse(updated=updated)
 
 
 @router.post("/bulk-delete-ids")
