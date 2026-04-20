@@ -25,8 +25,21 @@ export async function deleteList(listId: string): Promise<OkResponse> {
   return api(`/api/lists/${listId}`, { method: "DELETE" }, okResponseSchema);
 }
 
-export async function fetchJobsInList(listId: string): Promise<JobListJobsResponse> {
-  return api(`/api/lists/${listId}/jobs`, {}, jobListJobsResponseSchema);
+export interface ListJobsParams {
+  status?: string;
+  min_score?: number;
+  platform?: string;
+  sort?: string;
+}
+
+export async function fetchJobsInList(listId: string, params?: ListJobsParams): Promise<JobListJobsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set("status", params.status);
+  if (params?.min_score != null) searchParams.set("min_score", String(params.min_score));
+  if (params?.platform) searchParams.set("platform", params.platform);
+  if (params?.sort) searchParams.set("sort", params.sort);
+  const query = searchParams.toString();
+  return api(`/api/lists/${listId}/jobs${query ? `?${query}` : ""}`, {}, jobListJobsResponseSchema);
 }
 
 export async function addJobToList(listId: string, jobResultId: string): Promise<OkResponse> {

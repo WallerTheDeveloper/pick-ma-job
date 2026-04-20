@@ -3,11 +3,22 @@
 import logging
 from dataclasses import dataclass
 from datetime import datetime
+from types import MappingProxyType
+from typing import Final
 from uuid import UUID
 
 import asyncpg
 
-from repositories.job_result import JobResultRow, _row_to_job_result
+from repositories.job_result import JobResultRow, VALID_STATUSES, _row_to_job_result
+
+_LIST_SORT_CLAUSES: Final = MappingProxyType({
+    "score_desc": "jr.score DESC NULLS LAST, jr.id DESC",
+    "score_asc": "jr.score ASC NULLS LAST, jr.id DESC",
+    "date_desc": "jr.created_at DESC, jr.id DESC",
+    "date_asc": "jr.created_at ASC, jr.id DESC",
+})
+
+_VALID_LIST_SORTS: Final = frozenset(_LIST_SORT_CLAUSES)
 
 logger = logging.getLogger(__name__)
 
@@ -148,21 +159,45 @@ class JobListRepository:
             )
         return row is not None
 
-    async def find_jobs_in_list(self, list_id: UUID, user_id: UUID) -> list[JobResultRow]:
-        """Return all job results in a list, scoped to user_id for security."""
+    async def find_jobs_in_list(
+        self,
+        list_id: UUID,
+        user_id: UUID,
+        status: str | None = None,
+        min_score: int | None = None,
+        platform: str | None = None,
+        sort: str = "score_desc",
+    ) -> list[JobResultRow]:
+        """Return job results in a list, scoped to user_id, with optional filters."""
+        sort_clause = _LIST_SORT_CLAUSES.get(sort, _LIST_SORT_CLAUSES["score_desc"])
+        conditions = ["jli.list_id = $1", "jl.user_id = $2"]
+        params: list = [list_id, user_id]
+        idx = 3
+        if status is not None:
+            conditions.append(f"jr.status = ${idx}")
+            params.append(status)
+            idx += 1
+        if min_score is not None:
+            conditions.append(f"jr.score >= ${idx}")
+            params.append(min_score)
+            idx += 1
+        if platform is not None:
+            conditions.append(f"jr.platform = ${idx}")
+            params.append(platform)
+            idx += 1
+        where_clause = " AND ".join(conditions)
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
-                """
+                f"""
                 SELECT jr.id, jr.user_id, jr.platform, jr.job_id, jr.title, jr.url,
                        jr.score, jr.evaluation, jr.status, jr.created_at
                 FROM job_results jr
                 JOIN job_list_items jli ON jli.job_result_id = jr.id
                 JOIN job_lists jl ON jl.id = jli.list_id
-                WHERE jli.list_id = $1 AND jl.user_id = $2
-                ORDER BY jli.added_at DESC
+                WHERE {where_clause}
+                ORDER BY {sort_clause}
                 """,
-                list_id,
-                user_id,
+                *params,
             )
         return [_row_to_job_result(r) for r in rows]
 

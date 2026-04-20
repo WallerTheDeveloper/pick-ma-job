@@ -9,6 +9,7 @@ import {
   fetchLists,
   removeJobFromList,
   renameList,
+  type ListJobsParams,
 } from "@/api/lists";
 import type { JobListJobsResponse, JobListsResponse } from "@/types/schemas";
 
@@ -69,10 +70,10 @@ export function useLists() {
   };
 }
 
-export function useListJobs(listId: string | null) {
+export function useListJobs(listId: string | null, params?: ListJobsParams) {
   return useQuery<JobListJobsResponse>({
-    queryKey: [LISTS_KEY, "jobs", listId],
-    queryFn: () => fetchJobsInList(listId as string),
+    queryKey: [LISTS_KEY, "jobs", listId, params],
+    queryFn: () => fetchJobsInList(listId as string, params),
     enabled: listId !== null,
   });
 }

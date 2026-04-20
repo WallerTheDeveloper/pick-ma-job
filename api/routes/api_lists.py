@@ -4,7 +4,7 @@ import logging
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.csrf import require_csrf
 from api.deps import get_current_user, get_job_list_repo
@@ -18,7 +18,8 @@ from api.schemas import (
     JobResultResponse,
     OkResponse,
 )
-from repositories.job_list import JobListRepository
+from repositories.job_list import JobListRepository, _VALID_LIST_SORTS
+from repositories.job_result import VALID_STATUSES
 from repositories.user import UserRow
 
 logger = logging.getLogger(__name__)
@@ -96,12 +97,33 @@ async def api_get_jobs_in_list(
     list_id: UUID,
     user: Annotated[UserRow, Depends(get_current_user)],
     repo: Annotated[JobListRepository, Depends(get_job_list_repo)],
+    status_filter: Annotated[str | None, Query(alias="status")] = None,
+    min_score: Annotated[int | None, Query(ge=1, le=10)] = None,
+    platform: Annotated[str | None, Query()] = None,
+    sort: Annotated[str, Query()] = "score_desc",
 ) -> JobListJobsResponse:
-    """Return all job results in a specific list."""
+    """Return job results in a specific list, with optional filtering."""
+    if status_filter is not None and status_filter not in VALID_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid status: {status_filter!r}",
+        )
+    if sort not in _VALID_LIST_SORTS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid sort: {sort!r}",
+        )
     jl = await repo.find_by_id(list_id, user.id)
     if jl is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="List not found")
-    jobs = await repo.find_jobs_in_list(list_id, user.id)
+    jobs = await repo.find_jobs_in_list(
+        list_id,
+        user.id,
+        status=status_filter,
+        min_score=min_score,
+        platform=platform,
+        sort=sort,
+    )
     return JobListJobsResponse(
         jobs=[
             JobResultResponse(

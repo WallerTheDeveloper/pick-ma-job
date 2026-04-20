@@ -92,7 +92,15 @@ export function ResultsPage() {
     isBulkDeletingByIds,
   } = useResults();
 
-  const { data: listJobsData, isLoading: listLoading } = useListJobs(selectedListId);
+  const listJobsParams = selectedListId !== null
+    ? {
+        ...(filters.status && { status: filters.status }),
+        ...(filters.platform && { platform: filters.platform }),
+        ...(filters.minScore && !isNaN(Number(filters.minScore)) && { min_score: Number(filters.minScore) }),
+        sort: filters.sort,
+      }
+    : undefined;
+  const { data: listJobsData, isLoading: listLoading } = useListJobs(selectedListId, listJobsParams);
 
   const rawResults = selectedListId !== null ? (listJobsData?.jobs ?? []) : allResults;
   const isLoading = selectedListId !== null ? listLoading : allLoading;
