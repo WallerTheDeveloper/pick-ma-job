@@ -31,6 +31,7 @@ def _profile_to_response(row: ProfileRow) -> ProfileResponse:
         notable_projects=row.notable_projects,
         languages=row.languages,
         rubric=row.rubric,
+        cv_customize_threshold=row.cv_customize_threshold,
         updated_at=row.updated_at,
     )
 
@@ -67,6 +68,7 @@ async def api_save_profile(
         notable_projects=body.notable_projects,
         languages=body.languages,
         rubric=body.rubric,
+        cv_customize_threshold=body.cv_customize_threshold,
     )
 
     try:

@@ -24,6 +24,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { TagInput } from "@/components/tag-input";
+import { CVUploadCard } from "@/components/cv-upload-card";
 import { useProfile } from "@/hooks/use-profile";
 import {
   emptyForm,
@@ -406,6 +407,23 @@ export function ProfilePage() {
               />
             </div>
             <div className="space-y-1">
+              <label className="text-sm font-medium">CV Customize Threshold</label>
+              <p className="text-xs text-muted-foreground">
+                Show "Customize CV" button for scores ≥ this value. Range: 1–10.
+              </p>
+              <Input
+                type="number"
+                min={1}
+                max={10}
+                placeholder="e.g. 7"
+                value={form.cvCustomizeThreshold}
+                onChange={(e) =>
+                  updateField("cvCustomizeThreshold", Math.max(1, Math.min(10, Number(e.target.value) || 7)))
+                }
+                className="w-32"
+              />
+            </div>
+            <div className="space-y-1">
               <label className="text-sm font-medium">Prefer Remote</label>
               <p className="text-xs text-muted-foreground">
                 Score remote-friendly jobs higher.
@@ -465,6 +483,9 @@ export function ProfilePage() {
           </Collapsible>
         </CardContent>
       </Card>
+
+      {/* CV Upload */}
+      <CVUploadCard />
 
       <Separator />
 

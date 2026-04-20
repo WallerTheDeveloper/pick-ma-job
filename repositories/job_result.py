@@ -410,6 +410,20 @@ class JobResultRepository:
         logger.debug("Deleted %d job results by id list for user_id=%s", deleted_count, user_id)
         return deleted_count
 
+    async def find_by_id_and_user(self, result_id: UUID, user_id: UUID) -> JobResultRow | None:
+        """Return a single job result scoped to user_id, or None if not found."""
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT id, user_id, platform, job_id, title, url, score, evaluation, status, created_at
+                FROM job_results
+                WHERE id = $1 AND user_id = $2
+                """,
+                result_id,
+                user_id,
+            )
+        return _row_to_job_result(row) if row else None
+
     async def delete_by_id(self, result_id: UUID, user_id: UUID) -> bool:
         """Hard-delete a job result scoped to user_id.
 

@@ -28,6 +28,7 @@ class ProfileData:
     notable_projects: list[dict]
     languages: list[str]
     rubric: dict
+    cv_customize_threshold: int = 7
 
 
 class ProfileService:
@@ -54,6 +55,7 @@ class ProfileService:
             notable_projects=data.notable_projects,
             languages=data.languages,
             rubric=data.rubric,
+            cv_customize_threshold=data.cv_customize_threshold,
         )
         logger.info("Profile updated for user_id=%s", user_id)
         return profile
@@ -85,4 +87,5 @@ def empty_profile_data() -> ProfileData:
         notable_projects=[],
         languages=[],
         rubric={},
+        cv_customize_threshold=7,
     )

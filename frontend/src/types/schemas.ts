@@ -122,6 +122,7 @@ export const profileResponseSchema = z.object({
   notable_projects: z.array(notableProjectSchema),
   languages: z.array(z.string()),
   rubric: z.record(z.string(), z.unknown()),
+  cv_customize_threshold: z.number().int().min(1).max(10).default(7),
   updated_at: z.string(),
 });
 
@@ -154,7 +155,39 @@ export const profileSaveRequestSchema = z.object({
   notable_projects: z.array(notableProjectSchema).default([]),
   languages: z.array(z.string()).default([]),
   rubric: z.record(z.string(), z.unknown()).default({}),
+  cv_customize_threshold: z.number().int().min(1).max(10).default(7),
 });
+
+// ── CV ─────────────────────────────────────────────────────────────────────
+
+export const cvMetadataSchema = z.object({
+  filename: z.string(),
+  structured: z.record(z.string(), z.unknown()),
+  updated_at: z.string(),
+});
+
+export type CVMetadata = z.infer<typeof cvMetadataSchema>;
+
+export const cvGetResponseSchema = z.object({
+  cv: cvMetadataSchema.nullable(),
+});
+
+export type CVGetResponse = z.infer<typeof cvGetResponseSchema>;
+
+export const cvUploadResponseSchema = z.object({
+  filename: z.string(),
+  structured: z.record(z.string(), z.unknown()),
+  updated_at: z.string(),
+});
+
+export type CVUploadResponse = z.infer<typeof cvUploadResponseSchema>;
+
+export const cvCustomizeResponseSchema = z.object({
+  customized_text: z.string(),
+  from_cache: z.boolean(),
+});
+
+export type CVCustomizeResponse = z.infer<typeof cvCustomizeResponseSchema>;
 
 export type ProfileSaveRequest = z.infer<typeof profileSaveRequestSchema>;
 

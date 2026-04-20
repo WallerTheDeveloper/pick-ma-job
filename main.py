@@ -25,6 +25,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from api.limiter import limiter
 from api.routes.api_admin import router as api_admin_router
+from api.routes.api_cv import router as api_cv_router
 from api.routes.api_platforms import router as api_platforms_router
 from api.routes.api_version import router as api_version_router
 from api.routes.api_lists import router as api_lists_router
@@ -161,6 +162,7 @@ def create_app() -> FastAPI:
     app.include_router(api_pipeline_router)
     app.include_router(api_lists_router)
     app.include_router(api_admin_router)
+    app.include_router(api_cv_router)
     app.include_router(api_platforms_router)
     app.include_router(api_version_router)
 

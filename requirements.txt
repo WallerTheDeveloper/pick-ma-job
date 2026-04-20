@@ -3,6 +3,7 @@ apify-client>=1.8.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 python-dotenv>=1.0.0
+python-multipart>=0.0.9
 
 # Database
 asyncpg>=0.30.0
@@ -12,3 +13,6 @@ resend>=2.0.0
 
 # Rate limiting
 slowapi>=0.1.9
+
+# PDF parsing
+pypdf>=4.0.0

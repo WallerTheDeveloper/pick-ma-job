@@ -4,7 +4,7 @@ import type { ZodType } from "zod";
 
 const CSRF_COOKIE = "csrf_token";
 
-function getCsrfToken(): string | undefined {
+export function getCsrfToken(): string | undefined {
   const match = document.cookie
     .split("; ")
     .find((row) => row.startsWith(`${CSRF_COOKIE}=`));

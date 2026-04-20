@@ -142,6 +142,7 @@ class ProfileResponse(BaseModel):
     notable_projects: list[dict]
     languages: list[str]
     rubric: dict
+    cv_customize_threshold: int = 7
     updated_at: datetime
 
 
@@ -161,6 +162,7 @@ class ProfileSaveRequest(BaseModel):
     notable_projects: list[dict] = []
     languages: list[str] = []
     rubric: dict = {}
+    cv_customize_threshold: int = Field(default=7, ge=1, le=10)
 
 
 class ProfileSaveResponse(BaseModel):
@@ -252,6 +254,34 @@ class PlatformInfo(BaseModel):
 
 class PlatformsListResponse(BaseModel):
     platforms: list[PlatformInfo]
+
+
+# ── CV ───────────────────────────────────────────────────────────────────────
+
+class CVUploadResponse(BaseModel):
+    filename: str
+    structured: dict
+    updated_at: datetime
+
+
+class CVMetadataResponse(BaseModel):
+    filename: str
+    structured: dict
+    updated_at: datetime
+
+
+class CVGetResponse(BaseModel):
+    cv: CVMetadataResponse | None = None
+
+
+class CVCustomizeRequest(BaseModel):
+    job_result_id: UUID
+    force_regenerate: bool = False
+
+
+class CVCustomizeResponse(BaseModel):
+    customized_text: str
+    from_cache: bool
 
 
 # ── Admin ────────────────────────────────────────────────────────────────────

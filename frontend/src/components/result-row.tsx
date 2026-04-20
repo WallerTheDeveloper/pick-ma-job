@@ -29,7 +29,10 @@ import {
 } from "@/components/ui/select";
 import { ScoreBadge } from "@/components/score-badge";
 import { AddToListMenu } from "@/components/add-to-list-menu";
+import { CustomizeCVDialog } from "@/components/customize-cv-dialog";
 import { useLists } from "@/hooks/use-lists";
+import { useCV } from "@/hooks/use-cv";
+import { useProfile } from "@/hooks/use-profile";
 import { resultStatusValues, type JobResult, type ResultStatus } from "@/types/schemas";
 
 interface ResultRowProps {
@@ -49,9 +52,15 @@ const statusLabels: Record<ResultStatus, string> = {
 export function ResultRow({ result, onStatusChange, onDelete, isUpdating, isDeleting }: ResultRowProps) {
   const [open, setOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [customizeCVOpen, setCustomizeCVOpen] = useState(false);
   const evaluation = result.evaluation;
   const queryClient = useQueryClient();
   const { addJob, removeJob } = useLists();
+  const { data: cvData } = useCV();
+  const { profile } = useProfile();
+
+  const cvThreshold = profile?.cv_customize_threshold ?? 7;
+  const showCustomizeCV = (result.score ?? 0) >= cvThreshold && cvData?.cv != null;
 
   async function handleAddToList(listId: string) {
     await addJob({ listId, jobResultId: result.id });
@@ -67,6 +76,11 @@ export function ResultRow({ result, onStatusChange, onDelete, isUpdating, isDele
 
   return (
     <>
+    <CustomizeCVDialog
+      result={result}
+      open={customizeCVOpen}
+      onOpenChange={setCustomizeCVOpen}
+    />
     <Dialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
@@ -116,6 +130,15 @@ export function ResultRow({ result, onStatusChange, onDelete, isUpdating, isDele
 
           {/* Interactive controls — outside the trigger to avoid nested buttons */}
           <div className="flex shrink-0 items-center gap-2">
+            {showCustomizeCV && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCustomizeCVOpen(true)}
+              >
+                Customize CV
+              </Button>
+            )}
             <Select
               value={result.status}
               onValueChange={(val) => onStatusChange(result.id, val as string)}

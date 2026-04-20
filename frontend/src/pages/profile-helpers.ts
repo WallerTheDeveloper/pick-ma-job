@@ -88,6 +88,7 @@ export interface FormState {
   languages: string[];
   notableProjects: ProjectEntry[];
   rubric: RubricState;
+  cvCustomizeThreshold: number;
 }
 
 export function emptyForm(): FormState {
@@ -109,6 +110,7 @@ export function emptyForm(): FormState {
       avoidKeywords: [],
       advanced: "",
     },
+    cvCustomizeThreshold: 7,
   };
 }
 
@@ -129,6 +131,7 @@ export function profileToForm(p: ProfileResponse): FormState {
       description: proj.description,
     })),
     rubric: extractRubric(p.rubric),
+    cvCustomizeThreshold: p.cv_customize_threshold ?? 7,
   };
 }
 
@@ -147,6 +150,7 @@ export function formToRequest(form: FormState): ProfileSaveRequest {
       .filter((p) => p.name.trim() || p.description.trim())
       .map(({ name, description }) => ({ name, description })),
     rubric: buildRubric(form.rubric),
+    cv_customize_threshold: form.cvCustomizeThreshold,
   };
 }
 
