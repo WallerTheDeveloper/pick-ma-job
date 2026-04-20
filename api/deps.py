@@ -7,6 +7,7 @@ from typing import Annotated
 import asyncpg
 from fastapi import Depends, HTTPException, Request, status
 
+from repositories.company_blacklist import CompanyBlacklistRepository
 from repositories.job_list import JobListRepository
 from repositories.job_result import JobResultRepository
 from repositories.magic_link import MagicLinkRepository
@@ -15,6 +16,7 @@ from repositories.search_config import SearchConfigRepository
 from repositories.session import SessionRepository
 from repositories.user import UserRepository, UserRow
 from services.auth import AuthService
+from services.company_blacklist import CompanyBlacklistService
 from services.profile import ProfileService
 from services.run_manager import RunManager
 from services.search_config import SearchConfigService
@@ -103,6 +105,20 @@ async def get_admin_user(
     if not is_admin_email(user.email):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return user
+
+
+async def get_company_blacklist_repo(
+    pool: Annotated[asyncpg.Pool, Depends(get_db_pool)],
+) -> CompanyBlacklistRepository:
+    """Construct a CompanyBlacklistRepository with a per-request pool."""
+    return CompanyBlacklistRepository(pool)
+
+
+async def get_company_blacklist_service(
+    repo: Annotated[CompanyBlacklistRepository, Depends(get_company_blacklist_repo)],
+) -> CompanyBlacklistService:
+    """Construct a CompanyBlacklistService with a per-request repository."""
+    return CompanyBlacklistService(repo)
 
 
 async def get_current_user_optional(

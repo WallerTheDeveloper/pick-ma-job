@@ -19,7 +19,7 @@ from repositories.job_result import JobResultRow
 from repositories.profile import ProfileRow
 from repositories.search_config import SearchConfigRow
 from scrapers.base import NormalizedJob
-from services.pipeline import PipelineError, PipelineRunResult, PipelineService, _merge_config
+from services.pipeline import PipelineError, PipelineRunResult, PlatformResult, PipelineService, _merge_config
 
 # ---------------------------------------------------------------------------
 # Factories
@@ -154,11 +154,16 @@ def mock_evaluator():
     return evaluator
 
 
-def _make_service(profile_repo, search_config_repo, job_result_repo) -> PipelineService:
+def _make_service(profile_repo, search_config_repo, job_result_repo, company_blacklist_repo=None) -> PipelineService:
+    if company_blacklist_repo is None:
+        company_blacklist_repo = AsyncMock()
+        company_blacklist_repo.find_names_by_user_id.return_value = ()
     return PipelineService(
         profile_repo=profile_repo,
         search_config_repo=search_config_repo,
         job_result_repo=job_result_repo,
+        job_list_repo=AsyncMock(),
+        company_blacklist_repo=company_blacklist_repo,
         anthropic_api_key="test-key",
     )
 
@@ -508,6 +513,7 @@ def test_pipeline_run_result_is_frozen():
         jobs_found=5,
         jobs_skipped_dedup=1,
         jobs_skipped_filter=1,
+        jobs_skipped_blacklist=0,
         jobs_skipped_low_score=0,
         jobs_evaluated=3,
         jobs_stored=3,
@@ -522,6 +528,7 @@ def test_pipeline_run_result_errors_is_tuple():
         jobs_found=1,
         jobs_skipped_dedup=0,
         jobs_skipped_filter=0,
+        jobs_skipped_blacklist=0,
         jobs_skipped_low_score=0,
         jobs_evaluated=1,
         jobs_stored=1,
@@ -597,10 +604,14 @@ def test_merge_config_does_not_mutate_static_config():
 # ---------------------------------------------------------------------------
 
 def _make_service_no_repos() -> PipelineService:
+    blacklist_repo = AsyncMock()
+    blacklist_repo.find_names_by_user_id.return_value = ()
     return PipelineService(
         profile_repo=AsyncMock(),
         search_config_repo=AsyncMock(),
         job_result_repo=AsyncMock(),
+        job_list_repo=AsyncMock(),
+        company_blacklist_repo=blacklist_repo,
         anthropic_api_key="test-key",
     )
 
@@ -624,3 +635,129 @@ def test_is_filtered_partial_word_match():
     svc = _make_service_no_repos()
     # "flutter" is in the exclude list
     assert svc._is_filtered("Flutter/Unity Hybrid App") is True
+
+
+# ---------------------------------------------------------------------------
+# _is_blacklisted
+# ---------------------------------------------------------------------------
+
+def test_is_blacklisted_matches_substring():
+    svc = _make_service_no_repos()
+    job = _make_job(extras={"company_name": "Google DeepMind"})
+    assert svc._is_blacklisted(job, ("google",)) is True
+
+
+def test_is_blacklisted_blocks_exact_name():
+    svc = _make_service_no_repos()
+    job = _make_job(extras={"company_name": "Google LLC"})
+    assert svc._is_blacklisted(job, ("google",)) is True
+
+
+def test_is_blacklisted_no_company_name_returns_false():
+    svc = _make_service_no_repos()
+    job = _make_job(extras={})
+    assert svc._is_blacklisted(job, ("google",)) is False
+
+
+def test_is_blacklisted_empty_blacklist_returns_false():
+    svc = _make_service_no_repos()
+    job = _make_job(extras={"company_name": "Google"})
+    assert svc._is_blacklisted(job, ()) is False
+
+
+def test_is_blacklisted_case_insensitive():
+    svc = _make_service_no_repos()
+    job = _make_job(extras={"company_name": "GOOGLE INC"})
+    assert svc._is_blacklisted(job, ("google",)) is True
+
+
+# ---------------------------------------------------------------------------
+# Blacklist filter in pipeline run
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_blacklisted_job_skips_evaluator(
+    profile_repo, search_config_repo, job_result_repo, mock_evaluator
+):
+    blacklisted_job = _make_job(extras={"company_name": "Google DeepMind"})
+    scraper = AsyncMock()
+    scraper.fetch_jobs.return_value = [blacklisted_job]
+
+    blacklist_repo = AsyncMock()
+    blacklist_repo.find_names_by_user_id.return_value = ("google",)
+
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo, blacklist_repo)
+
+    with patch("services.pipeline.get_scraper", return_value=scraper), \
+         patch("services.pipeline.Evaluator", return_value=mock_evaluator):
+        result = await svc.run_pipeline(_USER_ID)
+
+    assert result.jobs_skipped_blacklist == 1
+    mock_evaluator.evaluate.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_job_without_company_name_not_blacklisted(
+    profile_repo, search_config_repo, job_result_repo, mock_evaluator
+):
+    job = _make_job(extras={})
+    scraper = AsyncMock()
+    scraper.fetch_jobs.return_value = [job]
+
+    blacklist_repo = AsyncMock()
+    blacklist_repo.find_names_by_user_id.return_value = ("google",)
+
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo, blacklist_repo)
+
+    with patch("services.pipeline.get_scraper", return_value=scraper), \
+         patch("services.pipeline.Evaluator", return_value=mock_evaluator):
+        result = await svc.run_pipeline(_USER_ID)
+
+    assert result.jobs_skipped_blacklist == 0
+    mock_evaluator.evaluate.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_empty_blacklist_does_not_skip_jobs(
+    profile_repo, search_config_repo, job_result_repo, mock_evaluator
+):
+    job = _make_job(extras={"company_name": "Google"})
+    scraper = AsyncMock()
+    scraper.fetch_jobs.return_value = [job]
+
+    blacklist_repo = AsyncMock()
+    blacklist_repo.find_names_by_user_id.return_value = ()
+
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo, blacklist_repo)
+
+    with patch("services.pipeline.get_scraper", return_value=scraper), \
+         patch("services.pipeline.Evaluator", return_value=mock_evaluator):
+        result = await svc.run_pipeline(_USER_ID)
+
+    assert result.jobs_skipped_blacklist == 0
+    mock_evaluator.evaluate.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_blacklist_count_aggregated_across_platforms(
+    profile_repo, job_result_repo, mock_evaluator
+):
+    upwork_config = _make_search_config(platform="upwork")
+    linkedin_config = _make_search_config(platform="linkedin")
+    search_config_repo = AsyncMock()
+    search_config_repo.find_by_user_id.return_value = [upwork_config, linkedin_config]
+
+    blacklist_repo = AsyncMock()
+    blacklist_repo.find_names_by_user_id.return_value = ("google",)
+
+    google_job = _make_job(extras={"company_name": "Google"})
+    scraper = AsyncMock()
+    scraper.fetch_jobs.return_value = [google_job]
+
+    svc = _make_service(profile_repo, search_config_repo, job_result_repo, blacklist_repo)
+
+    with patch("services.pipeline.get_scraper", return_value=scraper), \
+         patch("services.pipeline.Evaluator", return_value=mock_evaluator):
+        result = await svc.run_pipeline(_USER_ID)
+
+    assert result.jobs_skipped_blacklist == 2  # one per platform

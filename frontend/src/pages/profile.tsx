@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { TagInput } from "@/components/tag-input";
 import { CVUploadCard } from "@/components/cv-upload-card";
+import { CompanyBlacklistCard } from "@/components/company-blacklist-card";
 import { useProfile } from "@/hooks/use-profile";
 import {
   emptyForm,
@@ -148,6 +149,7 @@ export function ProfilePage() {
   }
 
   return (
+    <div className="space-y-6">
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -495,5 +497,8 @@ export function ProfilePage() {
         </Button>
       </div>
     </form>
+
+    <CompanyBlacklistCard />
+    </div>
   );
 }

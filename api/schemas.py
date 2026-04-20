@@ -285,6 +285,26 @@ class CVCustomizeResponse(BaseModel):
     from_cache: bool
 
 
+# ── Company Blacklist ─────────────────────────────────────────────────────────
+
+class CompanyBlacklistEntryResponse(BaseModel):
+    id: UUID
+    name: str
+    created_at: datetime
+
+
+class CompanyBlacklistListResponse(BaseModel):
+    entries: list[CompanyBlacklistEntryResponse]
+
+
+class CompanyBlacklistAddRequest(BaseModel):
+    name: str = Field(min_length=3, max_length=200)
+
+
+class CompanyBlacklistAddResponse(BaseModel):
+    entry: CompanyBlacklistEntryResponse
+
+
 # ── Admin ────────────────────────────────────────────────────────────────────
 
 class UserStatsResponse(BaseModel):

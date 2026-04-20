@@ -16,10 +16,12 @@ from uuid import UUID
 
 from core.evaluator import Evaluator
 from core.prompt_adapter import load_platform_context, profile_row_to_prompt_dict
+from repositories.company_blacklist import CompanyBlacklistRepository
 from repositories.job_list import JobListRepository
 from repositories.job_result import JobResultRepository
 from repositories.profile import ProfileRepository
 from repositories.search_config import SearchConfigRepository, SearchConfigRow
+from scrapers.base import NormalizedJob
 from scrapers.registry import get_scraper, list_platforms
 
 logger = logging.getLogger(__name__)
@@ -44,6 +46,7 @@ class PlatformResult:
     jobs_found: int
     jobs_skipped_dedup: int
     jobs_skipped_filter: int
+    jobs_skipped_blacklist: int
     jobs_skipped_low_score: int
     jobs_evaluated: int
     jobs_stored: int
@@ -57,6 +60,7 @@ class PipelineRunResult:
     jobs_found: int
     jobs_skipped_dedup: int
     jobs_skipped_filter: int
+    jobs_skipped_blacklist: int
     jobs_skipped_low_score: int
     jobs_evaluated: int
     jobs_stored: int
@@ -79,12 +83,14 @@ class PipelineService:
         search_config_repo: SearchConfigRepository,
         job_result_repo: JobResultRepository,
         job_list_repo: JobListRepository,
+        company_blacklist_repo: CompanyBlacklistRepository,
         anthropic_api_key: str,
     ) -> None:
         self._profile_repo = profile_repo
         self._search_config_repo = search_config_repo
         self._job_result_repo = job_result_repo
         self._job_list_repo = job_list_repo
+        self._company_blacklist_repo = company_blacklist_repo
         self._anthropic_api_key = anthropic_api_key
         self._settings = _SETTINGS
         self._exclude_keywords: tuple[str, ...] = tuple(
@@ -160,6 +166,7 @@ class PipelineService:
             jobs_found=sum(r.jobs_found for r in platform_results),
             jobs_skipped_dedup=sum(r.jobs_skipped_dedup for r in platform_results),
             jobs_skipped_filter=sum(r.jobs_skipped_filter for r in platform_results),
+            jobs_skipped_blacklist=sum(r.jobs_skipped_blacklist for r in platform_results),
             jobs_skipped_low_score=sum(r.jobs_skipped_low_score for r in platform_results),
             jobs_evaluated=sum(r.jobs_evaluated for r in platform_results),
             jobs_stored=sum(r.jobs_stored for r in platform_results),
@@ -203,8 +210,11 @@ class PipelineService:
         jobs_found = len(jobs)
         logger.info("Fetched %d jobs from platform=%s", jobs_found, platform)
 
+        blacklist = await self._company_blacklist_repo.find_names_by_user_id(user_id)
+
         jobs_skipped_dedup = 0
         jobs_skipped_filter = 0
+        jobs_skipped_blacklist = 0
         jobs_skipped_low_score = 0
         jobs_evaluated = 0
         jobs_stored = 0
@@ -215,6 +225,11 @@ class PipelineService:
             already_seen = await self._job_result_repo.exists(user_id, platform, job.id)
             if already_seen:
                 jobs_skipped_dedup += 1
+                continue
+
+            if self._is_blacklisted(job, blacklist):
+                logger.debug("Blacklist skipped: '%s' (company: %s)", job.title, job.company_name)
+                jobs_skipped_blacklist += 1
                 continue
 
             if self._is_filtered(job.title):
@@ -282,10 +297,11 @@ class PipelineService:
                 )
 
         logger.info(
-            "Pipeline done: platform=%s found=%d dedup=%d filter=%d low_score=%d evaluated=%d stored=%d",
+            "Pipeline done: platform=%s found=%d dedup=%d blacklist=%d filter=%d low_score=%d evaluated=%d stored=%d",
             platform,
             jobs_found,
             jobs_skipped_dedup,
+            jobs_skipped_blacklist,
             jobs_skipped_filter,
             jobs_skipped_low_score,
             jobs_evaluated,
@@ -296,6 +312,7 @@ class PipelineService:
             jobs_found=jobs_found,
             jobs_skipped_dedup=jobs_skipped_dedup,
             jobs_skipped_filter=jobs_skipped_filter,
+            jobs_skipped_blacklist=jobs_skipped_blacklist,
             jobs_skipped_low_score=jobs_skipped_low_score,
             jobs_evaluated=jobs_evaluated,
             jobs_stored=jobs_stored,
@@ -306,6 +323,16 @@ class PipelineService:
         """Return True if the job title matches any excluded keyword (case-insensitive)."""
         title_lower = title.lower()
         return any(kw in title_lower for kw in self._exclude_keywords)
+
+    def _is_blacklisted(self, job: NormalizedJob, blacklist: tuple[str, ...]) -> bool:
+        """Return True if the job's company name matches any blacklisted entry (substring, case-insensitive)."""
+        if not blacklist:
+            return False
+        company = job.company_name
+        if not company:
+            return False
+        company_lower = company.lower()
+        return any(entry in company_lower for entry in blacklist)
 
 
 def _merge_config(static_config: dict, config_row: SearchConfigRow) -> dict:

@@ -22,6 +22,7 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from repositories.company_blacklist import CompanyBlacklistRepository
 from repositories.job_list import JobListRepository
 from repositories.job_result import JobResultRepository
 from repositories.pipeline_run import PipelineRunRepository
@@ -138,6 +139,7 @@ class RunManager:
             search_config_repo=SearchConfigRepository(pool),
             job_result_repo=JobResultRepository(pool),
             job_list_repo=JobListRepository(pool),
+            company_blacklist_repo=CompanyBlacklistRepository(pool),
             anthropic_api_key=self._api_key,
         )
 
