@@ -19,6 +19,7 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from core.context import run_id_var, user_id_var
 from core.llm_client import LLMClient
 from repositories.company_blacklist import CompanyBlacklistRepository
 from repositories.job_list import JobListRepository
@@ -114,6 +115,10 @@ class RunManager:
         platforms: list[str] | None,
     ) -> None:
         """Background coroutine — runs the pipeline and persists state to DB."""
+        # Set context vars so all log lines in this run are tagged
+        run_id_var.set(str(run_id))
+        user_id_var.set(str(user_id))
+
         await self._persist_status(run_id, user_id, status="running")
 
         service = PipelineService(

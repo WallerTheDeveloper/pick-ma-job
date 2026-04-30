@@ -7,11 +7,23 @@ to eliminate duplicated retry / JSON-parsing logic.
 import asyncio
 import json
 import logging
+import time
 from dataclasses import dataclass
 
 import anthropic
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class LLMResponse:
+    """Response from an LLM call with content and usage metadata."""
+
+    text: str
+    model: str
+    input_tokens: int
+    output_tokens: int
+    duration_ms: int
 
 RETRYABLE_STATUS_CODES = {429, 503, 529}
 
@@ -61,16 +73,17 @@ class LLMClient:
         user: str,
         model: str | None = None,
         max_tokens: int = 1024,
-    ) -> str:
+    ) -> LLMResponse:
         """Send a messages.create call with retry on transient errors.
 
-        Returns the raw text content from the first content block.
+        Returns an ``LLMResponse`` with content and usage metadata.
         Raises ``LLMError`` on failure.
         """
         model_name = model or self.default_model
 
         for attempt in range(self.default_max_retries):
             try:
+                t0 = time.monotonic()
                 response = await self.client.messages.create(
                     model=model_name,
                     max_tokens=max_tokens,
@@ -78,7 +91,14 @@ class LLMClient:
                     system=system,
                     messages=[{"role": "user", "content": user}],
                 )
-                return response.content[0].text
+                duration_ms = int((time.monotonic() - t0) * 1000)
+                return LLMResponse(
+                    text=response.content[0].text,
+                    model=model_name,
+                    input_tokens=response.usage.input_tokens,
+                    output_tokens=response.usage.output_tokens,
+                    duration_ms=duration_ms,
+                )
             except anthropic.APIStatusError as exc:
                 if (
                     exc.status_code in RETRYABLE_STATUS_CODES
@@ -115,7 +135,7 @@ class LLMClient:
         Automatically strips markdown code fences before parsing.
         Raises ``LLMError`` on API failure or if the response is not valid JSON.
         """
-        content = await self._call_api(
+        resp = await self._call_api(
             system=system,
             user=user,
             model=model,
@@ -124,15 +144,38 @@ class LLMClient:
 
         # Try direct parse first
         try:
-            return json.loads(content)
+            return json.loads(resp.text)
         except json.JSONDecodeError:
             pass
 
         # Strip fences and retry once
         try:
-            return json.loads(_strip_json_fences(content))
+            return json.loads(_strip_json_fences(resp.text))
         except json.JSONDecodeError as exc:
             raise LLMError(f"LLM returned invalid JSON: {exc}") from exc
+
+    async def generate_json_with_metadata(
+        self,
+        *,
+        system: str,
+        user: str,
+        model: str | None = None,
+        max_tokens: int = 1024,
+    ) -> tuple[dict, LLMResponse]:
+        """Call the LLM, parse JSON, and return both the parsed dict and metadata."""
+        resp = await self._call_api(
+            system=system,
+            user=user,
+            model=model,
+            max_tokens=max_tokens,
+        )
+
+        try:
+            parsed = json.loads(resp.text)
+        except json.JSONDecodeError:
+            parsed = json.loads(_strip_json_fences(resp.text))
+
+        return parsed, resp
 
     async def generate_text(
         self,
@@ -143,9 +186,27 @@ class LLMClient:
         max_tokens: int = 1024,
     ) -> str:
         """Call the LLM and return the raw text response."""
-        return await self._call_api(
+        resp = await self._call_api(
             system=system,
             user=user,
             model=model,
             max_tokens=max_tokens,
         )
+        return resp.text
+
+    async def generate_text_with_metadata(
+        self,
+        *,
+        system: str,
+        user: str,
+        model: str | None = None,
+        max_tokens: int = 1024,
+    ) -> tuple[str, LLMResponse]:
+        """Call the LLM and return both the raw text and metadata."""
+        resp = await self._call_api(
+            system=system,
+            user=user,
+            model=model,
+            max_tokens=max_tokens,
+        )
+        return resp.text, resp

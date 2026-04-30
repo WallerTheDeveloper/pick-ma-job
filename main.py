@@ -26,6 +26,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from api.limiter import limiter
 from core.llm_client import LLMClient
+from core.logging import configure_logging
 from api.routes.api_admin import router as api_admin_router
 from api.routes.api_company_blacklist import router as api_company_blacklist_router
 from api.routes.api_cv import router as api_cv_router
@@ -45,10 +46,7 @@ from services.run_manager import RunManager
 
 load_dotenv()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s — %(message)s",
-)
+configure_logging()
 logger = logging.getLogger(__name__)
 
 _REQUIRED_ENV_VARS = [

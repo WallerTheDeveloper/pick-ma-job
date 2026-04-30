@@ -20,7 +20,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.llm_client import LLMClient, LLMError
+from core.llm_client import LLMClient, LLMError, LLMResponse
 from scrapers.base import NormalizedJob
 
 logger = logging.getLogger(__name__)
@@ -118,7 +118,18 @@ class Evaluator:
         Raises:
             LLMError: If Claude returns invalid JSON after retries (Pass 2 only).
         """
-        score = await self._call_score(job)
+        score, meta1 = await self._call_score(job)
+        logger.info(
+            "llm_call",
+            extra={
+                "pass": 1,
+                "job_title": job.title,
+                "model": meta1.model,
+                "duration_ms": meta1.duration_ms,
+                "input_tokens": meta1.input_tokens,
+                "output_tokens": meta1.output_tokens,
+            },
+        )
         logger.debug("Pass 1 score=%d for job '%s'", score, job.title)
 
         if score < SCORE_THRESHOLD:
@@ -133,32 +144,43 @@ class Evaluator:
         system_prompt = self._assemble_system_prompt(platform_context)
         user_message = self._assemble_user_message(job, platform_context)
 
-        raw = await self._llm.generate_json(
+        raw, meta2 = await self._llm.generate_json_with_metadata(
             system=system_prompt,
             user=user_message,
             max_tokens=2048,
         )
+        logger.info(
+            "llm_call",
+            extra={
+                "pass": 2,
+                "job_title": job.title,
+                "model": meta2.model,
+                "duration_ms": meta2.duration_ms,
+                "input_tokens": meta2.input_tokens,
+                "output_tokens": meta2.output_tokens,
+            },
+        )
         return EvaluationResult.from_dict(raw)
 
-    async def _call_score(self, job: NormalizedJob) -> int:
+    async def _call_score(self, job: NormalizedJob) -> tuple[int, LLMResponse]:
         """Pass 1: send a lightweight prompt and return a relevancy score 1–10.
 
         Args:
             job: The job to score.
 
         Returns:
-            An integer between 1 and 10 (inclusive). Falls back to
-            ``SCORE_THRESHOLD`` if Claude returns an unparseable response.
+            A tuple of (score, LLMResponse) where score is 1–10 and the
+            LLMResponse contains timing and token usage metadata.
         """
         system_prompt = self._build_score_system_prompt()
         user_message = f"Job Title: {job.title}\n\nDescription:\n{job.description}"
 
-        content = await self._llm.generate_text(
+        content, meta = await self._llm.generate_text_with_metadata(
             system=system_prompt,
             user=user_message,
             max_tokens=16,
         )
-        return self._parse_score(content)
+        return self._parse_score(content), meta
 
     def _build_score_system_prompt(self) -> str:
         """Build the concise system prompt used for Pass 1 scoring."""
