@@ -10,7 +10,6 @@ from httpx import ASGITransport, AsyncClient
 from api.csrf import require_csrf
 from api.deps import (
     get_current_user,
-    get_db_pool,
     get_profile_service,
     get_run_manager,
     get_search_config_service,
@@ -80,14 +79,13 @@ def _setup_overrides(test_app, *, user=None, profile=None, run_id=None,
 
     # Run manager
     run_mgr = MagicMock()
-    run_mgr.start_run = MagicMock(return_value=run_id or uuid4())
+    run_mgr.start_run = AsyncMock(return_value=run_id or uuid4())
 
     test_app.dependency_overrides[get_current_user] = lambda: user
     test_app.dependency_overrides[require_csrf] = lambda: None
     test_app.dependency_overrides[get_profile_service] = lambda: profile_svc
     test_app.dependency_overrides[get_search_config_service] = lambda: search_config_svc
     test_app.dependency_overrides[get_run_manager] = lambda: run_mgr
-    test_app.dependency_overrides[get_db_pool] = lambda: MagicMock()
 
     return run_mgr, search_config_svc
 
@@ -116,7 +114,7 @@ async def test_start_run_both_platforms(client, test_app):
     assert resp.status_code == 202
     assert resp.json()["run_id"] == str(run_id)
     run_mgr.start_run.assert_called_once()
-    called_platforms = run_mgr.start_run.call_args[0][2]
+    called_platforms = run_mgr.start_run.call_args[0][1]
     assert sorted(called_platforms) == ["linkedin", "upwork"]
 
 
@@ -137,7 +135,7 @@ async def test_start_run_single_platform(client, test_app):
     test_app.dependency_overrides.clear()
 
     assert resp.status_code == 202
-    called_platforms = run_mgr.start_run.call_args[0][2]
+    called_platforms = run_mgr.start_run.call_args[0][1]
     assert called_platforms == ["linkedin"]
 
 
@@ -158,7 +156,7 @@ async def test_start_run_empty_body_runs_all(client, test_app):
     test_app.dependency_overrides.clear()
 
     assert resp.status_code == 202
-    called_platforms = run_mgr.start_run.call_args[0][2]
+    called_platforms = run_mgr.start_run.call_args[0][1]
     assert called_platforms is None
 
 
@@ -179,7 +177,7 @@ async def test_start_run_null_platforms_runs_all(client, test_app):
     test_app.dependency_overrides.clear()
 
     assert resp.status_code == 202
-    called_platforms = run_mgr.start_run.call_args[0][2]
+    called_platforms = run_mgr.start_run.call_args[0][1]
     assert called_platforms is None
 
 

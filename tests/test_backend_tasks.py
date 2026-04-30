@@ -22,7 +22,6 @@ from httpx import ASGITransport, AsyncClient
 from api.deps import is_admin_email
 from repositories.job_result import JobResultRepository, _SORT_CLAUSES
 from repositories.user import UserRow
-from services.run_manager import PipelineRunSnapshot, RunManager
 
 
 # ── CR-7 / cleanup-4: is_admin_email() ───────────────────────────────────────
@@ -120,66 +119,10 @@ async def test_find_by_user_does_not_raise_for_valid_sorts():
 
 _GENERIC_ERROR = "An internal error occurred. Please try again."
 
-_USER_ID = uuid4()
-
-
-def _make_manager() -> RunManager:
-    return RunManager(anthropic_api_key="test-key", pool=MagicMock())
-
-
-def _make_pending_snapshot(run_id, user_id=_USER_ID) -> PipelineRunSnapshot:
-    return PipelineRunSnapshot(
-        run_id=run_id,
-        user_id=user_id,
-        status="pending",
-        started_at=datetime.now(timezone.utc),
-    )
-
 
 def test_generic_error_constant_has_correct_value():
     """Verify the literal string constant matches the expected sanitised message."""
-    # We import the module and inspect the string used inside _execute.
-    # The easiest robust approach is to assert via a failed run below,
-    # but we can also just check the string is what the spec mandates.
     assert _GENERIC_ERROR == "An internal error occurred. Please try again."
-
-
-@pytest.mark.asyncio
-async def test_execute_stores_generic_error_not_raw_exception_message():
-    """When the pipeline raises, the snapshot stores the generic message, not str(exc)."""
-    manager = _make_manager()
-    run_id = uuid4()
-    manager._runs[run_id] = _make_pending_snapshot(run_id)
-
-    raw_message = "Sensitive internal detail: DB connection refused at 10.0.0.1:5432"
-    mock_service = AsyncMock()
-    mock_service.run_pipeline.side_effect = RuntimeError(raw_message)
-
-    with patch("services.run_manager.PipelineService", return_value=mock_service):
-        await manager._execute(run_id, _USER_ID, MagicMock(), None)
-
-    final = manager.get_run(run_id)
-    assert final.status == "failed"
-    assert final.error == _GENERIC_ERROR
-    assert raw_message not in final.error
-
-
-@pytest.mark.asyncio
-async def test_execute_generic_error_message_on_any_exception_type():
-    """The generic error is used regardless of exception type."""
-    manager = _make_manager()
-    run_id = uuid4()
-    manager._runs[run_id] = _make_pending_snapshot(run_id)
-
-    mock_service = AsyncMock()
-    mock_service.run_pipeline.side_effect = ValueError("bad config value")
-
-    with patch("services.run_manager.PipelineService", return_value=mock_service):
-        await manager._execute(run_id, _USER_ID, MagicMock(), None)
-
-    final = manager.get_run(run_id)
-    assert final.error == _GENERIC_ERROR
-    assert "bad config value" not in final.error
 
 
 # ── CR-10 / hardening-3: Platform parameter validation ───────────────────────
@@ -252,8 +195,8 @@ def _mock_search_config_service() -> MagicMock:
 
 def _mock_run_manager() -> MagicMock:
     svc = MagicMock()
-    svc.start_run = MagicMock(return_value=uuid4())
-    svc.get_run = MagicMock(return_value=None)
+    svc.start_run = AsyncMock(return_value=uuid4())
+    svc.get_run = AsyncMock(return_value=None)
     return svc
 
 

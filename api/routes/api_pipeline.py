@@ -7,13 +7,11 @@ import logging
 from typing import Annotated
 from uuid import UUID
 
-import asyncpg
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 
 from api.csrf import require_csrf
 from api.deps import (
     get_current_user,
-    get_db_pool,
     get_profile_service,
     get_run_manager,
     get_search_config_service,
@@ -39,7 +37,6 @@ async def api_start_run(
     run_manager: Annotated[RunManager, Depends(get_run_manager)],
     profile_svc: Annotated[ProfileService, Depends(get_profile_service)],
     search_config_svc: Annotated[SearchConfigService, Depends(get_search_config_service)],
-    pool: Annotated[asyncpg.Pool, Depends(get_db_pool)],
     body: RunStartRequest = Body(default=RunStartRequest()),
 ) -> RunStartResponse:
     """Start a background pipeline run. Returns the run_id immediately."""
@@ -74,7 +71,7 @@ async def api_start_run(
             )
 
     try:
-        run_id = run_manager.start_run(user.id, pool, platforms)
+        run_id = await run_manager.start_run(user.id, platforms)
     except RunActiveError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
 
@@ -89,29 +86,29 @@ async def api_get_run_status(
     run_manager: Annotated[RunManager, Depends(get_run_manager)],
 ) -> RunStatusResponse:
     """Return the current status of a pipeline run."""
-    snapshot = run_manager.get_run(run_id)
+    row = await run_manager.get_run(run_id)
 
-    if snapshot is None or snapshot.user_id != user.id:
+    if row is None or row.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found.")
 
     result_data = None
-    if snapshot.result is not None:
-        r = snapshot.result
+    if row.result is not None:
+        r = row.result
         result_data = {
-            "jobs_found": r.jobs_found,
-            "jobs_skipped_dedup": r.jobs_skipped_dedup,
-            "jobs_skipped_filter": r.jobs_skipped_filter,
-            "jobs_skipped_low_score": r.jobs_skipped_low_score,
-            "jobs_evaluated": r.jobs_evaluated,
-            "jobs_stored": r.jobs_stored,
-            "errors": list(r.errors),
+            "jobs_found": r.get("jobs_found"),
+            "jobs_skipped_dedup": r.get("jobs_skipped_dedup"),
+            "jobs_skipped_filter": r.get("jobs_skipped_filter"),
+            "jobs_skipped_low_score": r.get("jobs_skipped_low_score"),
+            "jobs_evaluated": r.get("jobs_evaluated"),
+            "jobs_stored": r.get("jobs_stored"),
+            "errors": r.get("errors", []),
         }
 
     return RunStatusResponse(
-        run_id=snapshot.run_id,
-        status=snapshot.status,
-        started_at=snapshot.started_at,
-        completed_at=snapshot.completed_at,
+        run_id=row.id,
+        status=row.status,
+        started_at=row.started_at,
+        completed_at=row.completed_at,
         result=result_data,
-        error=snapshot.error,
+        error=row.error,
     )

@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import asyncpg
@@ -121,3 +121,50 @@ class PipelineRunRepository:
                 user_id,
             )
         return _row_to_pipeline_run(row) if row else None
+
+    async def find_by_id(self, run_id: UUID) -> PipelineRunRow | None:
+        """Return a single run by ID, or None if not found."""
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT id, user_id, status, result, error, started_at, completed_at
+                FROM pipeline_runs
+                WHERE id = $1
+                """,
+                run_id,
+            )
+        return _row_to_pipeline_run(row) if row else None
+
+    async def has_active_run(self, user_id: UUID) -> bool:
+        """Return True if the user has any run in pending or running state."""
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT 1 FROM pipeline_runs
+                WHERE user_id = $1 AND status IN ('pending', 'running')
+                LIMIT 1
+                """,
+                user_id,
+            )
+        return row is not None
+
+    async def mark_stale_as_failed(self, stale_after_minutes: int) -> int:
+        """Mark all pending/running rows older than stale_after_minutes as failed.
+
+        Returns the number of rows updated.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=stale_after_minutes)
+        async with self._pool.acquire() as conn:
+            result = await conn.execute(
+                """
+                UPDATE pipeline_runs
+                SET status = 'failed',
+                    error = 'Run interrupted by server restart.',
+                    completed_at = now()
+                WHERE status IN ('pending', 'running')
+                  AND started_at < $1
+                """,
+                cutoff,
+            )
+        updated = int(result.split()[-1])
+        return updated

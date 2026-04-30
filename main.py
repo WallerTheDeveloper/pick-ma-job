@@ -110,6 +110,7 @@ async def lifespan(app: FastAPI):
         anthropic_api_key=os.environ["ANTHROPIC_API_KEY"],
         pool=app.state.db_pool,
     )
+    await app.state.run_manager.reconcile_stale_runs()
 
     cleanup_task = asyncio.create_task(
         _cleanup_loop(

@@ -1,30 +1,22 @@
-"""Unit tests for services.run_manager.RunManager.
+"""Unit tests for services.run_manager.RunManager (DB-backed, stateless).
 
 Strategy:
-- ``start_run`` API tested with asyncio.create_task patched to a no-op so we
-  can inspect state without actually running the pipeline.
-- ``_execute`` tested directly (called as a coroutine) so we can assert
-  snapshot state transitions without fighting asyncio task scheduling.
-- PipelineService is always mocked at services.run_manager.PipelineService.
+- PipelineRunRepository is patched at services.run_manager.PipelineRunRepository
+  to avoid real DB calls.
+- PipelineService is patched at services.run_manager.PipelineService.
+- asyncio.create_task is patched to a no-op in start_run tests so the
+  background task doesn't run during the synchronous part of the test.
 """
 
-import asyncio
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock, call, patch
+from uuid import UUID, uuid4
 
 import pytest
 
 from services.pipeline import PipelineRunResult
-from services.run_manager import (
-    PipelineRunSnapshot,
-    RunActiveError,
-    RunManager,
-)
+from services.run_manager import RunActiveError, RunManager
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 _USER_A = uuid4()
 _USER_B = uuid4()
@@ -35,6 +27,7 @@ def _make_result(**overrides) -> PipelineRunResult:
         jobs_found=5,
         jobs_skipped_dedup=1,
         jobs_skipped_filter=1,
+        jobs_skipped_blacklist=0,
         jobs_skipped_low_score=0,
         jobs_evaluated=3,
         jobs_stored=3,
@@ -48,8 +41,15 @@ def _make_manager() -> RunManager:
     return RunManager(anthropic_api_key="test-key", pool=MagicMock())
 
 
-def _mock_pool() -> MagicMock:
-    return MagicMock()
+def _mock_repo(*, has_active: bool = False, find_row=None):
+    """Return a mock PipelineRunRepository."""
+    repo = MagicMock()
+    repo.has_active_run = AsyncMock(return_value=has_active)
+    repo.insert = AsyncMock()
+    repo.update_status = AsyncMock(return_value=True)
+    repo.find_by_id = AsyncMock(return_value=find_row)
+    repo.mark_stale_as_failed = AsyncMock(return_value=0)
+    return repo
 
 
 def _no_task(coro):
@@ -58,343 +58,239 @@ def _no_task(coro):
     return MagicMock()
 
 
-def _inject_snapshot(manager: RunManager, user_id, status: str, **overrides) -> PipelineRunSnapshot:
-    """Directly plant a snapshot in the manager's internal dict (test helper)."""
-    run_id = uuid4()
-    snapshot = PipelineRunSnapshot(
-        run_id=run_id,
-        user_id=user_id,
-        status=status,
-        started_at=datetime.now(timezone.utc),
-        **overrides,
-    )
-    manager._runs[run_id] = snapshot
-    return snapshot
+# ── start_run ────────────────────────────────────────────────────────────────
 
-
-# ---------------------------------------------------------------------------
-# start_run — basic API
-# ---------------------------------------------------------------------------
-
-def test_start_run_returns_uuid():
+@pytest.mark.asyncio
+async def test_start_run_returns_uuid():
     manager = _make_manager()
-    with patch("asyncio.create_task", side_effect=_no_task):
-        run_id = manager.start_run(_USER_A, _mock_pool())
-    from uuid import UUID
+    repo = _mock_repo()
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo), \
+         patch("asyncio.create_task", side_effect=_no_task):
+        run_id = await manager.start_run(_USER_A)
     assert isinstance(run_id, UUID)
 
 
-def test_start_run_stores_pending_snapshot():
+@pytest.mark.asyncio
+async def test_start_run_inserts_pending_row():
     manager = _make_manager()
-    with patch("asyncio.create_task", side_effect=_no_task):
-        run_id = manager.start_run(_USER_A, _mock_pool())
-    snapshot = manager.get_run(run_id)
-    assert snapshot is not None
-    assert snapshot.status == "pending"
-    assert snapshot.user_id == _USER_A
-    assert snapshot.run_id == run_id
+    repo = _mock_repo()
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo), \
+         patch("asyncio.create_task", side_effect=_no_task):
+        run_id = await manager.start_run(_USER_A)
+    repo.insert.assert_called_once()
+    call_run_id, call_user_id, _ = repo.insert.call_args[0]
+    assert call_run_id == run_id
+    assert call_user_id == _USER_A
 
-
-def test_start_run_snapshot_has_started_at():
-    manager = _make_manager()
-    before = datetime.now(timezone.utc)
-    with patch("asyncio.create_task", side_effect=_no_task):
-        run_id = manager.start_run(_USER_A, _mock_pool())
-    after = datetime.now(timezone.utc)
-    snapshot = manager.get_run(run_id)
-    assert before <= snapshot.started_at <= after
-
-
-def test_start_run_spawns_asyncio_task():
-    manager = _make_manager()
-    with patch("asyncio.create_task") as mock_create:
-        manager.start_run(_USER_A, _mock_pool())
-    # Two tasks: _persist_insert (DB write) and _execute (pipeline run)
-    assert mock_create.call_count == 2
-
-
-# ---------------------------------------------------------------------------
-# get_run
-# ---------------------------------------------------------------------------
-
-def test_get_run_returns_none_for_unknown_id():
-    manager = _make_manager()
-    assert manager.get_run(uuid4()) is None
-
-
-def test_get_run_returns_snapshot_after_start():
-    manager = _make_manager()
-    with patch("asyncio.create_task", side_effect=_no_task):
-        run_id = manager.start_run(_USER_A, _mock_pool())
-    assert manager.get_run(run_id) is not None
-
-
-# ---------------------------------------------------------------------------
-# Concurrent run guard
-# ---------------------------------------------------------------------------
-
-def test_second_start_raises_run_active_error_while_pending():
-    manager = _make_manager()
-    with patch("asyncio.create_task", side_effect=_no_task):
-        manager.start_run(_USER_A, _mock_pool())
-        with pytest.raises(RunActiveError):
-            manager.start_run(_USER_A, _mock_pool())
-
-
-def test_second_start_raises_run_active_error_while_running():
-    manager = _make_manager()
-    _inject_snapshot(manager, _USER_A, status="running")
-    with patch("asyncio.create_task", side_effect=_no_task):
-        with pytest.raises(RunActiveError):
-            manager.start_run(_USER_A, _mock_pool())
-
-
-def test_different_users_can_run_concurrently():
-    manager = _make_manager()
-    with patch("asyncio.create_task", side_effect=_no_task):
-        run_a = manager.start_run(_USER_A, _mock_pool())
-        run_b = manager.start_run(_USER_B, _mock_pool())
-    assert run_a != run_b
-    assert manager.get_run(run_a).user_id == _USER_A
-    assert manager.get_run(run_b).user_id == _USER_B
-
-
-def test_start_run_allowed_after_completed_run():
-    manager = _make_manager()
-    _inject_snapshot(manager, _USER_A, status="completed")
-    with patch("asyncio.create_task", side_effect=_no_task):
-        run_id = manager.start_run(_USER_A, _mock_pool())
-    assert manager.get_run(run_id).status == "pending"
-
-
-def test_start_run_allowed_after_failed_run():
-    manager = _make_manager()
-    _inject_snapshot(manager, _USER_A, status="failed")
-    with patch("asyncio.create_task", side_effect=_no_task):
-        run_id = manager.start_run(_USER_A, _mock_pool())
-    assert manager.get_run(run_id).status == "pending"
-
-
-# ---------------------------------------------------------------------------
-# _execute — state transitions (tested directly as a coroutine)
-# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_execute_transitions_pending_to_running_to_completed():
+async def test_start_run_spawns_one_asyncio_task():
+    manager = _make_manager()
+    repo = _mock_repo()
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo), \
+         patch("asyncio.create_task") as mock_create:
+        await manager.start_run(_USER_A)
+    assert mock_create.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_start_run_raises_run_active_error_when_active():
+    manager = _make_manager()
+    repo = _mock_repo(has_active=True)
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo):
+        with pytest.raises(RunActiveError):
+            await manager.start_run(_USER_A)
+
+
+@pytest.mark.asyncio
+async def test_start_run_does_not_insert_when_active():
+    manager = _make_manager()
+    repo = _mock_repo(has_active=True)
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo):
+        try:
+            await manager.start_run(_USER_A)
+        except RunActiveError:
+            pass
+    repo.insert.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_start_run_allowed_when_no_active_run():
+    manager = _make_manager()
+    repo = _mock_repo(has_active=False)
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo), \
+         patch("asyncio.create_task", side_effect=_no_task):
+        run_id = await manager.start_run(_USER_A)
+    assert run_id is not None
+
+
+@pytest.mark.asyncio
+async def test_different_users_can_start_concurrently():
+    """Two users with no active runs can both start."""
+    manager = _make_manager()
+    repo = _mock_repo(has_active=False)
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo), \
+         patch("asyncio.create_task", side_effect=_no_task):
+        run_a = await manager.start_run(_USER_A)
+        run_b = await manager.start_run(_USER_B)
+    assert run_a != run_b
+
+
+# ── get_run ──────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_get_run_returns_none_for_unknown_id():
+    manager = _make_manager()
+    repo = _mock_repo(find_row=None)
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo):
+        result = await manager.get_run(uuid4())
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_run_returns_row_when_found():
+    manager = _make_manager()
+    fake_row = MagicMock()
+    repo = _mock_repo(find_row=fake_row)
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo):
+        result = await manager.get_run(uuid4())
+    assert result is fake_row
+
+
+# ── reconcile_stale_runs ──────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_reconcile_calls_mark_stale_with_correct_minutes():
+    manager = _make_manager()
+    repo = _mock_repo()
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo):
+        await manager.reconcile_stale_runs(stale_after_minutes=15)
+    repo.mark_stale_as_failed.assert_called_once_with(15)
+
+
+@pytest.mark.asyncio
+async def test_reconcile_uses_default_minutes():
+    manager = _make_manager()
+    repo = _mock_repo()
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo):
+        await manager.reconcile_stale_runs()
+    repo.mark_stale_as_failed.assert_called_once_with(30)
+
+
+# ── _execute — state transitions ─────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_execute_persists_running_then_completed():
     manager = _make_manager()
     run_id = uuid4()
-    manager._runs[run_id] = PipelineRunSnapshot(
-        run_id=run_id,
-        user_id=_USER_A,
-        status="pending",
-        started_at=datetime.now(timezone.utc),
-    )
+    repo = _mock_repo()
 
     mock_service = AsyncMock()
     mock_service.run_pipeline.return_value = _make_result()
 
-    with patch("services.run_manager.PipelineService", return_value=mock_service):
-        await manager._execute(run_id, _USER_A, _mock_pool(), None)
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo), \
+         patch("services.run_manager.PipelineService", return_value=mock_service):
+        await manager._execute(run_id, _USER_A, None)
 
-    final = manager.get_run(run_id)
-    assert final.status == "completed"
-    assert final.result is not None
-    assert final.completed_at is not None
-    assert final.error is None
+    call_statuses = [c.kwargs["status"] for c in repo.update_status.call_args_list]
+    assert call_statuses == ["running", "completed"]
 
 
 @pytest.mark.asyncio
-async def test_execute_transitions_to_failed_on_exception():
+async def test_execute_persists_running_then_failed_on_exception():
     manager = _make_manager()
     run_id = uuid4()
-    manager._runs[run_id] = PipelineRunSnapshot(
-        run_id=run_id,
-        user_id=_USER_A,
-        status="pending",
-        started_at=datetime.now(timezone.utc),
-    )
+    repo = _mock_repo()
 
     mock_service = AsyncMock()
     mock_service.run_pipeline.side_effect = RuntimeError("Claude API down")
 
-    with patch("services.run_manager.PipelineService", return_value=mock_service):
-        await manager._execute(run_id, _USER_A, _mock_pool(), None)
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo), \
+         patch("services.run_manager.PipelineService", return_value=mock_service):
+        await manager._execute(run_id, _USER_A, None)
 
-    final = manager.get_run(run_id)
-    assert final.status == "failed"
-    # CR-8: raw exception messages are sanitized — the generic message is stored,
-    # not the internal "Claude API down" detail, to avoid leaking internals to clients.
-    assert final.error == "An internal error occurred. Please try again."
-    assert "Claude API down" not in final.error
-    assert final.completed_at is not None
-    assert final.result is None
+    call_statuses = [c.kwargs["status"] for c in repo.update_status.call_args_list]
+    assert call_statuses == ["running", "failed"]
 
 
 @pytest.mark.asyncio
-async def test_execute_stores_pipeline_result():
+async def test_execute_stores_generic_error_not_raw_message():
     manager = _make_manager()
     run_id = uuid4()
-    manager._runs[run_id] = PipelineRunSnapshot(
-        run_id=run_id,
-        user_id=_USER_A,
-        status="pending",
-        started_at=datetime.now(timezone.utc),
-    )
+    repo = _mock_repo()
 
-    expected = _make_result(jobs_found=10, jobs_stored=7)
+    raw_message = "Sensitive detail: DB at 10.0.0.1:5432"
     mock_service = AsyncMock()
-    mock_service.run_pipeline.return_value = expected
+    mock_service.run_pipeline.side_effect = RuntimeError(raw_message)
 
-    with patch("services.run_manager.PipelineService", return_value=mock_service):
-        await manager._execute(run_id, _USER_A, _mock_pool(), None)
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo), \
+         patch("services.run_manager.PipelineService", return_value=mock_service):
+        await manager._execute(run_id, _USER_A, None)
 
-    assert manager.get_run(run_id).result == expected
+    last_call = repo.update_status.call_args_list[-1]
+    error = last_call.kwargs.get("error", "")
+    assert error == "An internal error occurred. Please try again."
+    assert raw_message not in error
 
 
 @pytest.mark.asyncio
 async def test_execute_passes_platforms_to_pipeline():
     manager = _make_manager()
     run_id = uuid4()
-    manager._runs[run_id] = PipelineRunSnapshot(
-        run_id=run_id,
-        user_id=_USER_A,
-        status="pending",
-        started_at=datetime.now(timezone.utc),
-    )
+    repo = _mock_repo()
 
     mock_service = AsyncMock()
     mock_service.run_pipeline.return_value = _make_result()
 
-    with patch("services.run_manager.PipelineService", return_value=mock_service):
-        await manager._execute(run_id, _USER_A, _mock_pool(), ["upwork"])
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo), \
+         patch("services.run_manager.PipelineService", return_value=mock_service):
+        await manager._execute(run_id, _USER_A, ["upwork"])
 
     mock_service.run_pipeline.assert_called_once_with(_USER_A, ["upwork"])
 
 
 @pytest.mark.asyncio
-async def test_execute_completed_at_is_set():
+async def test_execute_completed_at_is_set_on_success():
     manager = _make_manager()
     run_id = uuid4()
+    repo = _mock_repo()
     before = datetime.now(timezone.utc)
-    manager._runs[run_id] = PipelineRunSnapshot(
-        run_id=run_id,
-        user_id=_USER_A,
-        status="pending",
-        started_at=before,
-    )
 
     mock_service = AsyncMock()
     mock_service.run_pipeline.return_value = _make_result()
 
-    with patch("services.run_manager.PipelineService", return_value=mock_service):
-        await manager._execute(run_id, _USER_A, _mock_pool(), None)
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo), \
+         patch("services.run_manager.PipelineService", return_value=mock_service):
+        await manager._execute(run_id, _USER_A, None)
 
     after = datetime.now(timezone.utc)
-    completed_at = manager.get_run(run_id).completed_at
+    completed_call = next(
+        c for c in repo.update_status.call_args_list
+        if c.kwargs.get("status") == "completed"
+    )
+    completed_at = completed_call.kwargs.get("completed_at")
     assert before <= completed_at <= after
 
 
-# ---------------------------------------------------------------------------
-# Snapshot immutability
-# ---------------------------------------------------------------------------
-
-def test_snapshot_is_frozen():
-    snap = PipelineRunSnapshot(
-        run_id=uuid4(),
-        user_id=_USER_A,
-        status="pending",
-        started_at=datetime.now(timezone.utc),
-    )
-    with pytest.raises(Exception):
-        snap.status = "running"  # type: ignore[misc]
-
-
-def test_update_replaces_snapshot_not_mutates():
+@pytest.mark.asyncio
+async def test_execute_result_stored_as_dict():
     manager = _make_manager()
     run_id = uuid4()
-    original = PipelineRunSnapshot(
-        run_id=run_id,
-        user_id=_USER_A,
-        status="pending",
-        started_at=datetime.now(timezone.utc),
+    repo = _mock_repo()
+
+    result = _make_result(jobs_found=10, jobs_stored=7)
+    mock_service = AsyncMock()
+    mock_service.run_pipeline.return_value = result
+
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo), \
+         patch("services.run_manager.PipelineService", return_value=mock_service):
+        await manager._execute(run_id, _USER_A, None)
+
+    completed_call = next(
+        c for c in repo.update_status.call_args_list
+        if c.kwargs.get("status") == "completed"
     )
-    manager._runs[run_id] = original
-
-    manager._update(run_id, status="running")
-
-    updated = manager.get_run(run_id)
-    assert updated is not original       # new object
-    assert updated.status == "running"
-    assert original.status == "pending"  # original unchanged
-
-
-# ---------------------------------------------------------------------------
-# Eviction
-# ---------------------------------------------------------------------------
-
-def test_evict_removes_runs_older_than_one_hour():
-    manager = _make_manager()
-    old_snapshot = PipelineRunSnapshot(
-        run_id=uuid4(),
-        user_id=_USER_A,
-        status="completed",
-        started_at=datetime.now(timezone.utc) - timedelta(hours=2),
-    )
-    manager._runs[old_snapshot.run_id] = old_snapshot
-
-    manager._evict_old_runs()
-
-    assert manager.get_run(old_snapshot.run_id) is None
-
-
-def test_evict_keeps_recent_runs():
-    manager = _make_manager()
-    recent = PipelineRunSnapshot(
-        run_id=uuid4(),
-        user_id=_USER_A,
-        status="completed",
-        started_at=datetime.now(timezone.utc) - timedelta(minutes=30),
-    )
-    manager._runs[recent.run_id] = recent
-
-    manager._evict_old_runs()
-
-    assert manager.get_run(recent.run_id) is not None
-
-
-def test_evict_called_on_start_run():
-    manager = _make_manager()
-    # Plant an old completed run
-    old = PipelineRunSnapshot(
-        run_id=uuid4(),
-        user_id=_USER_B,
-        status="completed",
-        started_at=datetime.now(timezone.utc) - timedelta(hours=2),
-    )
-    manager._runs[old.run_id] = old
-
-    with patch("asyncio.create_task", side_effect=_no_task):
-        manager.start_run(_USER_A, _mock_pool())
-
-    # Old run should have been evicted
-    assert manager.get_run(old.run_id) is None
-
-
-def test_evict_does_not_remove_active_old_run():
-    """Even an ancient pending/running run should be caught by the active guard, not silently evicted."""
-    manager = _make_manager()
-    ancient_running = PipelineRunSnapshot(
-        run_id=uuid4(),
-        user_id=_USER_A,
-        status="running",
-        started_at=datetime.now(timezone.utc) - timedelta(hours=3),
-    )
-    manager._runs[ancient_running.run_id] = ancient_running
-
-    # Eviction removes it regardless of status (simple TTL — no status check)
-    manager._evict_old_runs()
-
-    # After eviction the user can start a new run (the stuck run was cleaned up)
-    with patch("asyncio.create_task", side_effect=_no_task):
-        run_id = manager.start_run(_USER_A, _mock_pool())
-    assert manager.get_run(run_id).status == "pending"
+    stored_result = completed_call.kwargs.get("result")
+    assert isinstance(stored_result, dict)
+    assert stored_result["jobs_found"] == 10
+    assert stored_result["jobs_stored"] == 7
