@@ -229,14 +229,17 @@ class PipelineService:
         blacklist = await self._company_blacklist_repo.find_names_by_user_id(user_id)
 
         # Pre-filter jobs serially (dedup, blacklist, keyword filter)
+        existing_ids = await self._job_result_repo.find_existing_ids(
+            user_id, platform, [j.id for j in jobs]
+        )
+
         jobs_skipped_dedup = 0
         jobs_skipped_filter = 0
         jobs_skipped_blacklist = 0
         jobs_to_evaluate: list[NormalizedJob] = []
 
         for job in jobs:
-            already_seen = await self._job_result_repo.exists(user_id, platform, job.id)
-            if already_seen:
+            if job.id in existing_ids:
                 jobs_skipped_dedup += 1
                 continue
 

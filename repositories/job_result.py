@@ -107,6 +107,27 @@ class JobResultRepository:
             )
         return row is not None
 
+    async def find_existing_ids(
+        self, user_id: UUID, platform: str, job_ids: list[str]
+    ) -> set[str]:
+        """Return the subset of job_ids that already exist for this user and platform.
+
+        Uses a single batch query instead of N individual lookups.
+        """
+        if not job_ids:
+            return set()
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT job_id FROM job_results
+                WHERE user_id = $1 AND platform = $2 AND job_id = ANY($3::text[])
+                """,
+                user_id,
+                platform,
+                job_ids,
+            )
+        return {row["job_id"] for row in rows}
+
     def _build_filter(
         self,
         user_id: UUID,

@@ -334,6 +334,29 @@ async def test_job_result_exists(conn_pool):
     assert await jr_repo.exists(user.id, "upwork", "job-x")
 
 
+async def test_job_result_find_existing_ids(conn_pool):
+    user_repo = UserRepository(conn_pool)
+    jr_repo = JobResultRepository(conn_pool)
+
+    user = await user_repo.create(f"test-{uuid4().hex[:8]}@example.com")
+    # Insert two jobs on upwork
+    await jr_repo.insert(user.id, "upwork", "job-a", "Title A", "https://example.com/a", 7, None)
+    await jr_repo.insert(user.id, "upwork", "job-b", "Title B", "https://example.com/b", 5, None)
+    # Insert one job on linkedin (different platform)
+    await jr_repo.insert(user.id, "linkedin", "job-a", "Title A", "https://example.com/a", 8, None)
+
+    # Empty list returns empty set
+    assert await jr_repo.find_existing_ids(user.id, "upwork", []) == set()
+
+    # Batch check: mix of existing and non-existing
+    result = await jr_repo.find_existing_ids(user.id, "upwork", ["job-a", "job-b", "job-c"])
+    assert result == {"job-a", "job-b"}
+
+    # Different platform should not match
+    result = await jr_repo.find_existing_ids(user.id, "linkedin", ["job-a", "job-b"])
+    assert result == {"job-a"}
+
+
 async def test_job_result_update_status(conn_pool):
     user_repo = UserRepository(conn_pool)
     jr_repo = JobResultRepository(conn_pool)
