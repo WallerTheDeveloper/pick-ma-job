@@ -5,11 +5,12 @@ against a LinkedIn NormalizedJob produces valid JSON output via the Evaluator.
 """
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from core.evaluator import EvaluationResult, Evaluator
+from core.llm_client import LLMClient
 from core.prompt_adapter import load_platform_context
 from scrapers.base import NormalizedJob
 
@@ -74,9 +75,11 @@ def _make_client_mock(score_text: str, full_response_text: str) -> MagicMock:
     return mock_client
 
 
-def _make_evaluator(mock_client: MagicMock) -> Evaluator:
-    with patch("core.evaluator.anthropic.AsyncAnthropic", return_value=mock_client):
-        return Evaluator(BASE_PROFILE, SETTINGS, api_key="test-key")
+def _make_evaluator(score_text: str, full_response_text: str) -> Evaluator:
+    """Create an Evaluator backed by a mock Anthropic client."""
+    mock_client = _make_client_mock(score_text, full_response_text)
+    llm = LLMClient(client=mock_client, default_model="test-model")
+    return Evaluator(BASE_PROFILE, SETTINGS, llm_client=llm)
 
 
 # ---------------------------------------------------------------------------
@@ -158,8 +161,7 @@ def test_linkedin_context_template_references_budget():
 async def test_mock_evaluation_produces_valid_evaluation_result():
     """Full pipeline: LinkedIn context + NormalizedJob → EvaluationResult."""
     ctx = load_platform_context("linkedin")
-    mock_client = _make_client_mock(score_text="8", full_response_text=VALID_CLAUDE_RESPONSE)
-    evaluator = _make_evaluator(mock_client)
+    evaluator = _make_evaluator(score_text="8", full_response_text=VALID_CLAUDE_RESPONSE)
 
     result = await evaluator.evaluate(LINKEDIN_JOB, ctx)
 
@@ -189,8 +191,8 @@ async def test_mock_evaluation_user_message_interpolates_extras():
     mock_client = MagicMock()
     mock_client.messages.create = AsyncMock(side_effect=capture_create)
 
-    with patch("core.evaluator.anthropic.AsyncAnthropic", return_value=mock_client):
-        evaluator = Evaluator(BASE_PROFILE, SETTINGS, api_key="test-key")
+    llm = LLMClient(client=mock_client, default_model="test-model")
+    evaluator = Evaluator(BASE_PROFILE, SETTINGS, llm_client=llm)
 
     await evaluator.evaluate(LINKEDIN_JOB, ctx)
 
@@ -211,16 +213,13 @@ async def test_mock_evaluation_user_message_interpolates_extras():
 async def test_low_score_linkedin_job_skips_full_evaluation():
     """Jobs scoring below threshold return score-only result."""
     ctx = load_platform_context("linkedin")
-    mock_client = _make_client_mock(score_text="2", full_response_text=VALID_CLAUDE_RESPONSE)
-    evaluator = _make_evaluator(mock_client)
+    evaluator = _make_evaluator(score_text="2", full_response_text=VALID_CLAUDE_RESPONSE)
 
     result = await evaluator.evaluate(LINKEDIN_JOB, ctx)
 
     assert result.relevancy_score == 2
     assert result.evaluation is None
     assert result.summary is None
-    # Only one API call — full evaluation was skipped
-    assert mock_client.messages.create.call_count == 1
 
 
 @pytest.mark.asyncio
@@ -254,8 +253,8 @@ async def test_linkedin_job_with_no_extras_renders_na():
     mock_client = MagicMock()
     mock_client.messages.create = AsyncMock(side_effect=capture_create)
 
-    with patch("core.evaluator.anthropic.AsyncAnthropic", return_value=mock_client):
-        evaluator = Evaluator(BASE_PROFILE, SETTINGS, api_key="test-key")
+    llm = LLMClient(client=mock_client, default_model="test-model")
+    evaluator = Evaluator(BASE_PROFILE, SETTINGS, llm_client=llm)
 
     result = await evaluator.evaluate(minimal_job, ctx)
 

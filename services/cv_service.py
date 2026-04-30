@@ -6,9 +6,9 @@ import logging
 from pathlib import Path
 from uuid import UUID
 
-import anthropic
 from pypdf import PdfReader
 
+from core.llm_client import LLMClient
 from repositories.cv import CVRepository, CVRow
 from repositories.cv_customization import CVCustomizationRepository
 from repositories.job_result import JobResultRepository
@@ -40,12 +40,12 @@ class CVService:
         cv_repo: CVRepository,
         cv_customization_repo: CVCustomizationRepository,
         job_result_repo: JobResultRepository,
-        api_key: str,
+        llm_client: LLMClient,
     ) -> None:
         self._cv_repo = cv_repo
         self._cv_customization_repo = cv_customization_repo
         self._job_result_repo = job_result_repo
-        self._client = anthropic.AsyncAnthropic(api_key=api_key)
+        self._llm = llm_client
 
     async def upload_cv(
         self,
@@ -142,15 +142,14 @@ class CVService:
         """Call Claude to parse raw CV text into structured sections."""
         system = _STRUCTURE_PROMPT["system"]
         user_message = _STRUCTURE_PROMPT["user_template"].format(cv_text=raw_text)
+        model = _STRUCTURE_PROMPT.get("model")
 
-        response = await self._client.messages.create(
-            model=_STRUCTURE_PROMPT.get("model", "claude-haiku-4-5-20251001"),
-            max_tokens=4096,
-            temperature=0,
+        return await self._llm.generate_json(
             system=system,
-            messages=[{"role": "user", "content": user_message}],
+            user=user_message,
+            model=model,
+            max_tokens=4096,
         )
-        return _parse_json_response(response.content[0].text)
 
     async def _call_customize(
         self,
@@ -169,14 +168,14 @@ class CVService:
         if adjustment_notes:
             user_message += f"\n\nUser feedback on previous version:\n{adjustment_notes}\n\nApply this feedback in the new version."
 
-        response = await self._client.messages.create(
-            model=_CUSTOMIZE_PROMPT.get("model", "claude-haiku-4-5-20251001"),
-            max_tokens=4096,
-            temperature=0,
+        model = _CUSTOMIZE_PROMPT.get("model")
+
+        return await self._llm.generate_text(
             system=system,
-            messages=[{"role": "user", "content": user_message}],
+            user=user_message,
+            model=model,
+            max_tokens=4096,
         )
-        return response.content[0].text.strip()
 
 
 def _extract_pdf_text(filename: str, file_bytes: bytes) -> str:
@@ -188,22 +187,6 @@ def _extract_pdf_text(filename: str, file_bytes: bytes) -> str:
     except Exception as exc:
         logger.warning("PDF extraction failed for %s: %s", filename, exc)
         raise CVError(f"Failed to read PDF: {exc}") from exc
-
-
-def _parse_json_response(content: str) -> dict:
-    """Parse Claude's JSON response, stripping markdown fences if present."""
-    stripped = content.strip()
-    if stripped.startswith("```"):
-        stripped = stripped.split("\n", 1)[-1]
-    if stripped.endswith("```"):
-        stripped = stripped.rsplit("```", 1)[0]
-    stripped = stripped.strip()
-    try:
-        result = json.loads(stripped)
-        return result if isinstance(result, dict) else {"content": content}
-    except json.JSONDecodeError:
-        logger.warning("Could not parse CV structure JSON; storing raw text as fallback")
-        return {"content": content}
 
 
 def _build_job_description(title: str, evaluation: dict | None) -> str:

@@ -17,6 +17,7 @@ from uuid import UUID
 import asyncio
 
 from core.evaluator import Evaluator
+from core.llm_client import LLMClient
 from core.prompt_adapter import load_platform_context, profile_row_to_prompt_dict
 from repositories.company_blacklist import CompanyBlacklistRepository
 from repositories.job_list import JobListRepository
@@ -88,7 +89,7 @@ class PipelineService:
         profile_repo: Repository for loading user profiles.
         search_config_repo: Repository for loading user search configs.
         job_result_repo: Repository for dedup checks and result storage.
-        anthropic_api_key: API key passed to the Evaluator.
+        llm_client: Shared ``LLMClient`` passed through to the ``Evaluator``.
     """
 
     def __init__(
@@ -98,14 +99,14 @@ class PipelineService:
         job_result_repo: JobResultRepository,
         job_list_repo: JobListRepository,
         company_blacklist_repo: CompanyBlacklistRepository,
-        anthropic_api_key: str,
+        llm_client: LLMClient,
     ) -> None:
         self._profile_repo = profile_repo
         self._search_config_repo = search_config_repo
         self._job_result_repo = job_result_repo
         self._job_list_repo = job_list_repo
         self._company_blacklist_repo = company_blacklist_repo
-        self._anthropic_api_key = anthropic_api_key
+        self._llm_client = llm_client
         self._settings = _SETTINGS
         self._concurrency: int = _SETTINGS.get("evaluation_concurrency", 8)
         self._exclude_keywords: tuple[str, ...] = tuple(
@@ -164,7 +165,7 @@ class PipelineService:
             )
 
         prompt_dict = profile_row_to_prompt_dict(profile)
-        evaluator = Evaluator(prompt_dict, self._settings, api_key=self._anthropic_api_key)
+        evaluator = Evaluator(prompt_dict, self._settings, llm_client=self._llm_client)
         run_started_at = datetime.now(timezone.utc)
 
         platform_results = [

@@ -14,46 +14,18 @@ Two-pass evaluation:
 Jobs below the threshold are stored with their score and null evaluation fields.
 """
 
-import asyncio
 import json
 import logging
 import re
 from dataclasses import dataclass, field
 from typing import Any
 
-import anthropic
-
+from core.llm_client import LLMClient, LLMError
 from scrapers.base import NormalizedJob
 
 logger = logging.getLogger(__name__)
 
 SCORE_THRESHOLD = 5  # Jobs scoring below this skip the full evaluation pass
-RETRYABLE_STATUS_CODES = {429, 503, 529}
-
-
-async def _with_retry(coro_fn, *, max_attempts: int = 3):
-    """Call coro_fn() with exponential backoff on retryable Anthropic API errors.
-
-    Retries on status codes in RETRYABLE_STATUS_CODES (overloaded / unavailable).
-    Non-retryable errors (400, 401, 403, etc.) are raised immediately.
-    Logs a WARNING on each retry attempt.
-    """
-    for attempt in range(max_attempts):
-        try:
-            return await coro_fn()
-        except anthropic.APIStatusError as exc:
-            if exc.status_code in RETRYABLE_STATUS_CODES and attempt < max_attempts - 1:
-                wait = 2 ** attempt
-                logger.warning(
-                    "Anthropic API transient error %d (attempt %d/%d), retrying in %ds",
-                    exc.status_code,
-                    attempt + 1,
-                    max_attempts,
-                    wait,
-                )
-                await asyncio.sleep(wait)
-            else:
-                raise
 
 
 @dataclass(frozen=True)
@@ -109,19 +81,18 @@ class Evaluator:
     Args:
         base_profile: Loaded ``configs/prompts/base_profile.json``.
         settings: Loaded ``configs/settings.json``.
-        api_key: Anthropic API key.
+        llm_client: A shared ``LLMClient`` instance.
     """
 
     def __init__(
         self,
         base_profile: dict,
         settings: dict,
-        api_key: str,
+        llm_client: LLMClient,
     ) -> None:
         self._base_profile = base_profile
-        self._model: str = settings["model"]
         self._temperature: float = settings.get("temperature", 0)
-        self._client = anthropic.AsyncAnthropic(api_key=api_key)
+        self._llm = llm_client
 
     async def evaluate(
         self,
@@ -145,7 +116,7 @@ class Evaluator:
             score-only for low-score jobs.
 
         Raises:
-            ValueError: If Claude returns invalid JSON after one retry (Pass 2 only).
+            LLMError: If Claude returns invalid JSON after retries (Pass 2 only).
         """
         score = await self._call_score(job)
         logger.debug("Pass 1 score=%d for job '%s'", score, job.title)
@@ -162,18 +133,11 @@ class Evaluator:
         system_prompt = self._assemble_system_prompt(platform_context)
         user_message = self._assemble_user_message(job, platform_context)
 
-        response = await _with_retry(
-            lambda: self._client.messages.create(
-                model=self._model,
-                max_tokens=2048,
-                temperature=self._temperature,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_message}],
-            )
+        raw = await self._llm.generate_json(
+            system=system_prompt,
+            user=user_message,
+            max_tokens=2048,
         )
-
-        content = response.content[0].text
-        raw = self._parse_response(content)
         return EvaluationResult.from_dict(raw)
 
     async def _call_score(self, job: NormalizedJob) -> int:
@@ -189,16 +153,12 @@ class Evaluator:
         system_prompt = self._build_score_system_prompt()
         user_message = f"Job Title: {job.title}\n\nDescription:\n{job.description}"
 
-        response = await _with_retry(
-            lambda: self._client.messages.create(
-                model=self._model,
-                max_tokens=16,
-                temperature=self._temperature,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_message}],
-            )
+        content = await self._llm.generate_text(
+            system=system_prompt,
+            user=user_message,
+            max_tokens=16,
         )
-        return self._parse_score(response.content[0].text)
+        return self._parse_score(content)
 
     def _build_score_system_prompt(self) -> str:
         """Build the concise system prompt used for Pass 1 scoring."""
@@ -274,27 +234,3 @@ class Evaluator:
                 return "N/A"
 
         return template.format_map(_DefaultNA(values))
-
-    def _parse_response(self, content: str) -> dict[str, Any]:
-        """Parse Claude's JSON response, stripping markdown fences if needed.
-
-        Retries once if the initial parse fails.
-        """
-        try:
-            return json.loads(content)
-        except json.JSONDecodeError:
-            pass
-
-        # Strip markdown fences and retry once
-        stripped = content.strip()
-        if stripped.startswith("```"):
-            stripped = stripped.split("\n", 1)[-1]
-        if stripped.endswith("```"):
-            stripped = stripped.rsplit("```", 1)[0]
-        stripped = stripped.strip()
-
-        try:
-            return json.loads(stripped)
-        except json.JSONDecodeError as exc:
-            logger.error("Failed to parse Claude response after retry: %s", content)
-            raise ValueError(f"Claude returned invalid JSON: {exc}") from exc

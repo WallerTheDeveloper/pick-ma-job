@@ -1,11 +1,12 @@
-"""Unit tests for core.evaluator — Anthropic client is mocked throughout."""
+"""Unit tests for core.evaluator — LLMClient is mocked throughout."""
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from core.evaluator import EvaluationResult, Evaluator
+from core.llm_client import LLMClient
 from scrapers.base import NormalizedJob
 
 # ---------------------------------------------------------------------------
@@ -52,8 +53,8 @@ VALID_RESPONSE = {
 }
 
 
-def _make_client_mock(response_text: str) -> MagicMock:
-    """Return a mock AsyncAnthropic client whose messages.create() returns response_text."""
+def _make_anthropic_mock(response_text: str) -> MagicMock:
+    """Return a mock AsyncAnthropic whose messages.create() returns response_text."""
     mock_message = MagicMock()
     mock_message.content = [MagicMock(text=response_text)]
     mock_client = MagicMock()
@@ -61,9 +62,21 @@ def _make_client_mock(response_text: str) -> MagicMock:
     return mock_client
 
 
-def _make_evaluator(mock_client: MagicMock) -> Evaluator:
-    with patch("core.evaluator.anthropic.AsyncAnthropic", return_value=mock_client):
-        return Evaluator(BASE_PROFILE, SETTINGS, api_key="test-key")
+def _make_llm_mock(response_text: str) -> LLMClient:
+    """Return an LLMClient wrapping a mock Anthropic client."""
+    return LLMClient(
+        client=_make_anthropic_mock(response_text),
+        default_model="test-model",
+    )
+
+
+def _make_evaluator(mock_client_or_llm) -> Evaluator:
+    """Create an Evaluator. Accepts either a MagicMock (Anthropic) or LLMClient."""
+    if isinstance(mock_client_or_llm, LLMClient):
+        return Evaluator(BASE_PROFILE, SETTINGS, llm_client=mock_client_or_llm)
+    # Legacy: wrap an Anthropic mock in LLMClient
+    llm = LLMClient(client=mock_client_or_llm, default_model="test-model")
+    return Evaluator(BASE_PROFILE, SETTINGS, llm_client=llm)
 
 
 # ---------------------------------------------------------------------------
@@ -108,48 +121,13 @@ def test_evaluation_result_raw_is_defensive_copy():
 
 
 # ---------------------------------------------------------------------------
-# _parse_response
-# ---------------------------------------------------------------------------
-
-
-def test_parse_clean_json():
-    mock_client = _make_client_mock("")
-    evaluator = _make_evaluator(mock_client)
-    result = evaluator._parse_response(json.dumps(VALID_RESPONSE))
-    assert result["relevancy_score"] == 8
-
-
-def test_parse_json_with_markdown_fences():
-    fenced = f"```json\n{json.dumps(VALID_RESPONSE)}\n```"
-    mock_client = _make_client_mock("")
-    evaluator = _make_evaluator(mock_client)
-    result = evaluator._parse_response(fenced)
-    assert result["relevancy_score"] == 8
-
-
-def test_parse_json_with_plain_fences():
-    fenced = f"```\n{json.dumps(VALID_RESPONSE)}\n```"
-    mock_client = _make_client_mock("")
-    evaluator = _make_evaluator(mock_client)
-    result = evaluator._parse_response(fenced)
-    assert result["relevancy_score"] == 8
-
-
-def test_parse_invalid_json_raises_value_error():
-    mock_client = _make_client_mock("")
-    evaluator = _make_evaluator(mock_client)
-    with pytest.raises(ValueError, match="Claude returned invalid JSON"):
-        evaluator._parse_response("not json at all")
-
-
-# ---------------------------------------------------------------------------
 # _assemble_user_message
 # ---------------------------------------------------------------------------
 
 
 def test_user_message_contains_job_fields():
-    mock_client = _make_client_mock("")
-    evaluator = _make_evaluator(mock_client)
+    llm = _make_llm_mock("")
+    evaluator = _make_evaluator(llm)
     msg = evaluator._assemble_user_message(JOB, PLATFORM_CONTEXT)
     assert "Unity AR Developer" in msg
     assert "Build an AR app." in msg
@@ -163,8 +141,8 @@ def test_user_message_none_fields_become_na():
         id="job-min", platform="upwork", title="Min Job",
         description="Desc", url="https://upwork.com/jobs/job-min",
     )
-    mock_client = _make_client_mock("")
-    evaluator = _make_evaluator(mock_client)
+    llm = _make_llm_mock("")
+    evaluator = _make_evaluator(llm)
     msg = evaluator._assemble_user_message(job, PLATFORM_CONTEXT)
     assert "N/A" in msg
 
@@ -175,28 +153,28 @@ def test_user_message_none_fields_become_na():
 
 
 def test_system_prompt_contains_platform_name():
-    mock_client = _make_client_mock("")
-    evaluator = _make_evaluator(mock_client)
+    llm = _make_llm_mock("")
+    evaluator = _make_evaluator(llm)
     prompt = evaluator._assemble_system_prompt(PLATFORM_CONTEXT)
     assert "upwork" in prompt.lower()
 
 
 def test_system_prompt_contains_evaluation_notes():
-    mock_client = _make_client_mock("")
-    evaluator = _make_evaluator(mock_client)
+    llm = _make_llm_mock("")
+    evaluator = _make_evaluator(llm)
     prompt = evaluator._assemble_system_prompt(PLATFORM_CONTEXT)
     assert "Check payment verification." in prompt
 
 
 def test_system_prompt_contains_system_instructions():
-    mock_client = _make_client_mock("")
-    evaluator = _make_evaluator(mock_client)
+    llm = _make_llm_mock("")
+    evaluator = _make_evaluator(llm)
     prompt = evaluator._assemble_system_prompt(PLATFORM_CONTEXT)
     assert "Return ONLY a raw JSON object" in prompt
 
 
 # ---------------------------------------------------------------------------
-# evaluate() — full integration with mocked client
+# evaluate() — full integration with mocked LLMClient
 # ---------------------------------------------------------------------------
 
 
@@ -207,25 +185,55 @@ def run(coro):
     return asyncio.run(coro)
 
 
+def _make_sequential_anthropic_mock(texts: list[str]) -> MagicMock:
+    """Mock returning texts in sequence (score, then full response)."""
+    messages = []
+    for t in texts:
+        msg = MagicMock()
+        msg.content = [MagicMock(text=t)]
+        messages.append(msg)
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(side_effect=messages)
+    return mock_client
+
+
+def _make_sequential_evaluator(texts: list[str]) -> Evaluator:
+    """Create an evaluator whose underlying Anthropic mock returns texts in sequence."""
+    mock_client = _make_sequential_anthropic_mock(texts)
+    llm = LLMClient(client=mock_client, default_model="test-model")
+    return Evaluator(BASE_PROFILE, SETTINGS, llm_client=llm)
+
+
 def test_evaluate_returns_evaluation_result():
-    mock_client = _make_client_mock(json.dumps(VALID_RESPONSE))
-    evaluator = _make_evaluator(mock_client)
+    evaluator = _make_sequential_evaluator([
+        "8",  # Pass 1 score
+        json.dumps(VALID_RESPONSE),  # Pass 2 full eval
+    ])
     result = run(evaluator.evaluate(JOB, PLATFORM_CONTEXT))
     assert isinstance(result, EvaluationResult)
     assert result.relevancy_score == 8
 
 
-def test_evaluate_passes_correct_model_and_temperature():
-    mock_client = _make_client_mock(json.dumps(VALID_RESPONSE))
-    evaluator = _make_evaluator(mock_client)
-    run(evaluator.evaluate(JOB, PLATFORM_CONTEXT))
-    call_kwargs = mock_client.messages.create.call_args.kwargs
-    assert call_kwargs["model"] == "claude-haiku-4-5-20251001"
-    assert call_kwargs["temperature"] == 0
+def test_evaluate_low_score_skips_full_evaluation():
+    """Jobs scoring below threshold return score-only result with a single API call."""
+    mock_client = _make_sequential_anthropic_mock([
+        "3",  # low score
+        json.dumps(VALID_RESPONSE),  # should NOT be called
+    ])
+    llm = LLMClient(client=mock_client, default_model="test-model")
+    evaluator = _make_evaluator(llm)
+    result = run(evaluator.evaluate(JOB, PLATFORM_CONTEXT))
+    assert result.relevancy_score == 3
+    assert result.evaluation is None
+    assert result.summary is None
+    # Only one API call — full evaluation was skipped
+    assert mock_client.messages.create.call_count == 1
 
 
 def test_evaluate_raises_on_bad_json_response():
-    mock_client = _make_client_mock("not json")
-    evaluator = _make_evaluator(mock_client)
-    with pytest.raises(ValueError):
+    evaluator = _make_sequential_evaluator([
+        "8",  # Pass 1 score
+        "not json",  # Pass 2 invalid
+    ])
+    with pytest.raises(Exception):  # LLMError from generate_json
         run(evaluator.evaluate(JOB, PLATFORM_CONTEXT))

@@ -7,6 +7,7 @@ from typing import Annotated
 import asyncpg
 from fastapi import Depends, HTTPException, Request, status
 
+from core.llm_client import LLMClient
 from repositories.company_blacklist import CompanyBlacklistRepository
 from repositories.job_list import JobListRepository
 from repositories.job_result import JobResultRepository
@@ -27,6 +28,11 @@ _SESSION_COOKIE = "session_token"
 async def get_db_pool(request: Request) -> asyncpg.Pool:
     """Extract the asyncpg pool stored on app.state by the lifespan handler."""
     return request.app.state.db_pool
+
+
+async def get_llm_client(request: Request) -> LLMClient:
+    """Return the shared LLMClient stored on app.state by the lifespan handler."""
+    return request.app.state.llm_client
 
 
 async def get_auth_service(

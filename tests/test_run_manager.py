@@ -38,7 +38,7 @@ def _make_result(**overrides) -> PipelineRunResult:
 
 
 def _make_manager() -> RunManager:
-    return RunManager(anthropic_api_key="test-key", pool=MagicMock())
+    return RunManager(llm_client=MagicMock(), pool=MagicMock())
 
 
 def _mock_repo(*, has_active: bool = False, find_row=None):

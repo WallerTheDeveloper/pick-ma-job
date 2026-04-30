@@ -164,7 +164,7 @@ def _make_service(profile_repo, search_config_repo, job_result_repo, company_bla
         job_result_repo=job_result_repo,
         job_list_repo=AsyncMock(),
         company_blacklist_repo=company_blacklist_repo,
-        anthropic_api_key="test-key",
+        llm_client=MagicMock(),
     )
 
 
@@ -614,7 +614,7 @@ def _make_service_no_repos() -> PipelineService:
         job_result_repo=AsyncMock(),
         job_list_repo=AsyncMock(),
         company_blacklist_repo=blacklist_repo,
-        anthropic_api_key="test-key",
+        llm_client=MagicMock(),
     )
 
 

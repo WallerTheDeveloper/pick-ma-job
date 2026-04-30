@@ -14,6 +14,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
+import anthropic
 import resend
 import uvicorn
 from dotenv import load_dotenv
@@ -24,6 +25,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from api.limiter import limiter
+from core.llm_client import LLMClient
 from api.routes.api_admin import router as api_admin_router
 from api.routes.api_company_blacklist import router as api_company_blacklist_router
 from api.routes.api_cv import router as api_cv_router
@@ -106,8 +108,17 @@ async def lifespan(app: FastAPI):
     resend.api_key = os.environ["RESEND_API_KEY"]
 
     app.state.db_pool = await create_pool(os.environ["DATABASE_URL"])
+
+    app.state.anthropic_client = anthropic.AsyncAnthropic(
+        api_key=os.environ["ANTHROPIC_API_KEY"],
+    )
+    app.state.llm_client = LLMClient(
+        client=app.state.anthropic_client,
+        default_model="claude-haiku-4-5-20251001",
+    )
+
     app.state.run_manager = RunManager(
-        anthropic_api_key=os.environ["ANTHROPIC_API_KEY"],
+        llm_client=app.state.llm_client,
         pool=app.state.db_pool,
     )
     await app.state.run_manager.reconcile_stale_runs()

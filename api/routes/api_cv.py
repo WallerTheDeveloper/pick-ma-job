@@ -1,13 +1,12 @@
 """CV JSON API — upload, retrieve, delete, and customize CVs."""
 
 import logging
-import os
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 
 from api.csrf import require_csrf
-from api.deps import get_current_user, get_db_pool
+from api.deps import get_current_user, get_db_pool, get_llm_client
 from api.limiter import limiter
 from api.schemas import (
     CVCustomizeRequest,
@@ -17,6 +16,7 @@ from api.schemas import (
     CVUploadResponse,
     OkResponse,
 )
+from core.llm_client import LLMClient
 from repositories.cv import CVRepository
 from repositories.cv_customization import CVCustomizationRepository
 from repositories.job_result import JobResultRepository
@@ -34,13 +34,14 @@ _ALLOWED_CONTENT_TYPES = {"application/pdf", "application/x-pdf"}
 
 async def get_cv_service(
     pool: Annotated[asyncpg.Pool, Depends(get_db_pool)],
+    llm_client: Annotated[LLMClient, Depends(get_llm_client)],
 ) -> CVService:
     """Construct a CVService with per-request repository instances."""
     return CVService(
         cv_repo=CVRepository(pool),
         cv_customization_repo=CVCustomizationRepository(pool),
         job_result_repo=JobResultRepository(pool),
-        api_key=os.environ["ANTHROPIC_API_KEY"],
+        llm_client=llm_client,
     )
 
 

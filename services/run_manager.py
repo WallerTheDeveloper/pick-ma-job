@@ -19,6 +19,7 @@ from uuid import UUID, uuid4
 
 import asyncpg
 
+from core.llm_client import LLMClient
 from repositories.company_blacklist import CompanyBlacklistRepository
 from repositories.job_list import JobListRepository
 from repositories.job_result import JobResultRepository
@@ -45,12 +46,12 @@ class RunManager:
     ``asyncio.Task``, then returns the ``run_id`` immediately.
 
     Args:
-        anthropic_api_key: Passed through to each ``PipelineService``.
+        llm_client: Shared ``LLMClient`` passed through to each ``PipelineService``.
         pool: asyncpg connection pool shared with the rest of the app.
     """
 
-    def __init__(self, anthropic_api_key: str, pool: asyncpg.Pool) -> None:
-        self._api_key = anthropic_api_key
+    def __init__(self, llm_client: LLMClient, pool: asyncpg.Pool) -> None:
+        self._llm_client = llm_client
         self._pool = pool
 
     async def reconcile_stale_runs(self, stale_after_minutes: int = _STALE_RUN_MINUTES) -> None:
@@ -121,7 +122,7 @@ class RunManager:
             job_result_repo=JobResultRepository(self._pool),
             job_list_repo=JobListRepository(self._pool),
             company_blacklist_repo=CompanyBlacklistRepository(self._pool),
-            anthropic_api_key=self._api_key,
+            llm_client=self._llm_client,
         )
 
         try:
