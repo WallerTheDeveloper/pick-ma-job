@@ -517,6 +517,7 @@ def test_pipeline_run_result_is_frozen():
         jobs_skipped_low_score=0,
         jobs_evaluated=3,
         jobs_stored=3,
+        jobs_failed=0,
         errors=(),
     )
     with pytest.raises(Exception):
@@ -532,6 +533,7 @@ def test_pipeline_run_result_errors_is_tuple():
         jobs_skipped_low_score=0,
         jobs_evaluated=1,
         jobs_stored=1,
+        jobs_failed=0,
         errors=("some error",),
     )
     assert isinstance(r.errors, tuple)

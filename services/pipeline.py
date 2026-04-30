@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
+import asyncio
+
 from core.evaluator import Evaluator
 from core.prompt_adapter import load_platform_context, profile_row_to_prompt_dict
 from repositories.company_blacklist import CompanyBlacklistRepository
@@ -50,6 +52,7 @@ class PlatformResult:
     jobs_skipped_low_score: int
     jobs_evaluated: int
     jobs_stored: int
+    jobs_failed: int
     errors: tuple[str, ...]
 
 
@@ -64,6 +67,17 @@ class PipelineRunResult:
     jobs_skipped_low_score: int
     jobs_evaluated: int
     jobs_stored: int
+    jobs_failed: int
+    errors: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class _EvalResult:
+    """Internal result from evaluating and storing a single job."""
+
+    job_id: UUID
+    evaluation: dict | None  # None means low score (skipped full eval)
+    stored: bool
     errors: tuple[str, ...]
 
 
@@ -93,6 +107,7 @@ class PipelineService:
         self._company_blacklist_repo = company_blacklist_repo
         self._anthropic_api_key = anthropic_api_key
         self._settings = _SETTINGS
+        self._concurrency: int = _SETTINGS.get("evaluation_concurrency", 8)
         self._exclude_keywords: tuple[str, ...] = tuple(
             kw.lower()
             for kw in _SETTINGS.get("pre_filters", {}).get("exclude_title_keywords", [])
@@ -170,6 +185,7 @@ class PipelineService:
             jobs_skipped_low_score=sum(r.jobs_skipped_low_score for r in platform_results),
             jobs_evaluated=sum(r.jobs_evaluated for r in platform_results),
             jobs_stored=sum(r.jobs_stored for r in platform_results),
+            jobs_failed=sum(r.jobs_failed for r in platform_results),
             errors=tuple(e for r in platform_results for e in r.errors),
         )
 
@@ -212,14 +228,11 @@ class PipelineService:
 
         blacklist = await self._company_blacklist_repo.find_names_by_user_id(user_id)
 
+        # Pre-filter jobs serially (dedup, blacklist, keyword filter)
         jobs_skipped_dedup = 0
         jobs_skipped_filter = 0
         jobs_skipped_blacklist = 0
-        jobs_skipped_low_score = 0
-        jobs_evaluated = 0
-        jobs_stored = 0
-        errors: list[str] = []
-        new_job_ids: list[UUID] = []
+        jobs_to_evaluate: list[NormalizedJob] = []
 
         for job in jobs:
             already_seen = await self._job_result_repo.exists(user_id, platform, job.id)
@@ -237,44 +250,45 @@ class PipelineService:
                 jobs_skipped_filter += 1
                 continue
 
-            try:
-                result = await evaluator.evaluate(job, platform_context)
-            except Exception as exc:
-                logger.error(
-                    "Evaluation failed for '%s': %s",
-                    job.title,
-                    exc,
-                    exc_info=True,
-                )
-                errors.append(f"Evaluation failed for '{job.title}': {type(exc).__name__}: {exc}")
-                continue
+            jobs_to_evaluate.append(job)
 
-            if result.evaluation is None:
-                jobs_skipped_low_score += 1
-            else:
-                jobs_evaluated += 1
+        # Evaluate jobs concurrently with semaphore
+        semaphore = asyncio.Semaphore(self._concurrency)
+        eval_tasks = [
+            self._evaluate_and_store(
+                job=job,
+                user_id=user_id,
+                platform=platform,
+                evaluator=evaluator,
+                platform_context=platform_context,
+                semaphore=semaphore,
+            )
+            for job in jobs_to_evaluate
+        ]
+        eval_results = await asyncio.gather(*eval_tasks, return_exceptions=True)
 
-            try:
-                stored = await self._job_result_repo.insert(
-                    user_id=user_id,
-                    platform=platform,
-                    job_id=job.id,
-                    title=job.title,
-                    url=job.url,
-                    score=result.relevancy_score,
-                    evaluation=result.raw if result.evaluation is not None else None,
-                )
-                if stored is not None:
+        # Aggregate results from concurrent evaluation
+        jobs_skipped_low_score = 0
+        jobs_evaluated = 0
+        jobs_stored = 0
+        jobs_failed = 0
+        errors: list[str] = []
+        new_job_ids: list[UUID] = []
+
+        for result in eval_results:
+            if isinstance(result, Exception):
+                jobs_failed += 1
+                errors.append(f"Job evaluation failed: {type(result).__name__}: {result}")
+                logger.error("Job evaluation failed: %s", result, exc_info=True)
+            elif isinstance(result, _EvalResult):
+                if result.evaluation is None:
+                    jobs_skipped_low_score += 1
+                else:
+                    jobs_evaluated += 1
+                if result.stored:
                     jobs_stored += 1
-                    new_job_ids.append(stored.id)
-            except Exception as exc:
-                logger.error(
-                    "DB insert failed for '%s': %s",
-                    job.title,
-                    exc,
-                    exc_info=True,
-                )
-                errors.append(f"DB insert failed for '{job.title}': {type(exc).__name__}: {exc}")
+                    new_job_ids.append(result.job_id)
+                errors.extend(result.errors)
 
         if new_job_ids:
             list_name = f"{platform}-{run_started_at.strftime('%Y-%m-%d')}"
@@ -297,7 +311,7 @@ class PipelineService:
                 )
 
         logger.info(
-            "Pipeline done: platform=%s found=%d dedup=%d blacklist=%d filter=%d low_score=%d evaluated=%d stored=%d",
+            "Pipeline done: platform=%s found=%d dedup=%d blacklist=%d filter=%d low_score=%d evaluated=%d stored=%d failed=%d",
             platform,
             jobs_found,
             jobs_skipped_dedup,
@@ -306,6 +320,7 @@ class PipelineService:
             jobs_skipped_low_score,
             jobs_evaluated,
             jobs_stored,
+            jobs_failed,
         )
 
         return PlatformResult(
@@ -316,8 +331,116 @@ class PipelineService:
             jobs_skipped_low_score=jobs_skipped_low_score,
             jobs_evaluated=jobs_evaluated,
             jobs_stored=jobs_stored,
+            jobs_failed=jobs_failed,
             errors=tuple(errors),
         )
+
+    async def _evaluate_and_store(
+        self,
+        job: NormalizedJob,
+        user_id: UUID,
+        platform: str,
+        evaluator: Evaluator,
+        platform_context: dict,
+        semaphore: asyncio.Semaphore,
+    ) -> _EvalResult:
+        """Evaluate a single job and store the result.
+
+        This method is designed to be called concurrently with a semaphore to limit
+        the number of simultaneous evaluations.
+
+        Args:
+            job: The normalized job to evaluate.
+            user_id: The authenticated user.
+            platform: The platform slug.
+            evaluator: The Evaluator instance.
+            platform_context: Loaded platform context.
+            semaphore: Semaphore to limit concurrency.
+
+        Returns:
+            An _EvalResult with the job_id, evaluation result, stored status, and any errors.
+        """
+        async with semaphore:
+            errors: list[str] = []
+
+            try:
+                result = await evaluator.evaluate(job, platform_context)
+            except Exception as exc:
+                logger.error(
+                    "Evaluation failed for '%s': %s",
+                    job.title,
+                    exc,
+                    exc_info=True,
+                )
+                return _EvalResult(
+                    job_id=job.id,
+                    evaluation=None,
+                    stored=False,
+                    errors=(f"Evaluation failed for '{job.title}': {type(exc).__name__}: {exc}",),
+                )
+
+            if result.evaluation is None:
+                # Low score - still store the job with score only
+                try:
+                    stored = await self._job_result_repo.insert(
+                        user_id=user_id,
+                        platform=platform,
+                        job_id=job.id,
+                        title=job.title,
+                        url=job.url,
+                        score=result.relevancy_score,
+                        evaluation=None,
+                    )
+                    return _EvalResult(
+                        job_id=stored.id if stored else job.id,
+                        evaluation=None,
+                        stored=stored is not None,
+                        errors=(),
+                    )
+                except Exception as exc:
+                    logger.error(
+                        "DB insert failed for '%s': %s",
+                        job.title,
+                        exc,
+                        exc_info=True,
+                    )
+                    return _EvalResult(
+                        job_id=job.id,
+                        evaluation=None,
+                        stored=False,
+                        errors=(f"DB insert failed for '{job.title}': {type(exc).__name__}: {exc}",),
+                    )
+
+            # High score - store with full evaluation
+            try:
+                stored = await self._job_result_repo.insert(
+                    user_id=user_id,
+                    platform=platform,
+                    job_id=job.id,
+                    title=job.title,
+                    url=job.url,
+                    score=result.relevancy_score,
+                    evaluation=result.raw if result.evaluation is not None else None,
+                )
+                return _EvalResult(
+                    job_id=stored.id if stored else job.id,
+                    evaluation=result.raw if result.evaluation is not None else None,
+                    stored=stored is not None,
+                    errors=(),
+                )
+            except Exception as exc:
+                logger.error(
+                    "DB insert failed for '%s': %s",
+                    job.title,
+                    exc,
+                    exc_info=True,
+                )
+                return _EvalResult(
+                    job_id=job.id,
+                    evaluation=None,
+                    stored=False,
+                    errors=(f"DB insert failed for '{job.title}': {type(exc).__name__}: {exc}",),
+                )
 
     def _is_filtered(self, title: str) -> bool:
         """Return True if the job title matches any excluded keyword (case-insensitive)."""
