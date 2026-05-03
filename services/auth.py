@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -20,6 +21,28 @@ MAGIC_LINK_TTL_SECONDS = 15 * 60       # 15 minutes
 SESSION_TTL_DAYS = 30
 RATE_LIMIT_MAX = 3
 RATE_LIMIT_WINDOW_SECONDS = 10 * 60    # 10 minutes
+
+# ── Registration allowlist ────────────────────────────────────────────────────
+_ALLOWED_EMAILS: set[str] = {
+    e.strip().lower()
+    for e in os.environ.get("ALLOWED_EMAILS", "").split(",")
+    if e.strip()
+}
+_ALLOWED_DOMAIN: str = os.environ.get("ALLOWED_EMAIL_DOMAIN", "").strip().lower()
+
+
+def _is_email_allowed(email: str) -> bool:
+    """Return True if *email* passes the registration allowlist.
+
+    If neither ``ALLOWED_EMAILS`` nor ``ALLOWED_EMAIL_DOMAIN`` is configured
+    the check is open (all emails accepted) to preserve backward compatibility.
+    """
+    if _ALLOWED_EMAILS and email.lower() in _ALLOWED_EMAILS:
+        return True
+    if _ALLOWED_DOMAIN and email.lower().endswith(f"@{_ALLOWED_DOMAIN}"):
+        return True
+    # Open if neither env var is configured
+    return not _ALLOWED_EMAILS and not _ALLOWED_DOMAIN
 
 
 class AuthError(Exception):
@@ -62,6 +85,9 @@ class AuthService:
         """
         if not _EMAIL_RE.match(email):
             raise AuthValidationError("Invalid email address.")
+
+        if not _is_email_allowed(email):
+            raise AuthValidationError("Email address not permitted.")
 
         user = await self._user_repo.find_by_email(email)
         if user is None:

@@ -9,7 +9,7 @@ import pytest
 from repositories.magic_link import MagicLinkRow
 from repositories.session import SessionRow
 from repositories.user import UserRow
-from services.auth import AuthError, AuthService
+from services.auth import AuthError, AuthService, AuthValidationError, _is_email_allowed
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -54,7 +54,6 @@ def _make_service(
         user_repo=user_repo or MagicMock(),
         magic_link_repo=magic_link_repo or MagicMock(),
         session_repo=session_repo or MagicMock(),
-        resend_api_key="re_test",
         email_from="noreply@example.com",
         base_url="http://localhost:8000",
         skip_email=skip_email,
@@ -243,3 +242,56 @@ async def test_logout_no_session_is_silent():
     await svc.logout("nonexistent-token")  # Should not raise
 
     session_repo.delete.assert_not_awaited()
+
+
+# ── Email allowlist ───────────────────────────────────────────────────────────
+
+def test_is_email_allowed_open_when_no_env_vars():
+    """When neither env var is set, all emails are accepted."""
+    with patch.object(
+        __import__("services.auth", fromlist=["_is_email_allowed"]),
+        "_ALLOWED_EMAILS", set()
+    ), patch.object(
+        __import__("services.auth", fromlist=["_is_email_allowed"]),
+        "_ALLOWED_DOMAIN", ""
+    ):
+        import services.auth as auth_mod
+        # Reload the function's closure to pick up patched values
+        assert auth_mod._is_email_allowed("anyone@example.com") is True
+
+
+def test_is_email_allowed_specific_email():
+    import services.auth as auth_mod
+    with patch.object(auth_mod, "_ALLOWED_EMAILS", {"a@b.com"}), \
+         patch.object(auth_mod, "_ALLOWED_DOMAIN", ""):
+        assert auth_mod._is_email_allowed("a@b.com") is True
+        assert auth_mod._is_email_allowed("A@B.COM") is True
+        assert auth_mod._is_email_allowed("other@b.com") is False
+
+
+def test_is_email_allowed_domain():
+    import services.auth as auth_mod
+    with patch.object(auth_mod, "_ALLOWED_EMAILS", set()), \
+         patch.object(auth_mod, "_ALLOWED_DOMAIN", "example.com"):
+        assert auth_mod._is_email_allowed("user@example.com") is True
+        assert auth_mod._is_email_allowed("USER@EXAMPLE.COM") is True
+        assert auth_mod._is_email_allowed("user@other.com") is False
+
+
+def test_is_email_allowed_email_takes_priority_over_domain():
+    """If both are set, specific email match passes even if domain doesn't."""
+    import services.auth as auth_mod
+    with patch.object(auth_mod, "_ALLOWED_EMAILS", {"special@other.com"}), \
+         patch.object(auth_mod, "_ALLOWED_DOMAIN", "example.com"):
+        assert auth_mod._is_email_allowed("special@other.com") is True
+        assert auth_mod._is_email_allowed("user@example.com") is True
+        assert auth_mod._is_email_allowed("user@other.com") is False
+
+
+async def test_request_magic_link_rejects_disallowed_email():
+    import services.auth as auth_mod
+    with patch.object(auth_mod, "_ALLOWED_EMAILS", {"allowed@b.com"}), \
+         patch.object(auth_mod, "_ALLOWED_DOMAIN", ""):
+        svc = _make_service()
+        with pytest.raises(AuthValidationError, match="not permitted"):
+            await svc.request_magic_link("rejected@b.com")
