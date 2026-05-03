@@ -19,6 +19,7 @@ import asyncio
 from core.evaluator import Evaluator
 from core.llm_client import LLMClient
 from core.prompt_adapter import load_platform_context, profile_row_to_prompt_dict
+from core.settings import Settings
 from repositories.company_blacklist import CompanyBlacklistRepository
 from repositories.job_list import JobListRepository
 from repositories.job_result import JobResultRepository
@@ -30,12 +31,6 @@ from scrapers.registry import get_scraper, list_platforms
 logger = logging.getLogger(__name__)
 
 _PLATFORMS_DIR = Path(__file__).parent.parent / "configs" / "platforms"
-_SETTINGS_PATH = Path(__file__).parent.parent / "configs" / "settings.json"
-
-try:
-    _SETTINGS: dict = json.loads(_SETTINGS_PATH.read_text(encoding="utf-8"))
-except FileNotFoundError:
-    raise RuntimeError(f"settings.json not found at {_SETTINGS_PATH}") from None
 
 
 class PipelineError(Exception):
@@ -90,6 +85,7 @@ class PipelineService:
         search_config_repo: Repository for loading user search configs.
         job_result_repo: Repository for dedup checks and result storage.
         llm_client: Shared ``LLMClient`` passed through to the ``Evaluator``.
+        settings: Validated application settings.
     """
 
     def __init__(
@@ -100,6 +96,7 @@ class PipelineService:
         job_list_repo: JobListRepository,
         company_blacklist_repo: CompanyBlacklistRepository,
         llm_client: LLMClient,
+        settings: Settings,
     ) -> None:
         self._profile_repo = profile_repo
         self._search_config_repo = search_config_repo
@@ -107,11 +104,10 @@ class PipelineService:
         self._job_list_repo = job_list_repo
         self._company_blacklist_repo = company_blacklist_repo
         self._llm_client = llm_client
-        self._settings = _SETTINGS
-        self._concurrency: int = _SETTINGS.get("evaluation_concurrency", 8)
+        self._settings = settings
+        self._concurrency: int = settings.evaluation_concurrency
         self._exclude_keywords: tuple[str, ...] = tuple(
-            kw.lower()
-            for kw in _SETTINGS.get("pre_filters", {}).get("exclude_title_keywords", [])
+            kw.lower() for kw in settings.exclude_title_keywords
         )
 
     async def run_pipeline(

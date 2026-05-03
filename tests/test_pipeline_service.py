@@ -15,6 +15,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from core.settings import Settings
 from repositories.job_result import JobResultRow
 from repositories.profile import ProfileRow
 from repositories.search_config import SearchConfigRow
@@ -31,6 +32,22 @@ _RUBRIC = {
     "evaluation_factors": ["Skills Match"],
     "system_instructions": "Evaluate the job.",
 }
+
+# Default settings with exclude keywords matching configs/settings.json
+_DEFAULT_SETTINGS = Settings(
+    exclude_title_keywords=[
+        "unreal",
+        "godot",
+        "react native",
+        "flutter",
+        "devops",
+        "data science",
+        "machine learning",
+        "data engineer",
+        "android developer",
+        "ios developer",
+    ],
+)
 
 
 def _make_profile(**overrides) -> ProfileRow:
@@ -165,6 +182,7 @@ def _make_service(profile_repo, search_config_repo, job_result_repo, company_bla
         job_list_repo=AsyncMock(),
         company_blacklist_repo=company_blacklist_repo,
         llm_client=MagicMock(),
+        settings=_DEFAULT_SETTINGS,
     )
 
 
@@ -615,6 +633,7 @@ def _make_service_no_repos() -> PipelineService:
         job_list_repo=AsyncMock(),
         company_blacklist_repo=blacklist_repo,
         llm_client=MagicMock(),
+        settings=_DEFAULT_SETTINGS,
     )
 
 

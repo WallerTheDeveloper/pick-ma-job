@@ -8,6 +8,7 @@ import asyncpg
 from fastapi import Depends, HTTPException, Request, status
 
 from core.llm_client import LLMClient
+from core.settings import Settings
 from repositories.company_blacklist import CompanyBlacklistRepository
 from repositories.job_list import JobListRepository
 from repositories.job_result import JobResultRepository
@@ -33,6 +34,11 @@ async def get_db_pool(request: Request) -> asyncpg.Pool:
 async def get_llm_client(request: Request) -> LLMClient:
     """Return the shared LLMClient stored on app.state by the lifespan handler."""
     return request.app.state.llm_client
+
+
+def get_settings(request: Request) -> Settings:
+    """Return the validated Settings stored on app.state by the lifespan handler."""
+    return request.app.state.settings
 
 
 async def get_auth_service(

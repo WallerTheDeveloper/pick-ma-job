@@ -14,6 +14,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from core.settings import Settings
 from services.pipeline import PipelineRunResult
 from services.run_manager import RunActiveError, RunManager
 
@@ -31,6 +32,7 @@ def _make_result(**overrides) -> PipelineRunResult:
         jobs_skipped_low_score=0,
         jobs_evaluated=3,
         jobs_stored=3,
+        jobs_failed=0,
         errors=(),
     )
     defaults.update(overrides)
@@ -38,7 +40,7 @@ def _make_result(**overrides) -> PipelineRunResult:
 
 
 def _make_manager() -> RunManager:
-    return RunManager(llm_client=MagicMock(), pool=MagicMock())
+    return RunManager(llm_client=MagicMock(), pool=MagicMock(), settings=Settings())
 
 
 def _mock_repo(*, has_active: bool = False, find_row=None):

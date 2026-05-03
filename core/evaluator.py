@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.llm_client import LLMClient, LLMError, LLMResponse
+from core.settings import Settings
 from scrapers.base import NormalizedJob
 
 logger = logging.getLogger(__name__)
@@ -80,18 +81,18 @@ class Evaluator:
 
     Args:
         base_profile: Loaded ``configs/prompts/base_profile.json``.
-        settings: Loaded ``configs/settings.json``.
+        settings: Validated application settings.
         llm_client: A shared ``LLMClient`` instance.
     """
 
     def __init__(
         self,
         base_profile: dict,
-        settings: dict,
+        settings: Settings,
         llm_client: LLMClient,
     ) -> None:
         self._base_profile = base_profile
-        self._temperature: float = settings.get("temperature", 0)
+        self._temperature: float = settings.claude_temperature
         self._llm = llm_client
 
     async def evaluate(

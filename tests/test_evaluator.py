@@ -7,6 +7,7 @@ import pytest
 
 from core.evaluator import EvaluationResult, Evaluator
 from core.llm_client import LLMClient
+from core.settings import Settings
 from scrapers.base import NormalizedJob
 
 # ---------------------------------------------------------------------------
@@ -21,7 +22,10 @@ BASE_PROFILE = {
     "evaluation_factors": ["Skills Match"],
 }
 
-SETTINGS = {"model": "claude-haiku-4-5-20251001", "temperature": 0}
+SETTINGS = Settings(
+    claude_model="claude-haiku-4-5-20251001",
+    claude_temperature=0.0,
+)
 
 PLATFORM_CONTEXT = {
     "platform": "upwork",

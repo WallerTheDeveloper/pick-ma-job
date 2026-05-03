@@ -27,6 +27,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from api.limiter import limiter
 from core.llm_client import LLMClient
 from core.logging import configure_logging
+from core.settings import Settings
 from api.routes.api_admin import router as api_admin_router
 from api.routes.api_company_blacklist import router as api_company_blacklist_router
 from api.routes.api_cv import router as api_cv_router
@@ -103,6 +104,10 @@ async def lifespan(app: FastAPI):
 
     logger.info("Application version: %s", app.state.version)
 
+    # Load and validate settings at startup — fails fast on malformed config
+    app.state.settings = Settings.from_json_file()
+    logger.info("Settings loaded: model=%s score_threshold=%d", app.state.settings.claude_model, app.state.settings.score_threshold)
+
     resend.api_key = os.environ["RESEND_API_KEY"]
 
     app.state.db_pool = await create_pool(os.environ["DATABASE_URL"])
@@ -112,12 +117,13 @@ async def lifespan(app: FastAPI):
     )
     app.state.llm_client = LLMClient(
         client=app.state.anthropic_client,
-        default_model="claude-haiku-4-5-20251001",
+        default_model=app.state.settings.claude_model,
     )
 
     app.state.run_manager = RunManager(
         llm_client=app.state.llm_client,
         pool=app.state.db_pool,
+        settings=app.state.settings,
     )
     await app.state.run_manager.reconcile_stale_runs()
 

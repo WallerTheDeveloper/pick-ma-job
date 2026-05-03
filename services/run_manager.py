@@ -21,6 +21,7 @@ import asyncpg
 
 from core.context import run_id_var, user_id_var
 from core.llm_client import LLMClient
+from core.settings import Settings
 from repositories.company_blacklist import CompanyBlacklistRepository
 from repositories.job_list import JobListRepository
 from repositories.job_result import JobResultRepository
@@ -49,11 +50,13 @@ class RunManager:
     Args:
         llm_client: Shared ``LLMClient`` passed through to each ``PipelineService``.
         pool: asyncpg connection pool shared with the rest of the app.
+        settings: Validated application settings.
     """
 
-    def __init__(self, llm_client: LLMClient, pool: asyncpg.Pool) -> None:
+    def __init__(self, llm_client: LLMClient, pool: asyncpg.Pool, settings: Settings) -> None:
         self._llm_client = llm_client
         self._pool = pool
+        self._settings = settings
 
     async def reconcile_stale_runs(self, stale_after_minutes: int = _STALE_RUN_MINUTES) -> None:
         """Mark pending/running rows older than stale_after_minutes as failed.
@@ -128,6 +131,7 @@ class RunManager:
             job_list_repo=JobListRepository(self._pool),
             company_blacklist_repo=CompanyBlacklistRepository(self._pool),
             llm_client=self._llm_client,
+            settings=self._settings,
         )
 
         try:
