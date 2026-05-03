@@ -1,8 +1,12 @@
 """CSRF token utilities — Double Submit Cookie pattern.
 
 The CSRF token is derived from the session token via HMAC-SHA256 using the
-MAGIC_LINK_SECRET. This avoids storing CSRF tokens in the database while
-remaining unpredictable to any party that does not know the secret.
+CSRF_SECRET (falling back to MAGIC_LINK_SECRET for backward compatibility).
+This avoids storing CSRF tokens in the database while remaining unpredictable
+to any party that does not know the secret.
+
+Using a separate CSRF_SECRET allows rotating MAGIC_LINK_SECRET without
+invalidating active CSRF tokens (and vice versa).
 
 Usage:
 - On login (verify_magic_link), set the csrf_token cookie (non-HttpOnly).
@@ -24,10 +28,23 @@ _CSRF_HEADER = "X-CSRF-Token"
 _SESSION_COOKIE = "session_token"
 
 
+def _get_csrf_secret() -> bytes:
+    """Return the CSRF HMAC secret.
+
+    Prefers ``CSRF_SECRET``; falls back to ``MAGIC_LINK_SECRET`` so existing
+    installs without ``CSRF_SECRET`` keep working without a redeploy.
+    """
+    secret = os.environ.get("CSRF_SECRET") or os.environ.get("MAGIC_LINK_SECRET")
+    if not secret:
+        raise RuntimeError(
+            "Either CSRF_SECRET or MAGIC_LINK_SECRET must be set"
+        )
+    return secret.encode()
+
+
 def derive_csrf_token(session_token: str) -> str:
     """Derive a CSRF token from a session token using HMAC-SHA256."""
-    secret = os.environ["MAGIC_LINK_SECRET"].encode()
-    return hmac.new(secret, session_token.encode(), hashlib.sha256).hexdigest()
+    return hmac.new(_get_csrf_secret(), session_token.encode(), hashlib.sha256).hexdigest()
 
 
 async def require_csrf(

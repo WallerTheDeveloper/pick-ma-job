@@ -42,6 +42,48 @@ def test_derive_csrf_token_returns_hex_string(monkeypatch):
     assert all(c in "0123456789abcdef" for c in token)
 
 
+# ── Unit tests: CSRF_SECRET vs MAGIC_LINK_SECRET ─────────────────────────────
+
+def test_csrf_secret_takes_precedence(monkeypatch):
+    """CSRF_SECRET is preferred over MAGIC_LINK_SECRET when both are set."""
+    monkeypatch.setenv("MAGIC_LINK_SECRET", "magic-secret")
+    monkeypatch.setenv("CSRF_SECRET", "csrf-secret")
+    token_with_csrf = derive_csrf_token("session-abc")
+
+    monkeypatch.delenv("CSRF_SECRET")
+    token_with_magic = derive_csrf_token("session-abc")
+
+    assert token_with_csrf != token_with_magic
+
+
+def test_falls_back_to_magic_link_secret(monkeypatch):
+    """Falls back to MAGIC_LINK_SECRET when CSRF_SECRET is not set."""
+    monkeypatch.delenv("CSRF_SECRET", raising=False)
+    monkeypatch.setenv("MAGIC_LINK_SECRET", "magic-secret")
+    token = derive_csrf_token("session-abc")
+    assert len(token) == 64
+
+
+def test_rotating_magic_link_secret_preserves_csrf_when_csrf_secret_set(monkeypatch):
+    """Rotating MAGIC_LINK_SECRET while CSRF_SECRET is unchanged does not invalidate tokens."""
+    monkeypatch.setenv("CSRF_SECRET", "stable-csrf-secret")
+    monkeypatch.setenv("MAGIC_LINK_SECRET", "old-magic-secret")
+    token_before = derive_csrf_token("session-abc")
+
+    monkeypatch.setenv("MAGIC_LINK_SECRET", "new-magic-secret")
+    token_after = derive_csrf_token("session-abc")
+
+    assert token_before == token_after
+
+
+def test_raises_when_no_secret_set(monkeypatch):
+    """Raises RuntimeError when neither CSRF_SECRET nor MAGIC_LINK_SECRET is set."""
+    monkeypatch.delenv("CSRF_SECRET", raising=False)
+    monkeypatch.delenv("MAGIC_LINK_SECRET", raising=False)
+    with pytest.raises(RuntimeError, match="CSRF_SECRET or MAGIC_LINK_SECRET"):
+        derive_csrf_token("session-abc")
+
+
 # ── Integration fixtures ───────────────────────────────────────────────────────
 
 from repositories.user import UserRow
