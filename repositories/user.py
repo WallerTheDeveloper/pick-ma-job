@@ -16,6 +16,7 @@ class UserRow:
     email: str
     created_at: datetime
     last_login: datetime | None
+    is_admin: bool = False
 
 
 @dataclass(frozen=True)
@@ -33,6 +34,7 @@ def _row_to_user(row: asyncpg.Record) -> UserRow:
         email=row["email"],
         created_at=row["created_at"],
         last_login=row["last_login"],
+        is_admin=row.get("is_admin", False),
     )
 
 
@@ -44,7 +46,7 @@ class UserRepository:
         """Return the user with the given email, or None if not found."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT id, email, created_at, last_login FROM users WHERE email = $1",
+                "SELECT id, email, created_at, last_login, is_admin FROM users WHERE email = $1",
                 email,
             )
         return _row_to_user(row) if row else None
@@ -53,7 +55,7 @@ class UserRepository:
         """Return the user with the given id, or None if not found."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT id, email, created_at, last_login FROM users WHERE id = $1",
+                "SELECT id, email, created_at, last_login, is_admin FROM users WHERE id = $1",
                 user_id,
             )
         return _row_to_user(row) if row else None
@@ -65,7 +67,7 @@ class UserRepository:
                 """
                 INSERT INTO users (email)
                 VALUES ($1)
-                RETURNING id, email, created_at, last_login
+                RETURNING id, email, created_at, last_login, is_admin
                 """,
                 email,
             )
@@ -114,3 +116,13 @@ class UserRepository:
                 "UPDATE users SET last_login = now() WHERE id = $1",
                 user_id,
             )
+
+    async def set_admin(self, user_id: UUID, is_admin: bool) -> None:
+        """Set the is_admin flag for the given user."""
+        async with self._pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE users SET is_admin = $2 WHERE id = $1",
+                user_id,
+                is_admin,
+            )
+        logger.info("Set is_admin=%s for user_id=%s", is_admin, user_id)

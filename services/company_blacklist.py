@@ -3,6 +3,7 @@
 import logging
 from uuid import UUID
 
+from core.exceptions import ConflictError, DomainError, NotFoundError
 from repositories.company_blacklist import CompanyBlacklistEntry, CompanyBlacklistRepository
 
 logger = logging.getLogger(__name__)
@@ -11,9 +12,8 @@ _MAX_ENTRIES = 500
 _MIN_NAME_LEN = 3
 _MAX_NAME_LEN = 200
 
-
-class CompanyBlacklistError(Exception):
-    """Raised for expected blacklist validation or state failures."""
+# Backward-compatible alias — existing tests catch CompanyBlacklistError.
+CompanyBlacklistError = DomainError
 
 
 class CompanyBlacklistService:
@@ -28,26 +28,26 @@ class CompanyBlacklistService:
         """Validate and add a company to the user's blacklist."""
         name = name.strip()
         if not name:
-            raise CompanyBlacklistError("Name cannot be empty")
+            raise DomainError("Name cannot be empty", http_status=422)
         if len(name) < _MIN_NAME_LEN:
-            raise CompanyBlacklistError("Name must be at least 3 characters")
+            raise DomainError("Name must be at least 3 characters", http_status=422)
         if len(name) > _MAX_NAME_LEN:
-            raise CompanyBlacklistError("Name must be at most 200 characters")
+            raise DomainError("Name must be at most 200 characters", http_status=422)
 
         entries = await self._repo.find_by_user_id(user_id)
         if len(entries) >= _MAX_ENTRIES:
-            raise CompanyBlacklistError("Blacklist limit reached (500)")
+            raise DomainError("Blacklist limit reached (500)", http_status=422)
 
         entry = await self._repo.insert(user_id, name)
         if entry is None:
-            raise CompanyBlacklistError("Company already blacklisted")
+            raise ConflictError("Company already blacklisted")
 
         logger.info("Added blacklist entry user_id=%s name=%s", user_id, name)
         return entry
 
     async def remove(self, user_id: UUID, entry_id: UUID) -> None:
-        """Remove a blacklist entry; raises CompanyBlacklistError if not found."""
+        """Remove a blacklist entry; raises NotFoundError if not found."""
         deleted = await self._repo.delete(user_id, entry_id)
         if not deleted:
-            raise CompanyBlacklistError("Entry not found")
+            raise NotFoundError("Entry not found")
         logger.info("Removed blacklist entry id=%s user_id=%s", entry_id, user_id)

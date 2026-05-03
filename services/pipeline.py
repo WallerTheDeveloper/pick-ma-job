@@ -11,12 +11,14 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from uuid import UUID
 
 import asyncio
 
 from core.evaluator import Evaluator
+from core.exceptions import DomainError
 from core.llm_client import LLMClient
 from core.prompt_adapter import load_platform_context, profile_row_to_prompt_dict
 from core.settings import Settings
@@ -34,8 +36,17 @@ logger = logging.getLogger(__name__)
 _PLATFORMS_DIR = Path(__file__).parent.parent / "configs" / "platforms"
 
 
-class PipelineError(Exception):
-    """Raised for expected pipeline failures (missing profile, bad config, etc.)."""
+@lru_cache(maxsize=None)
+def _load_platform_config(platform: str) -> dict:
+    """Load and cache the static platform config JSON from disk.
+
+    The file is read once per process lifetime and cached thereafter.
+    """
+    path = _PLATFORMS_DIR / f"{platform}.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+# Backward-compatible alias — existing tests catch PipelineError.
+PipelineError = DomainError
 
 
 @dataclass(frozen=True)
@@ -227,7 +238,7 @@ class PipelineService:
             logger.warning("%s — skipping.", msg)
             return PipelineStats(errors=(msg,)), [], platform
 
-        static_config = json.loads(platform_config_path.read_text(encoding="utf-8"))
+        static_config = _load_platform_config(platform)
         merged_config = _merge_config(static_config, config_row)
 
         try:
@@ -266,7 +277,7 @@ class PipelineService:
                 continue
 
             if self._is_blacklisted(job, blacklist):
-                logger.debug("Blacklist skipped: '%s' (company: %s)", job.title, job.company_name)
+                logger.debug("Blacklist skipped: '%s' (company: %s)", job.title, job.effective_company_name)
                 jobs_skipped_blacklist += 1
                 continue
 
@@ -470,7 +481,7 @@ class PipelineService:
         """Return True if the job's company name matches any blacklisted entry (substring, case-insensitive)."""
         if not blacklist:
             return False
-        company = job.company_name
+        company = job.effective_company_name
         if not company:
             return False
         company_lower = company.lower()

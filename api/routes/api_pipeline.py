@@ -20,7 +20,7 @@ from api.schemas import RunStartRequest, RunStartResponse, RunStatusResponse
 from repositories.user import UserRow
 from services.profile import ProfileService
 from api.limiter import limiter
-from services.run_manager import RunActiveError, RunManager
+from services.run_manager import RunManager
 from services.search_config import KNOWN_PLATFORMS, SearchConfigService
 
 logger = logging.getLogger(__name__)
@@ -70,10 +70,7 @@ async def api_start_run(
                 detail="No search configurations found. Please set up at least one search config first.",
             )
 
-    try:
-        run_id = await run_manager.start_run(user.id, platforms)
-    except RunActiveError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    run_id = await run_manager.start_run(user.id, platforms)
 
     logger.info("Run %s started for user_id=%s platforms=%s", run_id, user.id, platforms)
     return RunStartResponse(run_id=run_id)

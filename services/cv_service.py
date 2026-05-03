@@ -29,9 +29,10 @@ try:
 except FileNotFoundError as exc:
     raise RuntimeError(f"CV prompt file not found: {exc}") from None
 
+# Backward-compatible alias — existing tests catch CVError.
+from core.exceptions import DomainError, NotFoundError  # noqa: E402
 
-class CVError(Exception):
-    """Raised for expected CV operation failures."""
+CVError = DomainError
 
 
 class CVService:
@@ -55,13 +56,14 @@ class CVService:
     ) -> CVRow:
         """Extract text from a PDF, structure it via AI, and upsert to the database."""
         if len(file_bytes) > _MAX_PDF_BYTES:
-            raise CVError("CV file exceeds the 5 MB limit.")
+            raise DomainError("CV file exceeds the 5 MB limit.", http_status=422)
 
         raw_text = _extract_pdf_text(filename, file_bytes)
         if not raw_text.strip():
-            raise CVError(
+            raise DomainError(
                 "Could not extract any text from the PDF. "
-                "Ensure it is not an image-only (scanned) document."
+                "Ensure it is not an image-only (scanned) document.",
+                http_status=422,
             )
 
         structured = await self._structure_cv(raw_text)
@@ -99,17 +101,18 @@ class CVService:
         """
         job = await self._job_result_repo.find_by_id_and_user(job_result_id, user_id)
         if job is None:
-            raise CVError("Job not found or does not belong to this user.")
+            raise NotFoundError("Job not found or does not belong to this user.")
 
         if job.score is None or job.score < cv_customize_threshold:
-            raise CVError(
+            raise DomainError(
                 f"Job score ({job.score}) is below the threshold ({cv_customize_threshold}). "
-                "Customize CV is only available for qualifying jobs."
+                "Customize CV is only available for qualifying jobs.",
+                http_status=422,
             )
 
         cv = await self._cv_repo.find_by_user(user_id)
         if cv is None:
-            raise CVError("No CV uploaded. Upload a CV on the Profile page first.")
+            raise DomainError("No CV uploaded. Upload a CV on the Profile page first.", http_status=422)
 
         if not force_regenerate:
             cached = await self._cv_customization_repo.find_by_user_and_job(
@@ -186,7 +189,7 @@ def _extract_pdf_text(filename: str, file_bytes: bytes) -> str:
         return "\n\n".join(pages)
     except Exception as exc:
         logger.warning("PDF extraction failed for %s: %s", filename, exc)
-        raise CVError(f"Failed to read PDF: {exc}") from exc
+        raise DomainError(f"Failed to read PDF: {exc}", http_status=422) from exc
 
 
 def _build_job_description(title: str, evaluation: dict | None) -> str:

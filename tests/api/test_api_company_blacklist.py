@@ -9,9 +9,10 @@ from httpx import ASGITransport, AsyncClient
 
 from api.csrf import require_csrf
 from api.deps import get_company_blacklist_service, get_current_user, get_db_pool
+from core.exceptions import ConflictError, NotFoundError
 from repositories.company_blacklist import CompanyBlacklistEntry
 from repositories.user import UserRow
-from services.company_blacklist import CompanyBlacklistError, CompanyBlacklistService
+from services.company_blacklist import CompanyBlacklistService
 
 
 def _make_user(email: str = "user@example.com") -> UserRow:
@@ -117,7 +118,7 @@ async def test_post_blacklist_valid_returns_201(test_app, client):
 async def test_post_blacklist_duplicate_returns_409(test_app, client):
     user = _make_user()
     service = AsyncMock(spec=CompanyBlacklistService)
-    service.add.side_effect = CompanyBlacklistError("Company already blacklisted")
+    service.add.side_effect = ConflictError("Company already blacklisted")
 
     _override_auth(test_app, user)
     _override_service(test_app, service)
@@ -168,7 +169,7 @@ async def test_delete_blacklist_own_entry_returns_204(test_app, client):
 async def test_delete_blacklist_foreign_entry_returns_404(test_app, client):
     user = _make_user()
     service = AsyncMock(spec=CompanyBlacklistService)
-    service.remove.side_effect = CompanyBlacklistError("Entry not found")
+    service.remove.side_effect = NotFoundError("Entry not found")
 
     _override_auth(test_app, user)
     _override_service(test_app, service)

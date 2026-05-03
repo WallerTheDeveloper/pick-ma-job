@@ -1,7 +1,6 @@
 """Unit tests for completed backend hardening tasks.
 
 Covers:
-- CR-7  / cleanup-4:   is_admin_email() timing-safe comparison
 - CR-8  / hardening-1: Sanitized error messages in RunManager
 - CR-10 / hardening-3: Platform parameter validation in POST /api/run
 - CR-11 / hardening-4: _SORT_CLAUSES is immutable MappingProxyType
@@ -19,46 +18,34 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from api.deps import is_admin_email
 from repositories.job_result import JobResultRepository, _SORT_CLAUSES
 from repositories.user import UserRow
 
 
-# ── CR-7 / cleanup-4: is_admin_email() ───────────────────────────────────────
+# ── UserRow.is_admin field ────────────────────────────────────────────────────
 
 
-def test_is_admin_email_returns_true_for_matching_email(monkeypatch):
-    monkeypatch.setenv("ADMIN_EMAIL", "admin@example.com")
-    assert is_admin_email("admin@example.com") is True
+def test_user_row_defaults_is_admin_false():
+    """UserRow.is_admin defaults to False when not specified."""
+    user = UserRow(
+        id=uuid4(),
+        email="user@example.com",
+        created_at=datetime.now(timezone.utc),
+        last_login=None,
+    )
+    assert user.is_admin is False
 
 
-def test_is_admin_email_returns_false_for_non_matching_email(monkeypatch):
-    monkeypatch.setenv("ADMIN_EMAIL", "admin@example.com")
-    assert is_admin_email("other@example.com") is False
-
-
-def test_is_admin_email_returns_false_when_env_var_not_set(monkeypatch):
-    monkeypatch.delenv("ADMIN_EMAIL", raising=False)
-    assert is_admin_email("admin@example.com") is False
-
-
-def test_is_admin_email_returns_false_when_env_var_is_empty(monkeypatch):
-    monkeypatch.setenv("ADMIN_EMAIL", "")
-    assert is_admin_email("") is False
-
-
-def test_is_admin_email_is_case_sensitive(monkeypatch):
-    monkeypatch.setenv("ADMIN_EMAIL", "Admin@Example.com")
-    assert is_admin_email("admin@example.com") is False
-    assert is_admin_email("Admin@Example.com") is True
-
-
-def test_is_admin_email_does_not_raise_for_empty_input(monkeypatch):
-    monkeypatch.setenv("ADMIN_EMAIL", "admin@example.com")
-    # hmac.compare_digest requires both operands to be the same type (str).
-    # This ensures we never accidentally pass bytes or None.
-    result = is_admin_email("")
-    assert result is False
+def test_user_row_is_admin_can_be_set_true():
+    """UserRow.is_admin can be explicitly set to True."""
+    user = UserRow(
+        id=uuid4(),
+        email="admin@example.com",
+        created_at=datetime.now(timezone.utc),
+        last_login=None,
+        is_admin=True,
+    )
+    assert user.is_admin is True
 
 
 # ── CR-11 / hardening-4: _SORT_CLAUSES immutability ─────────────────────────

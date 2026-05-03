@@ -20,26 +20,17 @@ import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from api.limiter import limiter
+from api.routes import all_routers
+from core.exceptions import DomainError
 from core.llm_client import LLMClient
 from core.logging import configure_logging
 from core.settings import Settings
-from api.routes.api_admin import router as api_admin_router
-from api.routes.api_company_blacklist import router as api_company_blacklist_router
-from api.routes.api_cv import router as api_cv_router
-from api.routes.api_platforms import router as api_platforms_router
-from api.routes.api_version import router as api_version_router
-from api.routes.api_lists import router as api_lists_router
-from api.routes.api_dashboard import router as api_dashboard_router
-from api.routes.api_pipeline import router as api_pipeline_router
-from api.routes.api_profile import router as api_profile_router
-from api.routes.api_results import router as api_results_router
-from api.routes.api_search_config import router as api_search_config_router
-from api.routes.auth import router as auth_router
 from db.pool import close_pool, create_pool
 from repositories.magic_link import MagicLinkRepository
 from repositories.session import SessionRepository
@@ -112,6 +103,16 @@ async def lifespan(app: FastAPI):
 
     app.state.db_pool = await create_pool(os.environ["DATABASE_URL"])
 
+    # Backfill admin flag from ADMIN_EMAIL env var (one-time, idempotent)
+    admin_email = os.environ.get("ADMIN_EMAIL", "").strip()
+    if admin_email:
+        async with app.state.db_pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE users SET is_admin = TRUE WHERE email = $1",
+                admin_email,
+            )
+        logger.info("Backfilled is_admin for ADMIN_EMAIL=%s", admin_email)
+
     app.state.anthropic_client = anthropic.AsyncAnthropic(
         api_key=os.environ["ANTHROPIC_API_KEY"],
     )
@@ -169,21 +170,14 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # ── Auth routes (/auth/*) ────────────────────────────────────────────
-    app.include_router(auth_router)
+    # ── Domain error handler ─────────────────────────────────────────────
+    @app.exception_handler(DomainError)
+    async def domain_error_handler(request, exc: DomainError):
+        return JSONResponse(status_code=exc.http_status, content={"detail": str(exc)})
 
-    # ── JSON API routes (/api/*) ─────────────────────────────────────────
-    app.include_router(api_dashboard_router)
-    app.include_router(api_results_router)
-    app.include_router(api_profile_router)
-    app.include_router(api_search_config_router)
-    app.include_router(api_pipeline_router)
-    app.include_router(api_lists_router)
-    app.include_router(api_admin_router)
-    app.include_router(api_company_blacklist_router)
-    app.include_router(api_cv_router)
-    app.include_router(api_platforms_router)
-    app.include_router(api_version_router)
+    # ── Register all routers ─────────────────────────────────────────────
+    for router in all_routers:
+        app.include_router(router)
 
     return app
 

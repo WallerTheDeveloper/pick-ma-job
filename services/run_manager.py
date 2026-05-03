@@ -20,6 +20,7 @@ from uuid import UUID, uuid4
 import asyncpg
 
 from core.context import run_id_var, user_id_var
+from core.exceptions import ConflictError
 from core.llm_client import LLMClient
 from core.settings import Settings
 from repositories.company_blacklist import CompanyBlacklistRepository
@@ -35,9 +36,8 @@ logger = logging.getLogger(__name__)
 
 _STALE_RUN_MINUTES = 30
 
-
-class RunActiveError(Exception):
-    """Raised when a user tries to start a run while one is already active."""
+# Backward-compatible alias — existing tests catch RunActiveError.
+RunActiveError = ConflictError
 
 
 class RunManager:

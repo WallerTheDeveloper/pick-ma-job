@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from api.csrf import CSRF_COOKIE, derive_csrf_token
-from api.deps import get_auth_service, get_current_user, is_admin_email
+from api.deps import get_auth_service, get_current_user
 from api.limiter import limiter
 from api.schemas import AuthMeResponse, MagicLinkRequest, UserInfo
 from repositories.user import UserRow
@@ -33,7 +33,7 @@ def _is_secure() -> bool:
 
 def _make_user_info(user: UserRow) -> UserInfo:
     """Build a UserInfo response from a UserRow."""
-    return UserInfo(id=user.id, email=user.email, is_admin=is_admin_email(user.email))
+    return UserInfo(id=user.id, email=user.email, is_admin=user.is_admin)
 
 
 # ── Session check ────────────────────────────────────────────────────────────

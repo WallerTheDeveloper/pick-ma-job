@@ -253,6 +253,8 @@ class LinkedInScraper(BaseScraper):
             experience_level=_str_or_none(
                 _get(item, mappings.get("experience_level", "experienceLevel"))
             ),
+            company_name=_str_or_none(extras.get("company_name")),
+            location=_str_or_none(extras.get("location")),
             extras=extras,
         )
 

@@ -16,6 +16,10 @@ class NormalizedJob:
     standard fields above (e.g. ``client_rating`` for Upwork, ``company_size``
     for LinkedIn). These are interpolated into the platform's
     ``user_message_template`` at evaluation time.
+
+    ``company_name`` and ``location`` are promoted to typed fields so that
+    misspellings in ``extras`` are caught early.  The :attr:`company_name`
+    property falls back to ``extras`` for scrapers that haven't migrated yet.
     """
 
     id: str
@@ -27,11 +31,15 @@ class NormalizedJob:
     budget: str | None = None
     job_type: str | None = None
     experience_level: str | None = None
+    company_name: str | None = None
+    location: str | None = None
     extras: dict = field(default_factory=dict)
 
     @property
-    def company_name(self) -> str | None:
-        """Extract company/client name from extras, platform-agnostic."""
+    def effective_company_name(self) -> str | None:
+        """Return company_name field, falling back to extras for backward compat."""
+        if self.company_name:
+            return self.company_name
         value = self.extras.get("company_name") or self.extras.get("client_name")
         return str(value) if value else None
 

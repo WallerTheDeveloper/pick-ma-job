@@ -4,7 +4,7 @@ import logging
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request, status
 
 from api.csrf import require_csrf
 from api.deps import get_company_blacklist_service, get_current_user
@@ -16,14 +16,11 @@ from api.schemas import (
     CompanyBlacklistListResponse,
 )
 from repositories.user import UserRow
-from services.company_blacklist import CompanyBlacklistError, CompanyBlacklistService
+from services.company_blacklist import CompanyBlacklistService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/company-blacklist", tags=["api-company-blacklist"])
-
-_DUPLICATE_MSG = "Company already blacklisted"
-_NOT_FOUND_MSG = "Entry not found"
 
 
 def _entry_to_response(entry) -> CompanyBlacklistEntryResponse:
@@ -54,13 +51,7 @@ async def api_add_blacklist_entry(
     service: Annotated[CompanyBlacklistService, Depends(get_company_blacklist_service)],
 ) -> CompanyBlacklistAddResponse:
     """Add a company to the user's blacklist. Returns 201 on success, 409 on duplicate."""
-    try:
-        entry = await service.add(user.id, body.name)
-    except CompanyBlacklistError as exc:
-        msg = str(exc)
-        if msg == _DUPLICATE_MSG:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=msg)
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=msg)
+    entry = await service.add(user.id, body.name)
     return CompanyBlacklistAddResponse(entry=_entry_to_response(entry))
 
 
@@ -72,7 +63,4 @@ async def api_remove_blacklist_entry(
     service: Annotated[CompanyBlacklistService, Depends(get_company_blacklist_service)],
 ) -> None:
     """Remove a blacklist entry owned by the authenticated user. Returns 404 if not found."""
-    try:
-        await service.remove(user.id, entry_id)
-    except CompanyBlacklistError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    await service.remove(user.id, entry_id)

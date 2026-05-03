@@ -6,7 +6,7 @@ from typing import Annotated
 import asyncpg
 from fastapi import APIRouter, Depends
 
-from api.deps import get_current_user, get_db_pool, get_profile_service, get_search_config_service, is_admin_email
+from api.deps import get_current_user, get_db_pool, get_profile_service, get_search_config_service
 from api.schemas import DashboardResponse, PipelineRunInfo, UserInfo
 from repositories.pipeline_run import PipelineRunRepository
 from repositories.user import UserRow
@@ -45,7 +45,7 @@ async def api_dashboard(
     ]
 
     return DashboardResponse(
-        user=UserInfo(id=user.id, email=user.email, is_admin=is_admin_email(user.email)),
+        user=UserInfo(id=user.id, email=user.email, is_admin=user.is_admin),
         has_profile=has_profile,
         config_count=len(configs),
         recent_runs=recent_runs,

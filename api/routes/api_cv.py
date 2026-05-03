@@ -21,7 +21,7 @@ from repositories.cv import CVRepository
 from repositories.cv_customization import CVCustomizationRepository
 from repositories.job_result import JobResultRepository
 from repositories.user import UserRow
-from services.cv_service import CVError, CVService
+from services.cv_service import CVService
 
 import asyncpg
 
@@ -63,17 +63,11 @@ async def api_upload_cv(
         )
 
     file_bytes = await file.read()
-    try:
-        cv = await cv_service.upload_cv(
-            user_id=user.id,
-            filename=file.filename or "cv.pdf",
-            file_bytes=file_bytes,
-        )
-    except CVError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        )
+    cv = await cv_service.upload_cv(
+        user_id=user.id,
+        filename=file.filename or "cv.pdf",
+        file_bytes=file_bytes,
+    )
 
     return CVUploadResponse(
         filename=cv.filename,
@@ -127,18 +121,12 @@ async def api_customize_cv(
     profile = await profile_repo.find_by_user_id(user.id)
     threshold = profile.cv_customize_threshold if profile else 7
 
-    try:
-        customized_text, from_cache = await cv_service.customize_cv(
-            user_id=user.id,
-            job_result_id=body.job_result_id,
-            cv_customize_threshold=threshold,
-            force_regenerate=body.force_regenerate,
-            adjustment_notes=body.adjustment_notes,
-        )
-    except CVError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        )
+    customized_text, from_cache = await cv_service.customize_cv(
+        user_id=user.id,
+        job_result_id=body.job_result_id,
+        cv_customize_threshold=threshold,
+        force_regenerate=body.force_regenerate,
+        adjustment_notes=body.adjustment_notes,
+    )
 
     return CVCustomizeResponse(customized_text=customized_text, from_cache=from_cache)
