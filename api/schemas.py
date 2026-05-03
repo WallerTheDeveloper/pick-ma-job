@@ -1,9 +1,10 @@
 """Pydantic response and request models for the JSON API."""
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 # ── Generic ──────────────────────────────────────────────────────────────────
@@ -31,7 +32,7 @@ class AuthMeResponse(BaseModel):
 
 
 class MagicLinkRequest(BaseModel):
-    email: str
+    email: EmailStr
 
 
 # ── Dashboard ────────────────────────────────────────────────────────────────
@@ -159,10 +160,24 @@ class ProfileSaveRequest(BaseModel):
     tertiary_skills: list[str] = []
     not_a_good_fit: list[str] = []
     background: list[str] = []
-    notable_projects: list[dict] = []
+    notable_projects: list[dict[str, Any]] = Field(default_factory=list)
     languages: list[str] = []
-    rubric: dict = {}
+    rubric: dict[str, Any] = Field(default_factory=dict)
     cv_customize_threshold: int = Field(default=7, ge=1, le=10)
+
+    @field_validator("notable_projects")
+    @classmethod
+    def limit_notable_projects(cls, v: list) -> list:
+        if len(v) > 20:
+            raise ValueError("Maximum 20 notable projects allowed.")
+        return v
+
+    @field_validator("rubric")
+    @classmethod
+    def limit_rubric(cls, v: dict) -> dict:
+        if len(v) > 30:
+            raise ValueError("Maximum 30 rubric keys allowed.")
+        return v
 
 
 class ProfileSaveResponse(BaseModel):

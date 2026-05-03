@@ -129,9 +129,10 @@ async def test_magic_link_post_rate_limited_returns_429(client, test_app):
 
 # ── GET /auth/verify ──────────────────────────────────────────────────────────
 
-async def test_verify_valid_token_sets_cookie_and_redirects(client, test_app):
+async def test_verify_valid_token_sets_cookie_and_redirects(client, test_app, monkeypatch):
     svc = _mock_auth_service(verify_magic_link=AsyncMock(return_value="new-session-token"))
     test_app.dependency_overrides[get_auth_service] = lambda: svc
+    monkeypatch.delenv("FRONTEND_URL", raising=False)
 
     resp = await client.get("/auth/verify?token=valid-token", follow_redirects=False)
     test_app.dependency_overrides.clear()
@@ -141,9 +142,10 @@ async def test_verify_valid_token_sets_cookie_and_redirects(client, test_app):
     assert "session_token" in resp.cookies
 
 
-async def test_verify_valid_token_cookies_have_path_root(client, test_app):
+async def test_verify_valid_token_cookies_have_path_root(client, test_app, monkeypatch):
     svc = _mock_auth_service(verify_magic_link=AsyncMock(return_value="new-session-token"))
     test_app.dependency_overrides[get_auth_service] = lambda: svc
+    monkeypatch.delenv("FRONTEND_URL", raising=False)
 
     resp = await client.get("/auth/verify?token=valid-token", follow_redirects=False)
     test_app.dependency_overrides.clear()
@@ -165,6 +167,18 @@ async def test_verify_invalid_token_redirects_with_error(client, test_app):
 
     assert resp.status_code == 302
     assert "error=invalid_or_expired" in resp.headers["location"]
+
+
+async def test_verify_redirects_to_frontend_url_when_set(client, test_app, monkeypatch):
+    svc = _mock_auth_service(verify_magic_link=AsyncMock(return_value="new-session-token"))
+    test_app.dependency_overrides[get_auth_service] = lambda: svc
+    monkeypatch.setenv("FRONTEND_URL", "http://localhost:5173")
+
+    resp = await client.get("/auth/verify?token=valid-token", follow_redirects=False)
+    test_app.dependency_overrides.clear()
+
+    assert resp.status_code == 302
+    assert resp.headers["location"] == "http://localhost:5173/dashboard"
 
 
 # ── POST /auth/logout ─────────────────────────────────────────────────────────

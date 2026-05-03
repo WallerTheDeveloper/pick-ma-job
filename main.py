@@ -24,6 +24,7 @@ from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from api.limiter import limiter
 from api.routes import all_routers
@@ -90,8 +91,18 @@ def _read_version() -> str:
 async def lifespan(app: FastAPI):
     validate_env()
 
-    if os.environ.get("SKIP_EMAIL", "").lower() in ("1", "true", "yes"):
-        logger.warning("SKIP_EMAIL is enabled — magic link emails will NOT be sent. Never use in production.")
+    skip_email = os.environ.get("SKIP_EMAIL", "").lower() in ("1", "true", "yes")
+    base_url = os.environ.get("BASE_URL", "")
+    is_local = base_url.startswith("http://localhost") or base_url.startswith("http://127.")
+
+    if skip_email:
+        if not is_local:
+            raise RuntimeError(
+                "SKIP_EMAIL must never be enabled in production. "
+                "Unset the variable before starting the server, or set "
+                "BASE_URL=http://localhost:8000 for local development."
+            )
+        logger.warning("SKIP_EMAIL is enabled — magic link emails will NOT be sent.")
 
     logger.info("Application version: %s", app.state.version)
 
@@ -144,6 +155,33 @@ async def lifespan(app: FastAPI):
     logger.info("Application stopped")
 
 
+class SecurityHeadersMiddleware:
+    """Attach baseline HTTP security headers to every response (raw ASGI)."""
+
+    _EXTRA_HEADERS = [
+        (b"x-content-type-options", b"nosniff"),
+        (b"x-frame-options", b"DENY"),
+        (b"x-xss-protection", b"0"),
+        (b"referrer-policy", b"strict-origin-when-cross-origin"),
+        (b"permissions-policy", b"geolocation=(), microphone=(), camera=()"),
+    ]
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_headers(message):
+            if message["type"] == "http.response.start":
+                message.setdefault("headers", []).extend(self._EXTRA_HEADERS)
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
+
+
 def create_app() -> FastAPI:
     version = _read_version()
     app = FastAPI(
@@ -170,6 +208,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Security headers
+    app.add_middleware(SecurityHeadersMiddleware)
+
     # ── Domain error handler ─────────────────────────────────────────────
     @app.exception_handler(DomainError)
     async def domain_error_handler(request, exc: DomainError):
@@ -186,4 +227,4 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

@@ -7,6 +7,8 @@ from uuid import UUID
 
 import asyncpg
 
+from db.token_utils import hash_token
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,7 +36,8 @@ class SessionRepository:
         self._pool = pool
 
     async def create(self, user_id: UUID, token: str, expires_at: datetime) -> SessionRow:
-        """Insert a new session and return the created row."""
+        """Insert a new session (storing the SHA-256 hash of the token) and return the created row."""
+        hashed = hash_token(token)
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
@@ -43,14 +46,15 @@ class SessionRepository:
                 RETURNING id, user_id, token, expires_at, created_at
                 """,
                 user_id,
-                token,
+                hashed,
                 expires_at,
             )
         logger.debug("Created session user_id=%s", user_id)
         return _row_to_session(row)
 
     async def find_by_token(self, token: str) -> SessionRow | None:
-        """Return a non-expired session matching the token, or None."""
+        """Return a non-expired session matching the hashed token, or None."""
+        hashed = hash_token(token)
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
@@ -58,7 +62,7 @@ class SessionRepository:
                 FROM sessions
                 WHERE token = $1 AND expires_at > now()
                 """,
-                token,
+                hashed,
             )
         return _row_to_session(row) if row else None
 

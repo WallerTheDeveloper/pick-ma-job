@@ -7,6 +7,8 @@ from uuid import UUID
 
 import asyncpg
 
+from db.token_utils import hash_token
+
 logger = logging.getLogger(__name__)
 
 
@@ -36,7 +38,8 @@ class MagicLinkRepository:
         self._pool = pool
 
     async def create(self, user_id: UUID, token: str, expires_at: datetime) -> MagicLinkRow:
-        """Insert a new magic link and return the created row."""
+        """Insert a new magic link (storing the SHA-256 hash of the token) and return the created row."""
+        hashed = hash_token(token)
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
@@ -45,17 +48,18 @@ class MagicLinkRepository:
                 RETURNING id, user_id, token, used, expires_at, created_at
                 """,
                 user_id,
-                token,
+                hashed,
                 expires_at,
             )
         logger.debug("Created magic link user_id=%s", user_id)
         return _row_to_magic_link(row)
 
     async def find_by_token(self, token: str) -> MagicLinkRow | None:
-        """Return the magic link matching the token (any state), or None.
+        """Return the magic link matching the hashed token (any state), or None.
 
         Expiry and used-state checks are the caller's responsibility.
         """
+        hashed = hash_token(token)
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
@@ -63,7 +67,7 @@ class MagicLinkRepository:
                 FROM magic_links
                 WHERE token = $1
                 """,
-                token,
+                hashed,
             )
         return _row_to_magic_link(row) if row else None
 
@@ -85,12 +89,13 @@ class MagicLinkRepository:
     async def claim(self, token: str) -> MagicLinkRow | None:
         """Atomically mark a magic link as used and return it.
 
-        Returns the row if the token exists, is unused, and has not expired.
+        Returns the row if the hashed token exists, is unused, and has not expired.
         Returns None if the token is unknown, already used, or expired.
 
         The single UPDATE eliminates the TOCTOU race that a
         separate read-check-write sequence would introduce.
         """
+        hashed = hash_token(token)
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
@@ -101,7 +106,7 @@ class MagicLinkRepository:
                   AND expires_at > now()
                 RETURNING id, user_id, token, used, expires_at, created_at
                 """,
-                token,
+                hashed,
             )
         return _row_to_magic_link(row) if row else None
 

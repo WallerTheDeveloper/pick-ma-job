@@ -71,7 +71,8 @@ class UserRepository:
                 """,
                 email,
             )
-        logger.info("Created user email=%s id=%s", email, row["id"])
+        domain = email.split("@")[-1] if "@" in email else "?"
+        logger.info("Created user domain=%s id=%s", domain, row["id"])
         return _row_to_user(row)
 
     async def list_users_with_stats(

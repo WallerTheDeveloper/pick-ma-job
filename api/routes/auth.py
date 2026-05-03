@@ -10,7 +10,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from api.csrf import CSRF_COOKIE, derive_csrf_token
+from api.csrf import CSRF_COOKIE, derive_csrf_token, require_csrf
 from api.deps import get_auth_service, get_current_user
 from api.limiter import limiter
 from api.schemas import AuthMeResponse, MagicLinkRequest, UserInfo
@@ -89,7 +89,9 @@ async def verify_magic_link(
             status_code=302,
         )
 
-    redirect = RedirectResponse(url="/dashboard", status_code=302)
+    frontend_url = os.environ.get("FRONTEND_URL", "").rstrip("/")
+    dashboard_path = f"{frontend_url}/dashboard" if frontend_url else "/dashboard"
+    redirect = RedirectResponse(url=dashboard_path, status_code=302)
     redirect.set_cookie(
         key=_SESSION_COOKIE,
         value=session_token,
@@ -105,7 +107,7 @@ async def verify_magic_link(
         max_age=_SESSION_TTL_SECONDS,
         httponly=False,
         secure=_is_secure(),
-        samesite="lax",
+        samesite="strict",
         path="/",
     )
     return redirect
@@ -117,6 +119,7 @@ async def verify_magic_link(
 async def logout(
     request: Request,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
+    _csrf: Annotated[None, Depends(require_csrf)] = None,
 ) -> JSONResponse:
     """Invalidate the current session and clear the session cookie."""
     token = request.cookies.get(_SESSION_COOKIE)
@@ -135,7 +138,7 @@ async def logout(
         key=CSRF_COOKIE,
         path="/",
         httponly=False,
-        samesite="lax",
+        samesite="strict",
         secure=_is_secure(),
     )
     return response

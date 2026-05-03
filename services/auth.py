@@ -106,7 +106,8 @@ class AuthService:
         magic_url = f"{self._base_url}/auth/verify?token={token}"
 
         if self._skip_email:
-            logger.debug("SKIP_EMAIL=true — magic link for %s: %.40s…", email, magic_url)
+            domain = email.split("@")[-1] if "@" in email else "?"
+            logger.debug("SKIP_EMAIL=true — magic link for domain=%s: %.40s…", domain, magic_url)
         else:
             await self._send_magic_link_email(email, magic_url)
 
@@ -159,7 +160,7 @@ class AuthService:
                     f"<p>If you didn't request this, you can ignore this email.</p>"
                 ),
             })
-            logger.info("Magic link email sent to %s", to)
+            logger.info("Magic link email sent to domain=%s", to.split("@")[-1] if "@" in to else "?")
         except Exception:
-            logger.exception("Failed to send magic link email to %s", to)
+            logger.exception("Failed to send magic link email to domain=%s", to.split("@")[-1] if "@" in to else "?")
             raise AuthError("Failed to send login email. Please try again.")
