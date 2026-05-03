@@ -138,6 +138,7 @@ async def lifespan(app: FastAPI):
     yield
 
     cleanup_task.cancel()
+    await app.state.anthropic_client.close()
     await close_pool(app.state.db_pool)
     logger.info("Application stopped")
 
