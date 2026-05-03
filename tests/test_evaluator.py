@@ -241,3 +241,34 @@ def test_evaluate_raises_on_bad_json_response():
     ])
     with pytest.raises(Exception):  # LLMError from generate_json
         run(evaluator.evaluate(JOB, PLATFORM_CONTEXT))
+
+
+def test_evaluate_parse_failure_skips_pass2():
+    """When Pass 1 returns unparseable text, score falls below threshold and Pass 2 is skipped."""
+    mock_client = _make_sequential_anthropic_mock([
+        "I cannot rate this",  # unparseable Pass 1 response
+        json.dumps(VALID_RESPONSE),  # should NOT be called
+    ])
+    llm = LLMClient(client=mock_client, default_model="test-model")
+    evaluator = _make_evaluator(llm)
+    result = run(evaluator.evaluate(JOB, PLATFORM_CONTEXT))
+    # score_threshold is 5 (default), so fallback is 4
+    assert result.relevancy_score == 4
+    assert result.evaluation is None
+    assert result.pass1_parse_failed is True
+    # Only one API call — Pass 2 was skipped
+    assert mock_client.messages.create.call_count == 1
+
+
+def test_evaluate_parse_failure_logs_warning(caplog):
+    """When Pass 1 returns unparseable text, a warning is logged with truncated raw response."""
+    import logging
+
+    mock_client = _make_sequential_anthropic_mock([
+        "some gibberish response that is not a number",
+    ])
+    llm = LLMClient(client=mock_client, default_model="test-model")
+    evaluator = _make_evaluator(llm)
+    with caplog.at_level(logging.WARNING):
+        run(evaluator.evaluate(JOB, PLATFORM_CONTEXT))
+    assert any("pass1_parse_failed" in record.message for record in caplog.records)

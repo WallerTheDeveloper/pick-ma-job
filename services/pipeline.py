@@ -54,6 +54,7 @@ class PipelineStats:
     jobs_evaluated: int = 0
     jobs_stored: int = 0
     jobs_failed: int = 0
+    jobs_score_parse_failed: int = 0
     errors: tuple[str, ...] = ()
 
     def __add__(self, other: "PipelineStats") -> "PipelineStats":
@@ -66,6 +67,7 @@ class PipelineStats:
             jobs_evaluated=self.jobs_evaluated + other.jobs_evaluated,
             jobs_stored=self.jobs_stored + other.jobs_stored,
             jobs_failed=self.jobs_failed + other.jobs_failed,
+            jobs_score_parse_failed=self.jobs_score_parse_failed + other.jobs_score_parse_failed,
             errors=self.errors + other.errors,
         )
 
@@ -82,6 +84,7 @@ class _EvalResult:
     job_id: UUID
     evaluation: dict | None  # None means low score (skipped full eval)
     stored: bool
+    pass1_parse_failed: bool
     errors: tuple[str, ...]
 
 
@@ -294,6 +297,7 @@ class PipelineService:
         jobs_evaluated = 0
         jobs_stored = 0
         jobs_failed = 0
+        jobs_score_parse_failed = 0
         errors: list[str] = []
         new_job_ids: list[UUID] = []
 
@@ -303,6 +307,8 @@ class PipelineService:
                 errors.append(f"Job evaluation failed: {type(result).__name__}: {result}")
                 logger.error("Job evaluation failed: %s", result, exc_info=True)
             elif isinstance(result, _EvalResult):
+                if result.pass1_parse_failed:
+                    jobs_score_parse_failed += 1
                 if result.evaluation is None:
                     jobs_skipped_low_score += 1
                 else:
@@ -313,7 +319,7 @@ class PipelineService:
                 errors.extend(result.errors)
 
         logger.info(
-            "Pipeline done: platform=%s found=%d dedup=%d blacklist=%d filter=%d low_score=%d evaluated=%d stored=%d failed=%d",
+            "Pipeline done: platform=%s found=%d dedup=%d blacklist=%d filter=%d low_score=%d evaluated=%d stored=%d failed=%d parse_failed=%d",
             platform,
             jobs_found,
             jobs_skipped_dedup,
@@ -323,6 +329,7 @@ class PipelineService:
             jobs_evaluated,
             jobs_stored,
             jobs_failed,
+            jobs_score_parse_failed,
         )
 
         return (
@@ -335,6 +342,7 @@ class PipelineService:
                 jobs_evaluated=jobs_evaluated,
                 jobs_stored=jobs_stored,
                 jobs_failed=jobs_failed,
+                jobs_score_parse_failed=jobs_score_parse_failed,
                 errors=tuple(errors),
             ),
             new_job_ids,
@@ -382,6 +390,7 @@ class PipelineService:
                     job_id=job.id,
                     evaluation=None,
                     stored=False,
+                    pass1_parse_failed=False,
                     errors=(f"Evaluation failed for '{job.title}': {type(exc).__name__}: {exc}",),
                 )
 
@@ -401,6 +410,7 @@ class PipelineService:
                         job_id=stored.id if stored else job.id,
                         evaluation=None,
                         stored=stored is not None,
+                        pass1_parse_failed=result.pass1_parse_failed,
                         errors=(),
                     )
                 except Exception as exc:
@@ -414,6 +424,7 @@ class PipelineService:
                         job_id=job.id,
                         evaluation=None,
                         stored=False,
+                        pass1_parse_failed=result.pass1_parse_failed,
                         errors=(f"DB insert failed for '{job.title}': {type(exc).__name__}: {exc}",),
                     )
 
@@ -432,6 +443,7 @@ class PipelineService:
                     job_id=stored.id if stored else job.id,
                     evaluation=result.raw if result.evaluation is not None else None,
                     stored=stored is not None,
+                    pass1_parse_failed=result.pass1_parse_failed,
                     errors=(),
                 )
             except Exception as exc:
@@ -445,6 +457,7 @@ class PipelineService:
                     job_id=job.id,
                     evaluation=None,
                     stored=False,
+                    pass1_parse_failed=result.pass1_parse_failed,
                     errors=(f"DB insert failed for '{job.title}': {type(exc).__name__}: {exc}",),
                 )
 

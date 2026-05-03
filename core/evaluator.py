@@ -53,6 +53,7 @@ class EvaluationResult:
     flags: str | None = None
     summary: str | None = None
     raw: dict = field(default_factory=dict)
+    pass1_parse_failed: bool = False
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "EvaluationResult":
@@ -68,11 +69,12 @@ class EvaluationResult:
         )
 
     @classmethod
-    def from_score(cls, score: int) -> "EvaluationResult":
+    def from_score(cls, score: int, pass1_parse_failed: bool = False) -> "EvaluationResult":
         """Build a score-only result for jobs that failed the Pass 1 threshold."""
         return cls(
             relevancy_score=score,
             raw={"relevancy_score": score},
+            pass1_parse_failed=pass1_parse_failed,
         )
 
 
@@ -93,6 +95,7 @@ class Evaluator:
     ) -> None:
         self._base_profile = base_profile
         self._temperature: float = settings.claude_temperature
+        self._score_threshold: int = settings.score_threshold
         self._llm = llm_client
 
     async def evaluate(
@@ -119,7 +122,7 @@ class Evaluator:
         Raises:
             LLMError: If Claude returns invalid JSON after retries (Pass 2 only).
         """
-        score, meta1 = await self._call_score(job)
+        score, parse_failed, meta1 = await self._call_score(job)
         logger.info(
             "llm_call",
             extra={
@@ -133,14 +136,14 @@ class Evaluator:
         )
         logger.debug("Pass 1 score=%d for job '%s'", score, job.title)
 
-        if score < SCORE_THRESHOLD:
+        if score < self._score_threshold:
             logger.info(
                 "Low score (%d < %d) — skipping full evaluation for '%s'",
                 score,
-                SCORE_THRESHOLD,
+                self._score_threshold,
                 job.title,
             )
-            return EvaluationResult.from_score(score)
+            return EvaluationResult.from_score(score, pass1_parse_failed=parse_failed)
 
         system_prompt = self._assemble_system_prompt(platform_context)
         user_message = self._assemble_user_message(job, platform_context)
@@ -163,14 +166,15 @@ class Evaluator:
         )
         return EvaluationResult.from_dict(raw)
 
-    async def _call_score(self, job: NormalizedJob) -> tuple[int, LLMResponse]:
+    async def _call_score(self, job: NormalizedJob) -> tuple[int, bool, LLMResponse]:
         """Pass 1: send a lightweight prompt and return a relevancy score 1–10.
 
         Args:
             job: The job to score.
 
         Returns:
-            A tuple of (score, LLMResponse) where score is 1–10 and the
+            A tuple of (score, parse_failed, LLMResponse) where score is 1–10,
+            parse_failed is True if the response was unparseable, and the
             LLMResponse contains timing and token usage metadata.
         """
         system_prompt = self._build_score_system_prompt()
@@ -181,7 +185,8 @@ class Evaluator:
             user=user_message,
             max_tokens=16,
         )
-        return self._parse_score(content), meta
+        score, parse_failed = self._parse_score(content)
+        return score, parse_failed, meta
 
     def _build_score_system_prompt(self) -> str:
         """Build the concise system prompt used for Pass 1 scoring."""
@@ -199,28 +204,31 @@ class Evaluator:
             f"Not a good fit for: {not_a_good_fit}"
         )
 
-    def _parse_score(self, content: str) -> int:
+    def _parse_score(self, content: str) -> tuple[int, bool]:
         """Parse a 1–10 integer from Claude's Pass 1 response.
 
         Tries a direct integer parse first, then falls back to regex extraction.
-        Returns ``SCORE_THRESHOLD`` (conservative) if parsing fails entirely.
+        Returns ``(self._score_threshold - 1, True)`` if parsing fails entirely,
+        so the job falls below the gate and does not trigger Pass 2.
+
+        Returns:
+            A tuple of (score, parse_failed).
         """
         stripped = content.strip()
         try:
-            return max(1, min(10, int(stripped)))
+            return max(1, min(10, int(stripped))), False
         except ValueError:
             pass
 
         match = re.search(r"\b(10|[1-9])\b", stripped)
         if match:
-            return int(match.group(1))
+            return int(match.group(1)), False
 
         logger.warning(
-            "Could not parse score from Pass 1 response: %r — defaulting to %d",
-            content,
-            SCORE_THRESHOLD,
+            "pass1_parse_failed",
+            extra={"raw": content[:200]},
         )
-        return SCORE_THRESHOLD
+        return self._score_threshold - 1, True
 
     def _assemble_system_prompt(self, platform_context: dict) -> str:
         """Merge base_profile and platform_context into a system prompt string."""
