@@ -38,33 +38,40 @@ class PipelineError(Exception):
 
 
 @dataclass(frozen=True)
-class PlatformResult:
-    """Immutable result from running the pipeline on a single platform."""
+class PipelineStats:
+    """Immutable pipeline statistics that supports addition (monoid).
 
-    jobs_found: int
-    jobs_skipped_dedup: int
-    jobs_skipped_filter: int
-    jobs_skipped_blacklist: int
-    jobs_skipped_low_score: int
-    jobs_evaluated: int
-    jobs_stored: int
-    jobs_failed: int
-    errors: tuple[str, ...]
+    Use ``+`` to combine two ``PipelineStats`` instances, or ``sum()``
+    with ``PipelineStats.zero()`` as the start value to aggregate a list.
+    """
 
+    jobs_found: int = 0
+    jobs_skipped_dedup: int = 0
+    jobs_skipped_filter: int = 0
+    jobs_skipped_blacklist: int = 0
+    jobs_skipped_low_score: int = 0
+    jobs_evaluated: int = 0
+    jobs_stored: int = 0
+    jobs_failed: int = 0
+    errors: tuple[str, ...] = ()
 
-@dataclass(frozen=True)
-class PipelineRunResult:
-    """Immutable summary of a completed pipeline run."""
+    def __add__(self, other: "PipelineStats") -> "PipelineStats":
+        return PipelineStats(
+            jobs_found=self.jobs_found + other.jobs_found,
+            jobs_skipped_dedup=self.jobs_skipped_dedup + other.jobs_skipped_dedup,
+            jobs_skipped_filter=self.jobs_skipped_filter + other.jobs_skipped_filter,
+            jobs_skipped_blacklist=self.jobs_skipped_blacklist + other.jobs_skipped_blacklist,
+            jobs_skipped_low_score=self.jobs_skipped_low_score + other.jobs_skipped_low_score,
+            jobs_evaluated=self.jobs_evaluated + other.jobs_evaluated,
+            jobs_stored=self.jobs_stored + other.jobs_stored,
+            jobs_failed=self.jobs_failed + other.jobs_failed,
+            errors=self.errors + other.errors,
+        )
 
-    jobs_found: int
-    jobs_skipped_dedup: int
-    jobs_skipped_filter: int
-    jobs_skipped_blacklist: int
-    jobs_skipped_low_score: int
-    jobs_evaluated: int
-    jobs_stored: int
-    jobs_failed: int
-    errors: tuple[str, ...]
+    @classmethod
+    def zero(cls) -> "PipelineStats":
+        """Return the identity element (all zeros)."""
+        return cls()
 
 
 @dataclass(frozen=True)
@@ -114,7 +121,7 @@ class PipelineService:
         self,
         user_id: UUID,
         platforms: list[str] | None = None,
-    ) -> PipelineRunResult:
+    ) -> PipelineStats:
         """Run the full pipeline for a user on one or all configured platforms.
 
         Args:
@@ -123,7 +130,7 @@ class PipelineService:
                 configured platforms.
 
         Returns:
-            A ``PipelineRunResult`` summarising counts and any non-fatal errors.
+            A ``PipelineStats`` summarising counts and any non-fatal errors.
 
         Raises:
             PipelineError: If platforms is empty, contains unknown slugs, the
@@ -174,17 +181,7 @@ class PipelineService:
             for config_row in search_configs
         ]
 
-        return PipelineRunResult(
-            jobs_found=sum(r.jobs_found for r in platform_results),
-            jobs_skipped_dedup=sum(r.jobs_skipped_dedup for r in platform_results),
-            jobs_skipped_filter=sum(r.jobs_skipped_filter for r in platform_results),
-            jobs_skipped_blacklist=sum(r.jobs_skipped_blacklist for r in platform_results),
-            jobs_skipped_low_score=sum(r.jobs_skipped_low_score for r in platform_results),
-            jobs_evaluated=sum(r.jobs_evaluated for r in platform_results),
-            jobs_stored=sum(r.jobs_stored for r in platform_results),
-            jobs_failed=sum(r.jobs_failed for r in platform_results),
-            errors=tuple(e for r in platform_results for e in r.errors),
-        )
+        return sum(platform_results, PipelineStats.zero())
 
     async def _run_platform(
         self,
@@ -192,7 +189,7 @@ class PipelineService:
         config_row: SearchConfigRow,
         evaluator: Evaluator,
         run_started_at: datetime,
-    ) -> PlatformResult:
+    ) -> PipelineStats:
         platform = config_row.platform
         logger.info("Pipeline starting: user_id=%s platform=%s", user_id, platform)
 
@@ -200,7 +197,7 @@ class PipelineService:
         if not platform_config_path.exists():
             msg = f"No platform config file for '{platform}'"
             logger.warning("%s — skipping.", msg)
-            return PlatformResult(0, 0, 0, 0, 0, 0, (msg,))
+            return PipelineStats(errors=(msg,))
 
         static_config = json.loads(platform_config_path.read_text(encoding="utf-8"))
         merged_config = _merge_config(static_config, config_row)
@@ -210,7 +207,7 @@ class PipelineService:
         except FileNotFoundError:
             msg = f"No platform context file for '{platform}'"
             logger.warning("%s — skipping.", msg)
-            return PlatformResult(0, 0, 0, 0, 0, 0, (msg,))
+            return PipelineStats(errors=(msg,))
 
         scraper = get_scraper(platform)
         try:
@@ -218,7 +215,7 @@ class PipelineService:
         except Exception as exc:
             msg = f"Scraper failed for '{platform}': {exc}"
             logger.error(msg)
-            return PlatformResult(0, 0, 0, 0, 0, 0, (msg,))
+            return PipelineStats(errors=(msg,))
 
         jobs_found = len(jobs)
         logger.info("Fetched %d jobs from platform=%s", jobs_found, platform)
@@ -323,7 +320,7 @@ class PipelineService:
             jobs_failed,
         )
 
-        return PlatformResult(
+        return PipelineStats(
             jobs_found=jobs_found,
             jobs_skipped_dedup=jobs_skipped_dedup,
             jobs_skipped_filter=jobs_skipped_filter,

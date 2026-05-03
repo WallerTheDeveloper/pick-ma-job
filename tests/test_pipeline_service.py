@@ -20,7 +20,7 @@ from repositories.job_result import JobResultRow
 from repositories.profile import ProfileRow
 from repositories.search_config import SearchConfigRow
 from scrapers.base import NormalizedJob
-from services.pipeline import PipelineError, PipelineRunResult, PlatformResult, PipelineService, _merge_config
+from services.pipeline import PipelineError, PipelineStats, PipelineService, _merge_config
 
 # ---------------------------------------------------------------------------
 # Factories
@@ -307,7 +307,7 @@ async def test_run_pipeline_returns_pipeline_run_result(
          patch("services.pipeline.Evaluator", return_value=mock_evaluator):
         result = await svc.run_pipeline(_USER_ID)
 
-    assert isinstance(result, PipelineRunResult)
+    assert isinstance(result, PipelineStats)
 
 
 @pytest.mark.asyncio
@@ -523,11 +523,11 @@ async def test_db_dedup_via_insert_returning_none(
 
 
 # ---------------------------------------------------------------------------
-# PipelineRunResult — immutability
+# PipelineStats — immutability
 # ---------------------------------------------------------------------------
 
-def test_pipeline_run_result_is_frozen():
-    r = PipelineRunResult(
+def test_pipeline_stats_is_frozen():
+    r = PipelineStats(
         jobs_found=5,
         jobs_skipped_dedup=1,
         jobs_skipped_filter=1,
@@ -542,8 +542,8 @@ def test_pipeline_run_result_is_frozen():
         r.jobs_found = 99  # type: ignore[misc]
 
 
-def test_pipeline_run_result_errors_is_tuple():
-    r = PipelineRunResult(
+def test_pipeline_stats_errors_is_tuple():
+    r = PipelineStats(
         jobs_found=1,
         jobs_skipped_dedup=0,
         jobs_skipped_filter=0,

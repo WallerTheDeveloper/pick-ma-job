@@ -15,7 +15,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from core.settings import Settings
-from services.pipeline import PipelineRunResult
+from services.pipeline import PipelineStats
 from services.run_manager import RunActiveError, RunManager
 
 
@@ -23,7 +23,7 @@ _USER_A = uuid4()
 _USER_B = uuid4()
 
 
-def _make_result(**overrides) -> PipelineRunResult:
+def _make_result(**overrides) -> PipelineStats:
     defaults = dict(
         jobs_found=5,
         jobs_skipped_dedup=1,
@@ -36,7 +36,7 @@ def _make_result(**overrides) -> PipelineRunResult:
         errors=(),
     )
     defaults.update(overrides)
-    return PipelineRunResult(**defaults)
+    return PipelineStats(**defaults)
 
 
 def _make_manager() -> RunManager:
