@@ -28,6 +28,7 @@ from repositories.job_result import JobResultRepository
 from repositories.pipeline_run import PipelineRunRepository, PipelineRunRow
 from repositories.profile import ProfileRepository
 from repositories.search_config import SearchConfigRepository
+from services.auto_list_service import AutoListService
 from services.pipeline import PipelineService
 
 logger = logging.getLogger(__name__)
@@ -132,10 +133,11 @@ class RunManager:
             company_blacklist_repo=CompanyBlacklistRepository(self._pool),
             llm_client=self._llm_client,
             settings=self._settings,
+            auto_list_service=AutoListService(job_list_repo=JobListRepository(self._pool)),
         )
 
         try:
-            result = await service.run_pipeline(user_id, platforms)
+            result = await service.run_pipeline(user_id, platforms, run_id=run_id)
             completed_at = datetime.now(timezone.utc)
             await self._persist_status(
                 run_id,

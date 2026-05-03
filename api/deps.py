@@ -18,6 +18,7 @@ from repositories.search_config import SearchConfigRepository
 from repositories.session import SessionRepository
 from repositories.user import UserRepository, UserRow
 from services.auth import AuthService
+from services.auto_list_service import AutoListService
 from services.company_blacklist import CompanyBlacklistService
 from services.profile import ProfileService
 from services.run_manager import RunManager
@@ -97,6 +98,13 @@ async def get_job_list_repo(
 ) -> JobListRepository:
     """Construct a JobListRepository with a per-request pool."""
     return JobListRepository(pool)
+
+
+async def get_auto_list_service(
+    repo: Annotated[JobListRepository, Depends(get_job_list_repo)],
+) -> AutoListService:
+    """Construct an AutoListService with a per-request repository."""
+    return AutoListService(job_list_repo=repo)
 
 
 async def get_run_manager(request: Request) -> RunManager:
