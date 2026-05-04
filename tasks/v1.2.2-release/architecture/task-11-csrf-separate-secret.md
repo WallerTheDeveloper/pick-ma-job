@@ -1,7 +1,7 @@
 # Task 11 — Separate CSRF_SECRET from MAGIC_LINK_SECRET
 
 **Size:** XS  
-**Status:** todo  
+**Status:** done  
 **Priority:** MEDIUM
 
 ## Goal

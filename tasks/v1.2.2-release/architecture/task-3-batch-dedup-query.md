@@ -1,7 +1,7 @@
 # Task 3 — Batch Dedup Query (Eliminate N+1)
 
 **Size:** S  
-**Status:** todo  
+**Status:** done  
 **Priority:** HIGH
 
 ## Goal

@@ -1,7 +1,7 @@
 # Task 8 — Collapse PlatformResult / PipelineRunResult into PipelineStats Monoid
 
 **Size:** S  
-**Status:** todo  
+**Status:** done  
 **Priority:** MEDIUM
 
 ## Goal

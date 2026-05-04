@@ -1,7 +1,7 @@
 # Task 1 — Stateless RunManager (DB as Source of Truth)
 
 **Size:** L  
-**Status:** todo  
+**Status:** done  
 **Priority:** HIGH
 
 ## Goal

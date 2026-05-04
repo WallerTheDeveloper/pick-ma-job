@@ -1,7 +1,7 @@
 # Task 6 — Load Settings via Pydantic BaseSettings
 
 **Size:** S  
-**Status:** todo  
+**Status:** done  
 **Priority:** MEDIUM
 
 ## Goal

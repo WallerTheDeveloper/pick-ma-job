@@ -1,7 +1,7 @@
 # Task 9 — Low-Severity Hardening (CORS, Docs, Logging, Cookies)
 
 **Size:** S  
-**Status:** todo  
+**Status:** done  
 **Severity:** LOW
 
 ## Goal

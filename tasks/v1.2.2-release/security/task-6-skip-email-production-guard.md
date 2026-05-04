@@ -1,7 +1,7 @@
 # Task 6 — Hard-fail if `SKIP_EMAIL` is Set in Production
 
 **Size:** XS  
-**Status:** todo  
+**Status:** done  
 **Severity:** MEDIUM
 
 ## Goal

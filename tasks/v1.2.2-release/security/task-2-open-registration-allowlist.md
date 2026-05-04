@@ -1,7 +1,7 @@
 # Task 2 — Restrict Registration via Email Allow-list
 
 **Size:** S  
-**Status:** todo  
+**Status:** done  
 **Severity:** HIGH
 
 ## Goal

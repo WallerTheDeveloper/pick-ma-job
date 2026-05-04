@@ -1,7 +1,7 @@
 # Task 13 — Unified DomainError Base + FastAPI Exception Handler
 
 **Size:** S  
-**Status:** todo  
+**Status:** done  
 **Priority:** LOW
 
 ## Goal

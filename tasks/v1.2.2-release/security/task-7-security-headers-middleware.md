@@ -1,7 +1,7 @@
 # Task 7 — Add HTTP Security Headers Middleware
 
 **Size:** XS  
-**Status:** todo  
+**Status:** done  
 **Severity:** MEDIUM
 
 ## Goal

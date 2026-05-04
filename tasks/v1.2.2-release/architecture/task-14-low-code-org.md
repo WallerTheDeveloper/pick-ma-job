@@ -1,7 +1,7 @@
 # Task 14 — Low-Impact Code Organisation Improvements
 
 **Size:** S  
-**Status:** todo  
+**Status:** done  
 **Priority:** LOW
 
 ## Goal

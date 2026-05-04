@@ -1,7 +1,7 @@
 # Task 2 — Parallel Job Evaluation with Semaphore
 
 **Size:** M  
-**Status:** todo  
+**Status:** done  
 **Priority:** HIGH
 
 ## Goal

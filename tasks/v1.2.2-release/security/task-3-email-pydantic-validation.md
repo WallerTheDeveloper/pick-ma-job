@@ -1,7 +1,7 @@
 # Task 3 — Enforce Email Validation at the Pydantic Layer
 
 **Size:** XS  
-**Status:** todo  
+**Status:** done  
 **Severity:** HIGH
 
 ## Goal

@@ -1,7 +1,7 @@
 # Task 4 — Store Session and Magic Link Tokens as SHA-256 Hashes
 
 **Size:** M  
-**Status:** todo  
+**Status:** done  
 **Severity:** MEDIUM
 
 ## Goal

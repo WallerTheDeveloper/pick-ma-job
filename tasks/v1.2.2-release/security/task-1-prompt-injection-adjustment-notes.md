@@ -1,7 +1,7 @@
 # Task 1 — Prevent Prompt Injection via `adjustment_notes`
 
 **Size:** S  
-**Status:** todo  
+**Status:** done  
 **Severity:** HIGH
 
 ## Goal

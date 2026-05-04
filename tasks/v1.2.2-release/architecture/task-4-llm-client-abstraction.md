@@ -1,7 +1,7 @@
 # Task 4 — Extract Unified LLM Client
 
 **Size:** M  
-**Status:** todo  
+**Status:** done  
 **Priority:** HIGH
 
 ## Goal

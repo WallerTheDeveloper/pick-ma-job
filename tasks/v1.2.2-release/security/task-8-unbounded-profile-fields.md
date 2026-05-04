@@ -1,7 +1,7 @@
 # Task 8 — Constrain Unbounded Profile Dict/List Fields
 
 **Size:** S  
-**Status:** todo  
+**Status:** done  
 **Severity:** MEDIUM
 
 ## Goal

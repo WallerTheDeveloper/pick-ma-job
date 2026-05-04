@@ -1,7 +1,7 @@
 # Task 5 — Observability: Structured Logs + run_id Context
 
 **Size:** M  
-**Status:** todo  
+**Status:** done  
 **Priority:** HIGH
 
 ## Goal

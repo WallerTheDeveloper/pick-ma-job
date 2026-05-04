@@ -1,7 +1,7 @@
 # Task 9 — Extract Auto-List Creation to AutoListService
 
 **Size:** S  
-**Status:** todo  
+**Status:** done  
 **Priority:** MEDIUM
 
 ## Goal

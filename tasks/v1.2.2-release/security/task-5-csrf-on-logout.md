@@ -1,7 +1,7 @@
 # Task 5 — Add CSRF Protection to Logout Route
 
 **Size:** XS  
-**Status:** todo  
+**Status:** done  
 **Severity:** MEDIUM
 
 ## Goal

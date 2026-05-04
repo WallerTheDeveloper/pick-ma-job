@@ -1,7 +1,7 @@
 # Task 12 — Move Admin Role to Database
 
 **Size:** S  
-**Status:** todo  
+**Status:** done  
 **Priority:** MEDIUM
 
 ## Goal

@@ -1,7 +1,7 @@
 # Task 7 — Singleton AsyncAnthropic Client
 
 **Size:** S  
-**Status:** todo  
+**Status:** done  
 **Priority:** MEDIUM
 
 ## Goal

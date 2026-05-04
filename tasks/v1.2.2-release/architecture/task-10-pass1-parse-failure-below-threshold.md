@@ -1,7 +1,7 @@
 # Task 10 — Fix Pass-1 Parse Failure Silent Fallback
 
 **Size:** S  
-**Status:** todo  
+**Status:** done  
 **Priority:** MEDIUM
 
 ## Goal
