@@ -116,8 +116,8 @@ class CVService:
         cv_customize_threshold: int = 7,
         force_regenerate: bool = False,
         adjustment_notes: str | None = None,
-    ) -> tuple[str, bool, list[str]]:
-        """Return (customized_text, from_cache, warnings).
+    ) -> tuple[str, bool, list[str], list[dict] | None]:
+        """Return (customized_text, from_cache, warnings, sections).
 
         Validates job ownership, score threshold, and CV presence.
         Returns cached result unless force_regenerate is True.
@@ -143,7 +143,9 @@ class CVService:
                 user_id, job_result_id
             )
             if cached is not None:
-                warnings = _verify_customization(cached.customized_text, cv.structured)
+                full_text = cached.customized_text
+                sections = cached.customized_diff.get("sections") if cached.customized_diff else None  # may be None for old entries
+                warnings = _verify_customization(full_text, cv.structured)
                 if warnings:
                     logger.warning(
                         "Verification warnings found in cached CV customization for user_id=%s job_result_id=%s: %s",
@@ -151,10 +153,10 @@ class CVService:
                         job_result_id,
                         warnings,
                     )
-                return cached.customized_text, True, warnings
+                return full_text, True, warnings, sections
 
         job_description = _build_job_description(job.title, job.evaluation)
-        customized_text = await self._call_customize(
+        diff = await self._call_customize(
             cv_raw_text=cv.raw_text,
             job_title=job.title,
             job_description=job_description,
@@ -162,7 +164,9 @@ class CVService:
             adjustment_notes=adjustment_notes,
         )
 
-        warnings = _verify_customization(customized_text, cv.structured)
+        full_text = _diff_to_full_text(diff)
+
+        warnings = _verify_customization(full_text, cv.structured)
         if warnings:
             logger.warning(
                 "Verification warnings found in CV customization for user_id=%s job_result_id=%s: %s",
@@ -171,17 +175,19 @@ class CVService:
                 warnings,
             )
 
+        sections = diff.get("sections")
         await self._cv_customization_repo.upsert(
             user_id=user_id,
             job_result_id=job_result_id,
-            customized_text=customized_text,
+            customized_text=full_text,
+            customized_diff=diff,
         )
         logger.info(
             "Generated CV customization for user_id=%s job_result_id=%s",
             user_id,
             job_result_id,
         )
-        return customized_text, False, warnings
+        return full_text, False, warnings, sections
 
     async def _structure_cv(self, raw_text: str) -> dict:
         """Call Claude to parse raw CV text into structured sections."""
@@ -203,8 +209,17 @@ class CVService:
         job_description: str,
         cv_structured: dict,
         adjustment_notes: str | None = None,
-    ) -> str:
-        """Call Claude to produce a tailored CV text for the given job."""
+    ) -> dict:
+        """Call Claude to customize the CV. Returns diff-style JSON.
+        
+        {
+            "sections": [
+                {"title": "SUMMARY", "content": "...", "changed": True},
+                {"title": "EXPERIENCE", "content": "...", "changed": True},
+                {"title": "EDUCATION", "content": "...", "changed": False},
+            ]
+        }
+        """
         skills, languages, certifications = _extract_verified_fields(cv_structured)
 
         system = _CUSTOMIZE_PROMPT["system"]
@@ -225,7 +240,7 @@ class CVService:
 
         model = _CUSTOMIZE_PROMPT.get("model")
 
-        return await self._llm.generate_text(
+        return await self._llm.generate_json(
             system=system,
             user=user_message,
             model=model,
@@ -269,6 +284,16 @@ def _extract_verified_fields(structured: dict) -> tuple[str, str, str]:
         certifications_str = ""
 
     return skills_str, languages_str, certifications_str
+
+
+def _diff_to_full_text(diff: dict) -> str:
+    """Convert diff-style sections to full plain text CV."""
+    parts = []
+    for section in diff.get("sections", []):
+        parts.append(section.get("title", ""))
+        parts.append(section.get("content", ""))
+        parts.append("")  # blank line between sections
+    return "\n".join(parts).strip()
 
 
 def _verify_customization(customized_text: str, original_structured: dict) -> list[str]:

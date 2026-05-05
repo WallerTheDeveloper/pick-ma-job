@@ -121,7 +121,7 @@ async def api_customize_cv(
     profile = await profile_repo.find_by_user_id(user.id)
     threshold = profile.cv_customize_threshold if profile else 7
 
-    customized_text, from_cache, warnings = await cv_service.customize_cv(
+    customized_text, from_cache, warnings, sections = await cv_service.customize_cv(
         user_id=user.id,
         job_result_id=body.job_result_id,
         cv_customize_threshold=threshold,
@@ -129,4 +129,16 @@ async def api_customize_cv(
         adjustment_notes=body.adjustment_notes,
     )
 
-    return CVCustomizeResponse(customized_text=customized_text, from_cache=from_cache, warnings=warnings)
+    section_models = None
+    if sections is not None:
+        section_models = [
+            {"title": s.get("title", ""), "content": s.get("content", ""), "changed": s.get("changed", False)}
+            for s in sections
+        ]
+
+    return CVCustomizeResponse(
+        customized_text=customized_text,
+        from_cache=from_cache,
+        warnings=warnings,
+        sections=section_models,
+    )

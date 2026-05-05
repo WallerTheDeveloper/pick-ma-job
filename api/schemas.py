@@ -316,10 +316,17 @@ class CVCustomizeRequest(BaseModel):
     adjustment_notes: str | None = Field(default=None, max_length=2000)
 
 
+class CVSectionDiff(BaseModel):
+    title: str
+    content: str
+    changed: bool
+
+
 class CVCustomizeResponse(BaseModel):
     customized_text: str
     from_cache: bool
     warnings: list[str] = []
+    sections: list[CVSectionDiff] | None = None
 
 
 # ── Company Blacklist ─────────────────────────────────────────────────────────

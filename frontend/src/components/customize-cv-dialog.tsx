@@ -1,4 +1,4 @@
-/** Customize CV dialog — original (read-only) and AI-tailored (editable) panes. */
+/** Customize CV dialog — original (read-only) and AI-tailored panes with diff highlighting. */
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useCV, useCustomizeCV } from "@/hooks/use-cv";
-import type { JobResult } from "@/types/schemas";
+import type { JobResult, CVSectionDiff } from "@/types/schemas";
 
 function formatStructured(structured: Record<string, unknown>): string {
   return Object.entries(structured)
@@ -32,8 +32,10 @@ export function CustomizeCVDialog({ result, open, onOpenChange }: CustomizeCVDia
   const { data: cvData } = useCV();
   const customizeMutation = useCustomizeCV();
   const [customizedText, setCustomizedText] = useState("");
+  const [sections, setSections] = useState<CVSectionDiff[] | null>(null);
   const [adjustmentNotes, setAdjustmentNotes] = useState("");
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [showChangesOnly, setShowChangesOnly] = useState(false);
 
   const cv = cvData?.cv ?? null;
   const originalText = cv ? formatStructured(cv.structured as Record<string, unknown>) : "";
@@ -47,6 +49,7 @@ export function CustomizeCVDialog({ result, open, onOpenChange }: CustomizeCVDia
       {
         onSuccess: (data) => {
           setCustomizedText(data.customized_text);
+          setSections(data.sections ?? null);
           setWarnings(data.warnings ?? []);
         },
         onError: (err) => {
@@ -64,6 +67,7 @@ export function CustomizeCVDialog({ result, open, onOpenChange }: CustomizeCVDia
       {
         onSuccess: (data) => {
           setCustomizedText(data.customized_text);
+          setSections(data.sections ?? null);
           setWarnings(data.warnings ?? []);
           setAdjustmentNotes("");
           toast.success("CV regenerated.");
@@ -92,12 +96,17 @@ export function CustomizeCVDialog({ result, open, onOpenChange }: CustomizeCVDia
 
   const isGenerating = customizeMutation.isPending;
 
+  // Determine how many sections changed for the toggle label
+  const changedCount = sections ? sections.filter((s) => s.changed).length : 0;
+
   return (
     <Dialog open={open} onOpenChange={(next) => {
       if (!next) {
         setCustomizedText("");
+        setSections(null);
         setAdjustmentNotes("");
         setWarnings([]);
+        setShowChangesOnly(false);
       }
       onOpenChange(next);
     }}>
@@ -134,13 +143,45 @@ export function CustomizeCVDialog({ result, open, onOpenChange }: CustomizeCVDia
 
           {/* Customized CV pane */}
           <div className="flex flex-col md:flex-1 min-w-0 min-h-0 flex-1">
-            <p className="px-4 py-2 text-xs font-medium text-muted-foreground uppercase bg-muted border-b shrink-0">
-              Customized CV
-            </p>
-            <div className="flex-1 p-4 min-h-0">
+            <div className="flex items-center justify-between px-4 py-2 text-xs font-medium text-muted-foreground uppercase bg-muted border-b shrink-0">
+              <span>Customized CV</span>
+              {sections && sections.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs"
+                  onClick={() => setShowChangesOnly((prev) => !prev)}
+                >
+                  {showChangesOnly ? "Show all sections" : `Show changes only (${changedCount})`}
+                </Button>
+              )}
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 min-h-0">
               {isGenerating ? (
                 <div className="flex h-full items-center justify-center">
                   <p className="text-sm text-muted-foreground">Generating tailored CV...</p>
+                </div>
+              ) : sections && sections.length > 0 ? (
+                <div className="space-y-3">
+                  {sections
+                    .filter((s) => showChangesOnly ? s.changed : true)
+                    .map((section) => (
+                      <div key={section.title}>
+                        <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground mb-1">
+                          {section.title}
+                        </h3>
+                        <div className={
+                          section.changed
+                            ? "bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 pl-3 py-2 rounded-r"
+                            : "pl-3 py-2 opacity-60"
+                        }>
+                          <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed">{section.content}</pre>
+                        </div>
+                        {!section.changed && (
+                          <span className="text-xs text-muted-foreground ml-3">No changes</span>
+                        )}
+                      </div>
+                    ))}
                 </div>
               ) : (
                 <Textarea

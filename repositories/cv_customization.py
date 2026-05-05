@@ -16,7 +16,9 @@ class CVCustomizationRow:
     user_id: UUID
     job_result_id: UUID
     customized_text: str
+    customized_diff: dict | None
     created_at: datetime
+    updated_at: datetime
 
 
 def _row_to_customization(row: asyncpg.Record) -> CVCustomizationRow:
@@ -25,7 +27,9 @@ def _row_to_customization(row: asyncpg.Record) -> CVCustomizationRow:
         user_id=row["user_id"],
         job_result_id=row["job_result_id"],
         customized_text=row["customized_text"],
+        customized_diff=row["customized_diff"],
         created_at=row["created_at"],
+        updated_at=row["updated_at"],
     )
 
 
@@ -42,7 +46,7 @@ class CVCustomizationRepository:
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
-                SELECT id, user_id, job_result_id, customized_text, created_at
+                SELECT id, user_id, job_result_id, customized_text, customized_diff, created_at, updated_at
                 FROM cv_customizations
                 WHERE user_id = $1 AND job_result_id = $2
                 """,
@@ -56,21 +60,24 @@ class CVCustomizationRepository:
         user_id: UUID,
         job_result_id: UUID,
         customized_text: str,
+        customized_diff: dict | None = None,
     ) -> CVCustomizationRow:
         """Insert or replace a customization for a specific job. Returns the row."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
-                INSERT INTO cv_customizations (user_id, job_result_id, customized_text)
-                VALUES ($1, $2, $3)
+                INSERT INTO cv_customizations (user_id, job_result_id, customized_text, customized_diff)
+                VALUES ($1, $2, $3, $4)
                 ON CONFLICT (user_id, job_result_id) DO UPDATE SET
                     customized_text = EXCLUDED.customized_text,
-                    created_at      = now()
-                RETURNING id, user_id, job_result_id, customized_text, created_at
+                    customized_diff = EXCLUDED.customized_diff,
+                    updated_at      = now()
+                RETURNING id, user_id, job_result_id, customized_text, customized_diff, created_at, updated_at
                 """,
                 user_id,
                 job_result_id,
                 customized_text,
+                customized_diff,
             )
         logger.debug(
             "Upserted customization user_id=%s job_result_id=%s", user_id, job_result_id

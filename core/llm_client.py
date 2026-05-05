@@ -52,6 +52,37 @@ def _strip_json_fences(content: str) -> str:
     return stripped.strip()
 
 
+def _parse_json_text(text: str) -> dict:
+    """Parse JSON from LLM response text, handling fences and trailing content.
+
+    Tries in order:
+    1. Direct json.loads
+    2. Strip fences then json.loads
+    3. raw_decode to extract first JSON object when there's trailing content
+    """
+    # Try direct parse first
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Strip fences and retry
+    stripped = _strip_json_fences(text)
+    try:
+        return json.loads(stripped)
+    except json.JSONDecodeError as exc:
+        # Handle "Extra data" — LLM sometimes appends text after JSON
+        if "Extra data" in str(exc) or "extra data" in str(exc).lower():
+            decoder = json.JSONDecoder()
+            try:
+                obj, _ = decoder.raw_decode(stripped)
+                if isinstance(obj, dict):
+                    return obj
+            except json.JSONDecodeError:
+                pass
+        raise
+
+
 @dataclass(frozen=True)
 class LLMClient:
     """Thin wrapper around ``AsyncAnthropic`` with shared retry and parsing.
@@ -132,7 +163,7 @@ class LLMClient:
     ) -> dict:
         """Call the LLM and parse the response as JSON.
 
-        Automatically strips markdown code fences before parsing.
+        Automatically strips markdown code fences and trailing text.
         Raises ``LLMError`` on API failure or if the response is not valid JSON.
         """
         resp = await self._call_api(
@@ -142,15 +173,8 @@ class LLMClient:
             max_tokens=max_tokens,
         )
 
-        # Try direct parse first
         try:
-            return json.loads(resp.text)
-        except json.JSONDecodeError:
-            pass
-
-        # Strip fences and retry once
-        try:
-            return json.loads(_strip_json_fences(resp.text))
+            return _parse_json_text(resp.text)
         except json.JSONDecodeError as exc:
             raise LLMError(f"LLM returned invalid JSON: {exc}") from exc
 
@@ -171,9 +195,9 @@ class LLMClient:
         )
 
         try:
-            parsed = json.loads(resp.text)
-        except json.JSONDecodeError:
-            parsed = json.loads(_strip_json_fences(resp.text))
+            parsed = _parse_json_text(resp.text)
+        except json.JSONDecodeError as exc:
+            raise LLMError(f"LLM returned invalid JSON: {exc}") from exc
 
         return parsed, resp
 

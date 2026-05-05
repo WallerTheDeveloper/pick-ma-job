@@ -185,10 +185,19 @@ export const cvUploadResponseSchema = z.object({
 
 export type CVUploadResponse = z.infer<typeof cvUploadResponseSchema>;
 
+export const cvSectionDiffSchema = z.object({
+  title: z.string(),
+  content: z.string(),
+  changed: z.boolean(),
+});
+
+export type CVSectionDiff = z.infer<typeof cvSectionDiffSchema>;
+
 export const cvCustomizeResponseSchema = z.object({
   customized_text: z.string(),
   from_cache: z.boolean(),
   warnings: z.array(z.string()).default([]),
+  sections: z.array(cvSectionDiffSchema).nullable().optional(),
 });
 
 export type CVCustomizeResponse = z.infer<typeof cvCustomizeResponseSchema>;
