@@ -144,6 +144,8 @@ async def api_list_results(
                 url=r.url,
                 score=r.score,
                 evaluation=r.evaluation,
+                skip_reason=r.skip_reason,
+                detected_language=r.detected_language,
                 status=r.status,
                 created_at=r.created_at,
             )
@@ -187,6 +189,8 @@ async def api_update_result_status(
         url=updated.url,
         score=updated.score,
         evaluation=updated.evaluation,
+        skip_reason=updated.skip_reason,
+        detected_language=updated.detected_language,
         status=updated.status,
         created_at=updated.created_at,
     )
@@ -431,6 +435,8 @@ async def api_evaluate_result(
             url=updated.url,
             score=updated.score,
             evaluation=updated.evaluation,
+            skip_reason=updated.skip_reason,
+            detected_language=updated.detected_language,
             status=updated.status,
             created_at=updated.created_at,
         )

@@ -63,6 +63,8 @@ class JobResultResponse(BaseModel):
     url: str
     score: int | None = None
     evaluation: dict | None = None
+    skip_reason: str | None = None
+    detected_language: str | None = None
     status: str
     created_at: datetime
 

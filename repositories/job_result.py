@@ -34,6 +34,8 @@ class JobResultRow:
     evaluation: dict | None
     status: str
     created_at: datetime
+    skip_reason: str | None = None
+    detected_language: str | None = None
 
 
 def _row_to_job_result(row: asyncpg.Record) -> JobResultRow:
@@ -48,6 +50,8 @@ def _row_to_job_result(row: asyncpg.Record) -> JobResultRow:
         evaluation=row["evaluation"],
         status=row["status"],
         created_at=row["created_at"],
+        skip_reason=row.get("skip_reason"),
+        detected_language=row.get("detected_language"),
     )
 
 
@@ -64,15 +68,17 @@ class JobResultRepository:
         url: str,
         score: int | None,
         evaluation: dict | None,
+        skip_reason: str | None = None,
+        detected_language: str | None = None,
     ) -> JobResultRow | None:
         """Insert a job result. Returns None if the job already exists (dedup via UNIQUE constraint)."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
-                INSERT INTO job_results (user_id, platform, job_id, title, url, score, evaluation)
-                VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+                INSERT INTO job_results (user_id, platform, job_id, title, url, score, evaluation, skip_reason, detected_language)
+                VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
                 ON CONFLICT (user_id, platform, job_id) DO NOTHING
-                RETURNING id, user_id, platform, job_id, title, url, score, evaluation, status, created_at
+                RETURNING id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language
                 """,
                 user_id,
                 platform,
@@ -81,6 +87,8 @@ class JobResultRepository:
                 url,
                 score,
                 evaluation,
+                skip_reason,
+                detected_language,
             )
         if row is None:
             logger.debug("Skipped duplicate job user_id=%s platform=%s job_id=%s", user_id, platform, job_id)
@@ -256,7 +264,7 @@ class JobResultRepository:
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
                 f"""
-                SELECT id, user_id, platform, job_id, title, url, score, evaluation, status, created_at
+                SELECT id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language
                 FROM job_results
                 WHERE {where}
                 ORDER BY {order}
@@ -279,7 +287,7 @@ class JobResultRepository:
                 """
                 UPDATE job_results SET status = $1
                 WHERE id = $2 AND user_id = $3
-                RETURNING id, user_id, platform, job_id, title, url, score, evaluation, status, created_at
+                RETURNING id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language
                 """,
                 status,
                 result_id,
@@ -436,7 +444,7 @@ class JobResultRepository:
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
-                SELECT id, user_id, platform, job_id, title, url, score, evaluation, status, created_at
+                SELECT id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language
                 FROM job_results
                 WHERE id = $1 AND user_id = $2
                 """,
@@ -491,7 +499,7 @@ class JobResultRepository:
                 """
                 UPDATE job_results SET evaluation = $1::jsonb
                 WHERE id = $2 AND user_id = $3
-                RETURNING id, user_id, platform, job_id, title, url, score, evaluation, status, created_at
+                RETURNING id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language
                 """,
                 evaluation,
                 result_id,
@@ -530,10 +538,44 @@ class JobResultRepository:
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
                 f"""
-                SELECT id, user_id, platform, job_id, title, url, score, evaluation, status, created_at
+                SELECT id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language
                 FROM job_results
                 WHERE {where}
                 ORDER BY score DESC NULLS LAST
+                """,
+                *params,
+            )
+        return [_row_to_job_result(r) for r in rows]
+
+    async def find_skipped_by_user(
+        self,
+        user_id: UUID,
+        skip_reason: str | None = None,
+        platform: str | None = None,
+    ) -> list[JobResultRow]:
+        """Return skipped job results for a user, optionally filtered by skip_reason and platform."""
+        conditions = ["user_id = $1", "skip_reason IS NOT NULL"]
+        params: list = [user_id]
+        idx = 3
+
+        if skip_reason is not None:
+            conditions.append(f"skip_reason = ${idx}")
+            params.append(skip_reason)
+            idx += 1
+
+        if platform is not None:
+            conditions.append(f"platform = ${idx}")
+            params.append(platform)
+            idx += 1
+
+        where = " AND ".join(conditions)
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(
+                f"""
+                SELECT id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language
+                FROM job_results
+                WHERE {where}
+                ORDER BY created_at DESC
                 """,
                 *params,
             )

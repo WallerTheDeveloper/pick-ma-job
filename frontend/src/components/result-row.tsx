@@ -139,6 +139,16 @@ export function ResultRow({ result, onStatusChange, onDelete, isUpdating, isDele
                 <Badge variant="outline" className="text-xs">
                   {result.platform}
                 </Badge>
+                {result.skip_reason === "language" && result.detected_language && (
+                  <Badge variant="secondary" className="text-xs">
+                    {result.detected_language}
+                  </Badge>
+                )}
+                {result.skip_reason === "language" && (
+                  <span className="text-muted-foreground italic">
+                    Language not in profile
+                  </span>
+                )}
                 {evaluation?.recommendation && (
                   <span className="truncate">{evaluation.recommendation}</span>
                 )}

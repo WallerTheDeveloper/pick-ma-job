@@ -134,6 +134,8 @@ async def api_get_jobs_in_list(
                 url=j.url,
                 score=j.score,
                 evaluation=j.evaluation,
+                skip_reason=j.skip_reason,
+                detected_language=j.detected_language,
                 status=j.status,
                 created_at=j.created_at,
             )

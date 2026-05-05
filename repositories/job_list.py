@@ -190,7 +190,7 @@ class JobListRepository:
             rows = await conn.fetch(
                 f"""
                 SELECT jr.id, jr.user_id, jr.platform, jr.job_id, jr.title, jr.url,
-                       jr.score, jr.evaluation, jr.status, jr.created_at
+                       jr.score, jr.evaluation, jr.status, jr.created_at, jr.skip_reason, jr.detected_language
                 FROM job_results jr
                 JOIN job_list_items jli ON jli.job_result_id = jr.id
                 JOIN job_lists jl ON jl.id = jli.list_id

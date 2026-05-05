@@ -95,6 +95,7 @@ async def api_get_run_status(
             "jobs_found": r.get("jobs_found"),
             "jobs_skipped_dedup": r.get("jobs_skipped_dedup"),
             "jobs_skipped_filter": r.get("jobs_skipped_filter"),
+            "jobs_skipped_language": r.get("jobs_skipped_language"),
             "jobs_skipped_low_score": r.get("jobs_skipped_low_score"),
             "jobs_evaluated": r.get("jobs_evaluated"),
             "jobs_stored": r.get("jobs_stored"),

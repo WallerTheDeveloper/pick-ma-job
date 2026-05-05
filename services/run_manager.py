@@ -147,10 +147,10 @@ class RunManager:
                 completed_at=completed_at,
             )
             logger.info(
-                "Run %s completed: found=%d evaluated=%d stored=%d errors=%d",
+                "Run %s completed: found=%d language=%d stored=%d errors=%d",
                 run_id,
                 result.jobs_found,
-                result.jobs_evaluated,
+                result.jobs_skipped_language,
                 result.jobs_stored,
                 len(result.errors),
             )
