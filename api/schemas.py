@@ -319,6 +319,7 @@ class CVCustomizeRequest(BaseModel):
 class CVCustomizeResponse(BaseModel):
     customized_text: str
     from_cache: bool
+    warnings: list[str] = []
 
 
 # ── Company Blacklist ─────────────────────────────────────────────────────────

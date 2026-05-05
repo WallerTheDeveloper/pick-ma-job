@@ -188,6 +188,7 @@ export type CVUploadResponse = z.infer<typeof cvUploadResponseSchema>;
 export const cvCustomizeResponseSchema = z.object({
   customized_text: z.string(),
   from_cache: z.boolean(),
+  warnings: z.array(z.string()).default([]),
 });
 
 export type CVCustomizeResponse = z.infer<typeof cvCustomizeResponseSchema>;

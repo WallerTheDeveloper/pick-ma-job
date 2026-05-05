@@ -3,6 +3,7 @@
 import io
 import json
 import logging
+import re
 from pathlib import Path
 from uuid import UUID
 
@@ -33,6 +34,29 @@ except FileNotFoundError as exc:
 from core.exceptions import DomainError, NotFoundError  # noqa: E402
 
 CVError = DomainError
+
+# Certification keywords used to detect fabricated credentials.
+_CERTIFICATION_KEYWORDS = [
+    "PMP", "CPA", "RN", "CISSP", "CFA", "CISA", "CISM", "CRISC",
+    "AWS Certified", "Azure Certified", "GCP Professional",
+    "CCNA", "CCNP", "CCIE", "ITIL", "Scrum Master", "CSM",
+    "Six Sigma", "Lean", "PRINCE2", "CompTIA", "TOGAF",
+    "PMP®", "CPA®", "CFP", "CHRP", "SHRM", "PHR", "SPHR",
+    "MBA", "PhD", "MD", "JD", "DDS", "DVM", "PharmD",
+    "PE (Professional Engineer)", "CFA®",
+    "Google Analytics", "HubSpot", "Salesforce",
+    "IELTS", "TOEFL", "DELF", "DALF", "TestDaF",
+    "Security+", "Network+", "A+",
+]
+
+# Degree keywords used to detect fabricated education claims.
+_DEGREE_KEYWORDS = [
+    r"\bPh\.?D\b", r"\bDoctorate\b",
+    r"\bMBA\b", r"\bMaster'?s?\s+Degree\b", r"\bM\.?S\.?\b", r"\bM\.?A\.?\b",
+    r"\bBachelor'?s?\s+Degree\b", r"\bB\.?S\.?\b", r"\bB\.?A\.?\b",
+    r"\bM\.?Eng\.?\b", r"\bB\.?Eng\.?\b",
+    r"\bMD\b", r"\bDDS\b", r"\bJD\b", r"\bDVM\b", r"\bPharmD\b",
+]
 
 
 class CVService:
@@ -92,8 +116,8 @@ class CVService:
         cv_customize_threshold: int = 7,
         force_regenerate: bool = False,
         adjustment_notes: str | None = None,
-    ) -> tuple[str, bool]:
-        """Return (customized_text, from_cache).
+    ) -> tuple[str, bool, list[str]]:
+        """Return (customized_text, from_cache, warnings).
 
         Validates job ownership, score threshold, and CV presence.
         Returns cached result unless force_regenerate is True.
@@ -119,15 +143,33 @@ class CVService:
                 user_id, job_result_id
             )
             if cached is not None:
-                return cached.customized_text, True
+                warnings = _verify_customization(cached.customized_text, cv.structured)
+                if warnings:
+                    logger.warning(
+                        "Verification warnings found in cached CV customization for user_id=%s job_result_id=%s: %s",
+                        user_id,
+                        job_result_id,
+                        warnings,
+                    )
+                return cached.customized_text, True, warnings
 
         job_description = _build_job_description(job.title, job.evaluation)
         customized_text = await self._call_customize(
             cv_raw_text=cv.raw_text,
             job_title=job.title,
             job_description=job_description,
+            cv_structured=cv.structured,
             adjustment_notes=adjustment_notes,
         )
+
+        warnings = _verify_customization(customized_text, cv.structured)
+        if warnings:
+            logger.warning(
+                "Verification warnings found in CV customization for user_id=%s job_result_id=%s: %s",
+                user_id,
+                job_result_id,
+                warnings,
+            )
 
         await self._cv_customization_repo.upsert(
             user_id=user_id,
@@ -139,7 +181,7 @@ class CVService:
             user_id,
             job_result_id,
         )
-        return customized_text, False
+        return customized_text, False, warnings
 
     async def _structure_cv(self, raw_text: str) -> dict:
         """Call Claude to parse raw CV text into structured sections."""
@@ -159,14 +201,20 @@ class CVService:
         cv_raw_text: str,
         job_title: str,
         job_description: str,
+        cv_structured: dict,
         adjustment_notes: str | None = None,
     ) -> str:
         """Call Claude to produce a tailored CV text for the given job."""
+        skills, languages, certifications = _extract_verified_fields(cv_structured)
+
         system = _CUSTOMIZE_PROMPT["system"]
         user_message = _CUSTOMIZE_PROMPT["user_template"].format(
             cv_text=cv_raw_text,
             job_title=job_title,
             job_description=job_description or "No additional description available.",
+            skills=skills or "None listed",
+            languages=languages or "None listed",
+            certifications=certifications or "None listed",
         )
         if adjustment_notes:
             user_message += (
@@ -183,6 +231,128 @@ class CVService:
             model=model,
             max_tokens=4096,
         )
+
+
+def _extract_verified_fields(structured: dict) -> tuple[str, str, str]:
+    """Extract skills, languages, and certifications from structured CV data.
+
+    Returns (skills_str, languages_str, certifications_str).
+    """
+    # Skills: combine primary, secondary, and tertiary
+    skills_parts: list[str] = []
+    skills_obj = structured.get("skills", {})
+    if isinstance(skills_obj, dict):
+        for tier in ("primary", "secondary", "tertiary"):
+            tier_val = skills_obj.get(tier, [])
+            if isinstance(tier_val, list):
+                skills_parts.extend(str(s) for s in tier_val)
+    skills_str = ", ".join(skills_parts) if skills_parts else ""
+
+    # Languages
+    languages_raw = structured.get("languages", [])
+    if isinstance(languages_raw, list):
+        languages_str = ", ".join(str(lang) for lang in languages_raw)
+    elif isinstance(languages_raw, str):
+        languages_str = languages_raw
+    else:
+        languages_str = ""
+
+    # Certifications: structured.certifications or structured.other
+    certs_raw = structured.get("certifications", [])
+    if not certs_raw:
+        certs_raw = structured.get("other", [])
+    if isinstance(certs_raw, list):
+        certifications_str = ", ".join(str(c) for c in certs_raw)
+    elif isinstance(certs_raw, str):
+        certifications_str = certs_raw
+    else:
+        certifications_str = ""
+
+    return skills_str, languages_str, certifications_str
+
+
+def _verify_customization(customized_text: str, original_structured: dict) -> list[str]:
+    """Check for fabricated verifiable claims in the customized CV.
+
+    Returns a list of warning strings. Does NOT flag new skills — adjacent
+    skill enhancement is allowed by design.
+    """
+    warnings: list[str] = []
+    text_lower = customized_text.lower()
+
+    # --- Check languages ---
+    orig_languages: set[str] = set()
+    langs_raw = original_structured.get("languages", [])
+    if isinstance(langs_raw, list):
+        for lang in langs_raw:
+            if isinstance(lang, str):
+                orig_languages.add(lang.lower())
+
+    # Known languages to check for
+    known_languages = [
+        "english", "spanish", "french", "german", "mandarin", "chinese",
+        "portuguese", "japanese", "korean", "arabic", "hindi", "russian",
+        "italian", "dutch", "swedish", "norwegian", "danish", "finnish",
+        "polish", "czech", "hungarian", "turkish", "greek", "hebrew",
+        "thai", "vietnamese", "indonesian", "malay", "tagalog", "urdu",
+        "bengali", "tamil", "persian", "farsi", "ukrainian", "romanian",
+    ]
+
+    for lang in known_languages:
+        if lang in text_lower and lang not in orig_languages:
+            warnings.append(
+                f"Language '{lang.title()}' appears in the customized CV but is not in the original CV's languages."
+            )
+
+    # Check for proficiency claims higher than what's recorded
+    proficiency_patterns = [
+        r"(?:native|fluent|mother\s*tongue)\s+(?:speaker\s+of\s+)?(\w+)",
+        r"(\w+)\s*:\s*(?:native|fluent)",
+    ]
+    for pattern in proficiency_patterns:
+        for match in re.finditer(pattern, text_lower):
+            lang = match.group(1)
+            if lang in known_languages and lang not in orig_languages:
+                warnings.append(
+                    f"Proficiency claim for '{lang.title()}' found in customized CV but language is not in the original CV."
+                )
+
+    # --- Check certifications ---
+    orig_certifications_text = ""
+    certs_raw = original_structured.get("certifications", [])
+    if not certs_raw:
+        certs_raw = original_structured.get("other", [])
+    if isinstance(certs_raw, list):
+        orig_certifications_text = " ".join(str(c) for c in certs_raw).lower()
+    elif isinstance(certs_raw, str):
+        orig_certifications_text = certs_raw.lower()
+
+    for cert_keyword in _CERTIFICATION_KEYWORDS:
+        if cert_keyword.lower() in text_lower and cert_keyword.lower() not in orig_certifications_text:
+            warnings.append(
+                f"Certification '{cert_keyword}' appears in the customized CV but is not in the original CV's certifications."
+            )
+
+    # --- Check degrees / education ---
+    orig_education_text = ""
+    edu_raw = original_structured.get("education", [])
+    if isinstance(edu_raw, list):
+        orig_education_text = " ".join(str(e) for e in edu_raw).lower()
+    elif isinstance(edu_raw, str):
+        orig_education_text = edu_raw.lower()
+
+    for degree_pattern in _DEGREE_KEYWORDS:
+        if re.search(degree_pattern, customized_text, re.IGNORECASE):
+            # Check if the degree keyword (simplified) appears in original education
+            # Extract the keyword from the pattern (strip \b and optional punctuation)
+            keyword_simplified = re.sub(r"\\b|\\?|\.?\?|\(\w+[\s\w]*\?\)", "", degree_pattern)
+            keyword_simplified = keyword_simplified.replace("\\.", ".").replace("\\'", "'").strip()
+            if keyword_simplified.lower() not in orig_education_text:
+                warnings.append(
+                    f"Degree '{keyword_simplified}' appears in the customized CV but is not in the original CV's education."
+                )
+
+    return warnings
 
 
 def _extract_pdf_text(filename: str, file_bytes: bytes) -> str:

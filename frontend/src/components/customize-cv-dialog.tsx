@@ -33,6 +33,7 @@ export function CustomizeCVDialog({ result, open, onOpenChange }: CustomizeCVDia
   const customizeMutation = useCustomizeCV();
   const [customizedText, setCustomizedText] = useState("");
   const [adjustmentNotes, setAdjustmentNotes] = useState("");
+  const [warnings, setWarnings] = useState<string[]>([]);
 
   const cv = cvData?.cv ?? null;
   const originalText = cv ? formatStructured(cv.structured as Record<string, unknown>) : "";
@@ -44,7 +45,10 @@ export function CustomizeCVDialog({ result, open, onOpenChange }: CustomizeCVDia
     customizeMutation.mutate(
       { jobResultId: result.id },
       {
-        onSuccess: (data) => setCustomizedText(data.customized_text),
+        onSuccess: (data) => {
+          setCustomizedText(data.customized_text);
+          setWarnings(data.warnings ?? []);
+        },
         onError: (err) => {
           toast.error(err.message || "Failed to generate customized CV.");
           onOpenChange(false);
@@ -60,6 +64,7 @@ export function CustomizeCVDialog({ result, open, onOpenChange }: CustomizeCVDia
       {
         onSuccess: (data) => {
           setCustomizedText(data.customized_text);
+          setWarnings(data.warnings ?? []);
           setAdjustmentNotes("");
           toast.success("CV regenerated.");
         },
@@ -92,6 +97,7 @@ export function CustomizeCVDialog({ result, open, onOpenChange }: CustomizeCVDia
       if (!next) {
         setCustomizedText("");
         setAdjustmentNotes("");
+        setWarnings([]);
       }
       onOpenChange(next);
     }}>
@@ -101,6 +107,17 @@ export function CustomizeCVDialog({ result, open, onOpenChange }: CustomizeCVDia
             Customize CV — {result.title}
           </DialogTitle>
         </DialogHeader>
+
+        {warnings.length > 0 && !isGenerating && (
+          <div className="mx-6 mt-4 rounded-md border border-yellow-500/50 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-200">
+            <p className="font-medium">This CV includes enhanced claims. Please verify the highlighted items match your actual qualifications.</p>
+            <ul className="mt-1 list-disc list-inside text-xs text-yellow-300/80">
+              {warnings.map((w, i) => (
+                <li key={i}>{w}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="flex flex-col md:flex-row flex-1 min-h-0 divide-y md:divide-y-0 md:divide-x">
           {/* Original CV pane */}
