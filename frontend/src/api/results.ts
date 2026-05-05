@@ -115,3 +115,56 @@ export async function bulkUpdateStatus(
     bulkStatusUpdateResultSchema,
   );
 }
+
+// ── Evaluation ─────────────────────────────────────────────────────────────
+
+export interface EvaluationResult {
+  result: JobResult;
+}
+
+const evaluationResultSchema = z.object({
+  result: jobResultSchema,
+});
+
+export async function evaluateJob(resultId: string): Promise<EvaluationResult> {
+  return api(
+    `/api/results/${resultId}/evaluate`,
+    { method: "POST" },
+    evaluationResultSchema,
+  );
+}
+
+export interface BulkEvaluationParams {
+  result_ids?: string[];
+  filter?: {
+    platform?: string;
+    min_score?: number;
+    status?: string;
+  };
+}
+
+export interface BulkEvaluationResult {
+  total: number;
+  evaluated: number;
+  skipped_low_score: number;
+  failed: number;
+  updated_ids: string[];
+}
+
+const bulkEvaluationResultSchema = z.object({
+  total: z.number(),
+  evaluated: z.number(),
+  skipped_low_score: z.number(),
+  failed: z.number(),
+  updated_ids: z.array(z.string().uuid()),
+});
+
+export async function bulkEvaluate(
+  params: BulkEvaluationParams,
+): Promise<BulkEvaluationResult> {
+  return api(
+    "/api/results/evaluate-bulk",
+    { method: "POST", body: params },
+    bulkEvaluationResultSchema,
+  );
+}

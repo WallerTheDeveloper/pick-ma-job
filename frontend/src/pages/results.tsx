@@ -2,6 +2,7 @@
 
 import { useState, useDeferredValue } from "react";
 import { toast } from "sonner";
+import { Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -99,6 +100,8 @@ export function ResultsPage() {
     isBulkDeletingByIds,
     bulkUpdateStatusByIds,
     isBulkUpdatingStatus,
+    bulkEvaluate,
+    isBulkEvaluating,
   } = useResults();
 
   const listJobsParams = selectedListId !== null
@@ -471,6 +474,60 @@ export function ResultsPage() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isBulkEvaluating}
+            onClick={async () => {
+              const ids = [...selectedIds];
+              toast.info(`Evaluating ${ids.length} job${ids.length !== 1 ? "s" : ""}...`);
+              try {
+                const result = await bulkEvaluate({ result_ids: ids });
+                toast.success(`Evaluated ${result.evaluated} job${result.evaluated !== 1 ? "s" : ""}`);
+                setSelectedIds(new Set());
+              } catch (err: unknown) {
+                toast.error(err instanceof Error ? err.message : "Failed to evaluate jobs");
+              }
+            }}
+          >
+            {isBulkEvaluating ? (
+              <>
+                <Loader2Icon className="mr-1 size-3 animate-spin" />
+                Evaluating...
+              </>
+            ) : (
+              "Evaluate selected"
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isBulkEvaluating}
+            onClick={async () => {
+              // Evaluate all unevaluated jobs matching current filters
+              const filter: Record<string, unknown> = {};
+              if (filters.platform) filter.platform = filters.platform;
+              if (filters.minScore && !isNaN(Number(filters.minScore))) filter.min_score = Number(filters.minScore);
+              if (filters.status) filter.status = filters.status;
+
+              toast.info("Evaluating all filtered jobs...");
+              try {
+                const result = await bulkEvaluate({ filter });
+                toast.success(`Evaluated ${result.evaluated} job${result.evaluated !== 1 ? "s" : ""}`);
+              } catch (err: unknown) {
+                toast.error(err instanceof Error ? err.message : "Failed to evaluate jobs");
+              }
+            }}
+          >
+            {isBulkEvaluating ? (
+              <>
+                <Loader2Icon className="mr-1 size-3 animate-spin" />
+                Evaluating...
+              </>
+            ) : (
+              "Evaluate all"
+            )}
+          </Button>
           <Dialog open={confirmBulkDeleteOpen} onOpenChange={setConfirmBulkDeleteOpen}>
             <DialogTrigger render={
               <Button variant="destructive" size="sm">

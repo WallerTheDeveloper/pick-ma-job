@@ -166,6 +166,59 @@ class Evaluator:
         )
         return EvaluationResult.from_dict(raw)
 
+    async def evaluate_full(
+        self,
+        job: NormalizedJob,
+        platform_context: dict,
+        existing_score: int,
+    ) -> EvaluationResult:
+        """Run Pass 2 (full evaluation) for a job that already has a score from Pass 1.
+
+        Only runs if existing_score >= self._score_threshold.
+        Returns EvaluationResult.from_score(existing_score) if below threshold.
+
+        Args:
+            job: The normalized job to evaluate.
+            platform_context: Loaded ``configs/prompts/<platform>_context.json``.
+            existing_score: The score from Pass 1 (already stored in DB).
+
+        Returns:
+            An ``EvaluationResult`` — fully populated for high-score jobs,
+            score-only for low-score jobs.
+
+        Raises:
+            LLMError: If Claude returns invalid JSON after retries.
+        """
+        if existing_score < self._score_threshold:
+            logger.info(
+                "Existing score (%d < %d) — skipping full evaluation for '%s'",
+                existing_score,
+                self._score_threshold,
+                job.title,
+            )
+            return EvaluationResult.from_score(existing_score)
+
+        system_prompt = self._assemble_system_prompt(platform_context)
+        user_message = self._assemble_user_message(job, platform_context)
+
+        raw, meta = await self._llm.generate_json_with_metadata(
+            system=system_prompt,
+            user=user_message,
+            max_tokens=2048,
+        )
+        logger.info(
+            "llm_call",
+            extra={
+                "pass": 2,
+                "job_title": job.title,
+                "model": meta.model,
+                "duration_ms": meta.duration_ms,
+                "input_tokens": meta.input_tokens,
+                "output_tokens": meta.output_tokens,
+            },
+        )
+        return EvaluationResult.from_dict(raw)
+
     async def _call_score(self, job: NormalizedJob) -> tuple[int, bool, LLMResponse]:
         """Pass 1: send a lightweight prompt and return a relevancy score 1–10.
 

@@ -1,8 +1,9 @@
 /** Single result row — expandable with score, title, recommendation, details. */
 
 import { useState } from "react";
-import { ChevronDownIcon, ExternalLinkIcon, Trash2Icon } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { ChevronDownIcon, ExternalLinkIcon, Loader2Icon, Trash2Icon } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ import {
 import { ScoreBadge } from "@/components/score-badge";
 import { AddToListMenu } from "@/components/add-to-list-menu";
 import { CustomizeCVDialog } from "@/components/customize-cv-dialog";
+import { evaluateJob } from "@/api/results";
 import { useLists } from "@/hooks/use-lists";
 import { useCV } from "@/hooks/use-cv";
 import { useProfile } from "@/hooks/use-profile";
@@ -59,8 +61,17 @@ export function ResultRow({ result, onStatusChange, onDelete, isUpdating, isDele
   const { data: cvData } = useCV();
   const { profile } = useProfile();
 
+  const evaluateJobMutation = useMutation({
+    mutationFn: (resultId: string) => evaluateJob(resultId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["results"] });
+      queryClient.invalidateQueries({ queryKey: ["lists"] });
+    },
+  });
+
   const cvThreshold = profile?.cv_customize_threshold ?? 7;
   const showCustomizeCV = (result.score ?? 0) >= cvThreshold && cvData?.cv != null;
+  const showEvaluate = result.evaluation === null && result.score !== null;
 
   async function handleAddToList(listId: string) {
     await addJob({ listId, jobResultId: result.id });
@@ -72,6 +83,17 @@ export function ResultRow({ result, onStatusChange, onDelete, isUpdating, isDele
     await removeJob({ listId, jobResultId: result.id });
     queryClient.invalidateQueries({ queryKey: ["result-lists", result.id] });
     queryClient.invalidateQueries({ queryKey: ["lists", "jobs", listId] });
+  }
+
+  async function handleEvaluate() {
+    try {
+      await evaluateJobMutation.mutateAsync(result.id);
+      toast.success("Evaluation complete");
+      // Auto-expand the row to show the evaluation
+      setOpen(true);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to evaluate job");
+    }
   }
 
   return (
@@ -130,6 +152,23 @@ export function ResultRow({ result, onStatusChange, onDelete, isUpdating, isDele
 
           {/* Interactive controls — outside the trigger to avoid nested buttons */}
           <div className="flex shrink-0 items-center gap-2">
+            {showEvaluate && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleEvaluate}
+                disabled={evaluateJobMutation.isPending}
+              >
+                {evaluateJobMutation.isPending ? (
+                  <>
+                    <Loader2Icon className="mr-1 size-3 animate-spin" />
+                    Evaluating...
+                  </>
+                ) : (
+                  "Evaluate"
+                )}
+              </Button>
+            )}
             {showCustomizeCV && (
               <Button
                 variant="outline"
@@ -177,6 +216,14 @@ export function ResultRow({ result, onStatusChange, onDelete, isUpdating, isDele
 
         <CollapsibleContent>
           <CardContent className="space-y-4 border-t pt-4">
+            {/* Inline loading state for evaluation */}
+            {evaluateJobMutation.isPending && (
+              <div className="flex items-center gap-2 rounded-md bg-muted/50 p-3 text-sm">
+                <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+                <span className="text-muted-foreground">Evaluating with AI...</span>
+              </div>
+            )}
+
             {/* Summary */}
             {evaluation?.summary && (
               <div>

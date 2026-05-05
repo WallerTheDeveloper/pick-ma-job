@@ -62,7 +62,6 @@ class PipelineStats:
     jobs_skipped_filter: int = 0
     jobs_skipped_blacklist: int = 0
     jobs_skipped_low_score: int = 0
-    jobs_evaluated: int = 0
     jobs_stored: int = 0
     jobs_failed: int = 0
     jobs_score_parse_failed: int = 0
@@ -75,7 +74,6 @@ class PipelineStats:
             jobs_skipped_filter=self.jobs_skipped_filter + other.jobs_skipped_filter,
             jobs_skipped_blacklist=self.jobs_skipped_blacklist + other.jobs_skipped_blacklist,
             jobs_skipped_low_score=self.jobs_skipped_low_score + other.jobs_skipped_low_score,
-            jobs_evaluated=self.jobs_evaluated + other.jobs_evaluated,
             jobs_stored=self.jobs_stored + other.jobs_stored,
             jobs_failed=self.jobs_failed + other.jobs_failed,
             jobs_score_parse_failed=self.jobs_score_parse_failed + other.jobs_score_parse_failed,
@@ -305,7 +303,6 @@ class PipelineService:
 
         # Aggregate results from concurrent evaluation
         jobs_skipped_low_score = 0
-        jobs_evaluated = 0
         jobs_stored = 0
         jobs_failed = 0
         jobs_score_parse_failed = 0
@@ -320,24 +317,21 @@ class PipelineService:
             elif isinstance(result, _EvalResult):
                 if result.pass1_parse_failed:
                     jobs_score_parse_failed += 1
-                if result.evaluation is None:
-                    jobs_skipped_low_score += 1
-                else:
-                    jobs_evaluated += 1
+                # All jobs now have score only (no Pass 2 evaluation)
+                jobs_skipped_low_score += 1
                 if result.stored:
                     jobs_stored += 1
                     new_job_ids.append(result.job_id)
                 errors.extend(result.errors)
 
         logger.info(
-            "Pipeline done: platform=%s found=%d dedup=%d blacklist=%d filter=%d low_score=%d evaluated=%d stored=%d failed=%d parse_failed=%d",
+            "Pipeline done: platform=%s found=%d dedup=%d blacklist=%d filter=%d low_score=%d stored=%d failed=%d parse_failed=%d",
             platform,
             jobs_found,
             jobs_skipped_dedup,
             jobs_skipped_blacklist,
             jobs_skipped_filter,
             jobs_skipped_low_score,
-            jobs_evaluated,
             jobs_stored,
             jobs_failed,
             jobs_score_parse_failed,
@@ -350,7 +344,6 @@ class PipelineService:
                 jobs_skipped_filter=jobs_skipped_filter,
                 jobs_skipped_blacklist=jobs_skipped_blacklist,
                 jobs_skipped_low_score=jobs_skipped_low_score,
-                jobs_evaluated=jobs_evaluated,
                 jobs_stored=jobs_stored,
                 jobs_failed=jobs_failed,
                 jobs_score_parse_failed=jobs_score_parse_failed,
@@ -369,10 +362,11 @@ class PipelineService:
         platform_context: dict,
         semaphore: asyncio.Semaphore,
     ) -> _EvalResult:
-        """Evaluate a single job and store the result.
+        """Score a single job (Pass 1 only) and store the result.
 
         This method is designed to be called concurrently with a semaphore to limit
-        the number of simultaneous evaluations.
+        the number of simultaneous evaluations. Only Pass 1 (scoring) is run during
+        pipeline execution. Full evaluation (Pass 2) is deferred to on-demand requests.
 
         Args:
             job: The normalized job to evaluate.
@@ -383,16 +377,27 @@ class PipelineService:
             semaphore: Semaphore to limit concurrency.
 
         Returns:
-            An _EvalResult with the job_id, evaluation result, stored status, and any errors.
+            An _EvalResult with the job_id, evaluation result (always None), stored status, and any errors.
         """
         async with semaphore:
-            errors: list[str] = []
-
+            # Run Pass 1 only — score the job
             try:
-                result = await evaluator.evaluate(job, platform_context)
+                score, parse_failed, meta = await evaluator._call_score(job)
+                logger.info(
+                    "llm_call",
+                    extra={
+                        "pass": 1,
+                        "job_title": job.title,
+                        "model": meta.model,
+                        "duration_ms": meta.duration_ms,
+                        "input_tokens": meta.input_tokens,
+                        "output_tokens": meta.output_tokens,
+                    },
+                )
+                logger.debug("Pass 1 score=%d for job '%s'", score, job.title)
             except Exception as exc:
                 logger.error(
-                    "Evaluation failed for '%s': %s",
+                    "Scoring failed for '%s': %s",
                     job.title,
                     exc,
                     exc_info=True,
@@ -402,44 +407,10 @@ class PipelineService:
                     evaluation=None,
                     stored=False,
                     pass1_parse_failed=False,
-                    errors=(f"Evaluation failed for '{job.title}': {type(exc).__name__}: {exc}",),
+                    errors=(f"Scoring failed for '{job.title}': {type(exc).__name__}: {exc}",),
                 )
 
-            if result.evaluation is None:
-                # Low score - still store the job with score only
-                try:
-                    stored = await self._job_result_repo.insert(
-                        user_id=user_id,
-                        platform=platform,
-                        job_id=job.id,
-                        title=job.title,
-                        url=job.url,
-                        score=result.relevancy_score,
-                        evaluation=None,
-                    )
-                    return _EvalResult(
-                        job_id=stored.id if stored else job.id,
-                        evaluation=None,
-                        stored=stored is not None,
-                        pass1_parse_failed=result.pass1_parse_failed,
-                        errors=(),
-                    )
-                except Exception as exc:
-                    logger.error(
-                        "DB insert failed for '%s': %s",
-                        job.title,
-                        exc,
-                        exc_info=True,
-                    )
-                    return _EvalResult(
-                        job_id=job.id,
-                        evaluation=None,
-                        stored=False,
-                        pass1_parse_failed=result.pass1_parse_failed,
-                        errors=(f"DB insert failed for '{job.title}': {type(exc).__name__}: {exc}",),
-                    )
-
-            # High score - store with full evaluation
+            # Store job with score only (evaluation=None — deferred to on-demand)
             try:
                 stored = await self._job_result_repo.insert(
                     user_id=user_id,
@@ -447,14 +418,14 @@ class PipelineService:
                     job_id=job.id,
                     title=job.title,
                     url=job.url,
-                    score=result.relevancy_score,
-                    evaluation=result.raw if result.evaluation is not None else None,
+                    score=score,
+                    evaluation=None,
                 )
                 return _EvalResult(
                     job_id=stored.id if stored else job.id,
-                    evaluation=result.raw if result.evaluation is not None else None,
+                    evaluation=None,
                     stored=stored is not None,
-                    pass1_parse_failed=result.pass1_parse_failed,
+                    pass1_parse_failed=parse_failed,
                     errors=(),
                 )
             except Exception as exc:
@@ -468,7 +439,7 @@ class PipelineService:
                     job_id=job.id,
                     evaluation=None,
                     stored=False,
-                    pass1_parse_failed=result.pass1_parse_failed,
+                    pass1_parse_failed=parse_failed,
                     errors=(f"DB insert failed for '{job.title}': {type(exc).__name__}: {exc}",),
                 )
 

@@ -294,6 +294,35 @@ export const platformsListResponseSchema = z.object({
 
 export type PlatformsListResponse = z.infer<typeof platformsListResponseSchema>;
 
+// ── Evaluation ─────────────────────────────────────────────────────────────
+
+export const bulkEvaluationRequestSchema = z.object({
+  result_ids: z.array(z.string().uuid()).optional(),
+  filter: z.object({
+    platform: z.string().optional(),
+    min_score: z.number().optional(),
+    status: z.string().optional(),
+  }).optional(),
+});
+
+export type BulkEvaluationRequest = z.infer<typeof bulkEvaluationRequestSchema>;
+
+export const evaluationResponseSchema = z.object({
+  result: jobResultSchema,
+});
+
+export type EvaluationResponse = z.infer<typeof evaluationResponseSchema>;
+
+export const bulkEvaluationResponseSchema = z.object({
+  total: z.number(),
+  evaluated: z.number(),
+  skipped_low_score: z.number(),
+  failed: z.number(),
+  updated_ids: z.array(z.string().uuid()),
+});
+
+export type BulkEvaluationResponse = z.infer<typeof bulkEvaluationResponseSchema>;
+
 // ── Version ────────────────────────────────────────────────────────────────
 
 export const versionResponseSchema = z.object({

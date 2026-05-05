@@ -101,7 +101,7 @@ def test_evaluation_result_fields_populated():
 
 def test_evaluation_result_missing_fields_default_to_empty():
     result = EvaluationResult.from_dict({})
-    assert result.scratchpad == ""
+    assert result.scratchpad is None
     assert result.relevancy_score == 0
 
 

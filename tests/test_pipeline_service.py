@@ -65,6 +65,7 @@ def _make_profile(**overrides) -> ProfileRow:
         notable_projects=[],
         languages=["English"],
         rubric=_RUBRIC,
+        cv_customize_threshold=7,
         updated_at=datetime(2026, 1, 1),
     )
     defaults.update(overrides)
@@ -168,6 +169,14 @@ def mock_scraper():
 def mock_evaluator():
     evaluator = AsyncMock()
     evaluator.evaluate.return_value = _make_evaluation_result()
+    # Mock _call_score to return (score, parse_failed, meta)
+    from unittest.mock import MagicMock
+    meta = MagicMock()
+    meta.model = "test-model"
+    meta.duration_ms = 100
+    meta.input_tokens = 50
+    meta.output_tokens = 10
+    evaluator._call_score.return_value = (8, False, meta)
     return evaluator
 
 
@@ -321,10 +330,12 @@ async def test_run_pipeline_counts_found_evaluated_stored(
         result = await svc.run_pipeline(_USER_ID)
 
     assert result.jobs_found == 1
-    assert result.jobs_evaluated == 1
     assert result.jobs_stored == 1
     assert result.jobs_skipped_dedup == 0
     assert result.jobs_skipped_filter == 0
+    # All jobs now have score only (no Pass 2 evaluation), so jobs_skipped_low_score counts all scored jobs
+    assert result.jobs_skipped_low_score == 1
+    assert result.jobs_failed == 0
     assert result.errors == ()
 
 
@@ -352,6 +363,8 @@ async def test_dedup_skips_already_seen_jobs(
 ):
     job_result_repo = AsyncMock()
     job_result_repo.exists.return_value = True  # job already in DB
+    # Mock find_existing_ids to return the job ID (simulating dedup)
+    job_result_repo.find_existing_ids.return_value = {"job-001"}
 
     svc = _make_service(profile_repo, search_config_repo, job_result_repo)
 
@@ -360,8 +373,7 @@ async def test_dedup_skips_already_seen_jobs(
         result = await svc.run_pipeline(_USER_ID)
 
     assert result.jobs_skipped_dedup == 1
-    assert result.jobs_evaluated == 0
-    mock_evaluator.evaluate.assert_not_called()
+    mock_evaluator._call_score.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -399,7 +411,6 @@ async def test_filter_skips_excluded_title_keyword(
         result = await svc.run_pipeline(_USER_ID)
 
     assert result.jobs_skipped_filter == 1
-    assert result.jobs_evaluated == 0
     mock_evaluator.evaluate.assert_not_called()
 
 
@@ -431,7 +442,6 @@ async def test_filter_does_not_skip_clean_title(
         result = await svc.run_pipeline(_USER_ID)
 
     assert result.jobs_skipped_filter == 0
-    assert result.jobs_evaluated == 1
 
 
 # ---------------------------------------------------------------------------
@@ -448,9 +458,15 @@ async def test_evaluation_error_does_not_abort_run(
     scraper.fetch_jobs.return_value = [job_a, job_b]
 
     evaluator = AsyncMock()
-    evaluator.evaluate.side_effect = [
+    from unittest.mock import MagicMock
+    meta = MagicMock()
+    meta.model = "test-model"
+    meta.duration_ms = 100
+    meta.input_tokens = 50
+    meta.output_tokens = 10
+    evaluator._call_score.side_effect = [
         ValueError("Claude error"),
-        _make_evaluation_result(),
+        (8, False, meta),
     ]
 
     svc = _make_service(profile_repo, search_config_repo, job_result_repo)
@@ -460,7 +476,6 @@ async def test_evaluation_error_does_not_abort_run(
         result = await svc.run_pipeline(_USER_ID)
 
     assert result.jobs_found == 2
-    assert result.jobs_evaluated == 1
     assert result.jobs_stored == 1
     assert len(result.errors) == 1
     assert "Claude error" in result.errors[0]
@@ -498,7 +513,6 @@ async def test_insert_error_recorded_but_run_continues(
          patch("services.pipeline.Evaluator", return_value=mock_evaluator):
         result = await svc.run_pipeline(_USER_ID)
 
-    assert result.jobs_evaluated == 1
     assert result.jobs_stored == 0
     assert len(result.errors) == 1
 
@@ -518,7 +532,6 @@ async def test_db_dedup_via_insert_returning_none(
          patch("services.pipeline.Evaluator", return_value=mock_evaluator):
         result = await svc.run_pipeline(_USER_ID)
 
-    assert result.jobs_evaluated == 1
     assert result.jobs_stored == 0
 
 
@@ -533,7 +546,6 @@ def test_pipeline_stats_is_frozen():
         jobs_skipped_filter=1,
         jobs_skipped_blacklist=0,
         jobs_skipped_low_score=0,
-        jobs_evaluated=3,
         jobs_stored=3,
         jobs_failed=0,
         errors=(),
@@ -549,7 +561,6 @@ def test_pipeline_stats_errors_is_tuple():
         jobs_skipped_filter=0,
         jobs_skipped_blacklist=0,
         jobs_skipped_low_score=0,
-        jobs_evaluated=1,
         jobs_stored=1,
         jobs_failed=0,
         errors=("some error",),
@@ -735,7 +746,7 @@ async def test_job_without_company_name_not_blacklisted(
         result = await svc.run_pipeline(_USER_ID)
 
     assert result.jobs_skipped_blacklist == 0
-    mock_evaluator.evaluate.assert_called_once()
+    mock_evaluator._call_score.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -756,7 +767,7 @@ async def test_empty_blacklist_does_not_skip_jobs(
         result = await svc.run_pipeline(_USER_ID)
 
     assert result.jobs_skipped_blacklist == 0
-    mock_evaluator.evaluate.assert_called_once()
+    mock_evaluator._call_score.assert_called_once()
 
 
 @pytest.mark.asyncio

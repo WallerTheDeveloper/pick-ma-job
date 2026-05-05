@@ -478,3 +478,63 @@ class JobResultRepository:
                 *params,
             )
         return row["cnt"]
+
+    async def update_evaluation(
+        self,
+        result_id: UUID,
+        user_id: UUID,
+        evaluation: dict,
+    ) -> JobResultRow | None:
+        """Update the evaluation JSON for a job result. Returns None if not found or not owned by user."""
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                UPDATE job_results SET evaluation = $1::jsonb
+                WHERE id = $2 AND user_id = $3
+                RETURNING id, user_id, platform, job_id, title, url, score, evaluation, status, created_at
+                """,
+                evaluation,
+                result_id,
+                user_id,
+            )
+        return _row_to_job_result(row) if row is not None else None
+
+    async def find_unevaluated_by_user(
+        self,
+        user_id: UUID,
+        platform: str | None = None,
+        min_score: int | None = None,
+        status: str | None = None,
+    ) -> list[JobResultRow]:
+        """Return unevaluated job results (evaluation IS NULL) for a user."""
+        conditions = ["user_id = $1", "evaluation IS NULL"]
+        params: list = [user_id]
+        idx = 2
+
+        if platform is not None:
+            conditions.append(f"platform = ${idx}")
+            params.append(platform)
+            idx += 1
+
+        if min_score is not None:
+            conditions.append(f"score >= ${idx}")
+            params.append(min_score)
+            idx += 1
+
+        if status is not None:
+            conditions.append(f"status = ${idx}")
+            params.append(status)
+            idx += 1
+
+        where = " AND ".join(conditions)
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(
+                f"""
+                SELECT id, user_id, platform, job_id, title, url, score, evaluation, status, created_at
+                FROM job_results
+                WHERE {where}
+                ORDER BY score DESC NULLS LAST
+                """,
+                *params,
+            )
+        return [_row_to_job_result(r) for r in rows]

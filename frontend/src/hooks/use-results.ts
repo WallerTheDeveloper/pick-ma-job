@@ -6,12 +6,15 @@ import {
   bulkDeleteResults,
   bulkDeleteResultsByIds,
   bulkDismissResults,
+  bulkEvaluate,
   bulkUpdateStatus,
   deleteResult,
+  evaluateJob,
   fetchResults,
   updateResultStatus,
   type BulkDeleteParams,
   type BulkDismissParams,
+  type BulkEvaluationParams,
   type ResultsQueryParams,
 } from "@/api/results";
 import type { ResultsListResponse } from "@/types/schemas";
@@ -141,6 +144,22 @@ export function useResults(initialFilters?: Partial<ResultsFilters>) {
     },
   });
 
+  const evaluateJobMutation = useMutation({
+    mutationFn: (resultId: string) => evaluateJob(resultId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [RESULTS_KEY] });
+      queryClient.invalidateQueries({ queryKey: ["lists"] });
+    },
+  });
+
+  const bulkEvaluateMutation = useMutation({
+    mutationFn: (params: BulkEvaluationParams) => bulkEvaluate(params),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [RESULTS_KEY] });
+      queryClient.invalidateQueries({ queryKey: ["lists"] });
+    },
+  });
+
   return {
     results: query.data?.results ?? [],
     pagination: query.data?.pagination ?? null,
@@ -165,5 +184,9 @@ export function useResults(initialFilters?: Partial<ResultsFilters>) {
     isBulkDeletingByIds: bulkDeleteByIdsMutation.isPending,
     bulkUpdateStatusByIds: bulkUpdateStatusMutation.mutateAsync,
     isBulkUpdatingStatus: bulkUpdateStatusMutation.isPending,
+    evaluateJob: evaluateJobMutation.mutateAsync,
+    isEvaluatingJob: evaluateJobMutation.isPending,
+    bulkEvaluate: bulkEvaluateMutation.mutateAsync,
+    isBulkEvaluating: bulkEvaluateMutation.isPending,
   };
 }

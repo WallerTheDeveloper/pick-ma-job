@@ -134,6 +134,13 @@ async def get_company_blacklist_service(
     return CompanyBlacklistService(repo)
 
 
+async def get_profile_repo(
+    pool: Annotated[asyncpg.Pool, Depends(get_db_pool)],
+) -> ProfileRepository:
+    """Construct a ProfileRepository with a per-request pool."""
+    return ProfileRepository(pool)
+
+
 async def get_current_user_optional(
     request: Request,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],

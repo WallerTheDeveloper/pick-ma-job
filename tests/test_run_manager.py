@@ -30,7 +30,6 @@ def _make_result(**overrides) -> PipelineStats:
         jobs_skipped_filter=1,
         jobs_skipped_blacklist=0,
         jobs_skipped_low_score=0,
-        jobs_evaluated=3,
         jobs_stored=3,
         jobs_failed=0,
         errors=(),

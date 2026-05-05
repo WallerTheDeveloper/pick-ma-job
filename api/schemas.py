@@ -123,6 +123,25 @@ class BulkStatusUpdateResponse(BaseModel):
     updated: int
 
 
+# ── Evaluation ───────────────────────────────────────────────────────────────
+
+class BulkEvaluationRequest(BaseModel):
+    result_ids: list[UUID] | None = None
+    filter: dict | None = None  # platform, min_score, status filters
+
+
+class EvaluationResponse(BaseModel):
+    result: JobResultResponse
+
+
+class BulkEvaluationResponse(BaseModel):
+    total: int
+    evaluated: int
+    skipped_low_score: int
+    failed: int
+    updated_ids: list[UUID]
+
+
 # ── Profile ──────────────────────────────────────────────────────────────────
 
 class NotableProject(BaseModel):
