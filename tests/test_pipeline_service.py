@@ -66,6 +66,7 @@ def _make_profile(**overrides) -> ProfileRow:
         languages=["English"],
         rubric=_RUBRIC,
         cv_customize_threshold=7,
+        exclude_keywords=[],
         updated_at=datetime(2026, 1, 1),
     )
     defaults.update(overrides)

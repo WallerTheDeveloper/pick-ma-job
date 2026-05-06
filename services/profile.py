@@ -1,7 +1,7 @@
 """ProfileService — user profile business logic."""
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from uuid import UUID
 
 from repositories.profile import ProfileRepository, ProfileRow
@@ -29,6 +29,7 @@ class ProfileData:
     languages: list[str]
     rubric: dict
     cv_customize_threshold: int = 7
+    exclude_keywords: list[str] = field(default_factory=list)
 
 
 class ProfileService:
@@ -56,6 +57,7 @@ class ProfileService:
             languages=data.languages,
             rubric=data.rubric,
             cv_customize_threshold=data.cv_customize_threshold,
+            exclude_keywords=data.exclude_keywords,
         )
         logger.info("Profile updated for user_id=%s", user_id)
         return profile
@@ -88,4 +90,5 @@ def empty_profile_data() -> ProfileData:
         languages=[],
         rubric={},
         cv_customize_threshold=7,
+        exclude_keywords=[],
     )

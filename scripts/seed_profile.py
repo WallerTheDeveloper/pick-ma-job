@@ -40,18 +40,18 @@ def _build_rubric(raw: dict) -> dict:
 
 def _extract_profile_data(raw: dict) -> dict:
     """Map base_profile.json structure to ProfileRepository.upsert() kwargs."""
-    developer = raw.get("developer", {})
+    candidate = raw.get("candidate", {})
     skills = raw.get("skills", {})
 
     return {
-        "role": developer.get("role"),
+        "role": candidate.get("role"),
         "experience": (
-            f"{developer.get('level', '')} — {developer.get('experience_years', '')} years"
+            f"{candidate.get('level', '')} — {candidate.get('experience_years', '')} years"
         ).strip(" —"),
         "rate": (
-            f"€{developer['rate']['hourly_eur']}/hr · "
-            f"€{developer['rate']['annual_eur']:,}/yr"
-            if "rate" in developer else None
+            f"€{candidate['rate']['hourly_eur']}/hr · "
+            f"€{candidate['rate']['annual_eur']:,}/yr"
+            if "rate" in candidate else None
         ),
         "primary_skills": skills.get("primary", []),
         "secondary_skills": skills.get("secondary", []),
@@ -64,6 +64,7 @@ def _extract_profile_data(raw: dict) -> dict:
         ],
         "languages": raw.get("languages", []),
         "rubric": _build_rubric(raw),
+        "exclude_keywords": [],
     }
 
 

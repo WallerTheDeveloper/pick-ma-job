@@ -16,7 +16,7 @@ from scrapers.base import NormalizedJob
 
 BASE_PROFILE = {
     "system_instructions": "You are a job-fit evaluator. Return ONLY a raw JSON object.",
-    "developer": {"name": "Danylo", "role": "Unity Developer"},
+    "candidate": {"name": "Danylo", "role": "Unity Developer"},
     "skills": {"primary": ["Unity"], "secondary": ["Rust"], "tertiary": ["Vue.js"]},
     "scoring_rubric": {"9-10": "Excellent match"},
     "evaluation_factors": ["Skills Match"],

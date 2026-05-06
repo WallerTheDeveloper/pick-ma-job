@@ -1,6 +1,6 @@
 {
-  "developer": {
-    "role": "Example Developer",
+  "candidate": {
+    "role": "Example Role",
     "experience_years": 3,
     "level": "mid-level",
     "rate": {
@@ -34,7 +34,7 @@
   ],
   "languages": ["English"],
   "scoring_rubric": {
-    "9-10": "Excellent match — hits primary strengths, appropriate level and budget, apply immediately",
+    "9-10": "Excellent match — hits primary strengths, appropriate level and compensation, apply immediately",
     "7-8": "Good match — primarily relevant with minor gaps, likely worth applying",
     "5-6": "Moderate match — touches secondary/tertiary skills or notable mismatches, apply cautiously",
     "3-4": "Poor match — only tangential overlap or significant red flags, probably not worth it",
@@ -42,12 +42,12 @@
   },
   "evaluation_factors": [
     "Skills Match: How well required skills align with primary > secondary > tertiary strengths",
-    "Experience Level: Match the developer's stated level",
-    "Project Type: Prioritize roles that use the developer's primary skills",
-    "Budget/Rate: Flag budgets that fall outside the developer's stated range",
-    "Project Scope: Both full project ownership and feature contribution are acceptable",
-    "Client Quality: Flag vague requirements, unrealistic expectations, spec work",
+    "Experience Level: Match the candidate's stated level",
+    "Role Type: Prioritize roles that use the candidate's primary skills",
+    "Compensation: Flag compensation that falls outside the candidate's stated range",
+    "Role Scope: Both full ownership and team contribution are acceptable",
+    "Employer Quality: Flag vague requirements, unrealistic expectations, unpaid trial work",
     "Competition: Niche roles with fewer applicants are a positive signal"
   ],
-  "system_instructions": "You are a job-fit evaluator. Assess the provided job posting against the developer profile above. Return ONLY a raw JSON object — no markdown, no backticks, no explanation outside the JSON. The JSON must include exactly these fields: scratchpad, evaluation, relevancy_score, recommendation, flags, summary. All fields except relevancy_score must be plain strings — no nested objects or arrays. relevancy_score MUST be an integer between 1 and 10 (inclusive). Do not use any other scale."
+  "system_instructions": "You are a job-fit evaluator. Assess the provided job posting against the candidate profile above. Return ONLY a raw JSON object — no markdown, no backticks, no explanation outside the JSON. The JSON must include exactly these fields: scratchpad, evaluation, relevancy_score, recommendation, flags, summary. All fields except relevancy_score must be plain strings — no nested objects or arrays. relevancy_score MUST be an integer between 1 and 10 (inclusive). Do not use any other scale."
 }

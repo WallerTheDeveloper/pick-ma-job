@@ -50,6 +50,8 @@ def _make_profile(**overrides) -> ProfileRow:
         notable_projects=[{"name": "Paper.io clone", "description": "Rust multiplayer"}],
         languages=["English", "Ukrainian"],
         rubric=_BASE_RUBRIC,
+        cv_customize_threshold=7,
+        exclude_keywords=[],
         updated_at=datetime(2026, 1, 1),
     )
     defaults.update(overrides)
@@ -62,7 +64,7 @@ def _make_profile(**overrides) -> ProfileRow:
 
 EXPECTED_TOP_LEVEL_KEYS = {
     "system_instructions",
-    "developer",
+    "candidate",
     "background",
     "skills",
     "not_a_good_fit",
@@ -83,9 +85,9 @@ def test_skills_dict_has_primary_secondary_tertiary():
     assert set(result["skills"].keys()) == {"primary", "secondary", "tertiary"}
 
 
-def test_developer_dict_has_role_experience_rate():
+def test_candidate_dict_has_role_experience_rate():
     result = profile_row_to_prompt_dict(_make_profile())
-    assert set(result["developer"].keys()) == {"role", "experience", "rate"}
+    assert set(result["candidate"].keys()) == {"role", "experience", "rate"}
 
 
 # ---------------------------------------------------------------------------
@@ -94,7 +96,7 @@ def test_developer_dict_has_role_experience_rate():
 
 def test_role_mapped_correctly():
     result = profile_row_to_prompt_dict(_make_profile(role="Senior Unity Dev"))
-    assert result["developer"]["role"] == "Senior Unity Dev"
+    assert result["candidate"]["role"] == "Senior Unity Dev"
 
 
 def test_primary_skills_mapped():
@@ -153,17 +155,17 @@ def test_system_instructions_from_rubric():
 
 def test_none_role_becomes_empty_string():
     result = profile_row_to_prompt_dict(_make_profile(role=None))
-    assert result["developer"]["role"] == ""
+    assert result["candidate"]["role"] == ""
 
 
 def test_none_experience_becomes_empty_string():
     result = profile_row_to_prompt_dict(_make_profile(experience=None))
-    assert result["developer"]["experience"] == ""
+    assert result["candidate"]["experience"] == ""
 
 
 def test_none_rate_becomes_empty_string():
     result = profile_row_to_prompt_dict(_make_profile(rate=None))
-    assert result["developer"]["rate"] == ""
+    assert result["candidate"]["rate"] == ""
 
 
 def test_empty_rubric_uses_default_system_instructions():

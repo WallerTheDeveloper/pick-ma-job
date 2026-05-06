@@ -3,12 +3,12 @@
   "evaluation_notes": [
     "LinkedIn postings do not include a skills array — evaluate fit based on the job title, description, and any keywords in the text.",
     "The 'applications_count' field is a competition signal — fewer applicants on niche or specialized roles is a positive signal; very high counts (200+) are a mild red flag.",
-    "The 'work_type' field indicates remote/hybrid/on-site — weight 'Remote' positively if the developer prefers remote work; flag on-site requirements that conflict with the developer's location or work preference.",
+    "The 'work_type' field indicates remote/hybrid/on-site — weight 'Remote' positively if the candidate prefers remote work; flag on-site requirements that conflict with the candidate's location or work preference.",
     "Salary comes from 'salary' (derived from salaryInfo). If absent, evaluate the role on company profile, sector, and experience level instead. Flag roles with no salary info and vague scope.",
     "LinkedIn roles are typically full-time or contract, not freelance hourly. Evaluate 'job_type' accordingly — 'Full-time' is relevant for employment, 'Contract' for freelance work.",
-    "The 'sector' field provides industry context — sectors that align with the developer's primary skills are strong signals; unrelated sectors for the same job title are worth flagging.",
+    "The 'sector' field provides industry context — sectors that align with the candidate's primary skills are strong signals; unrelated sectors for the same job title are worth flagging.",
     "The 'apply_type' field indicates EASY_APPLY vs external — not a quality signal on its own.",
-    "LinkedIn-specific red flags: broad job titles used as catch-alls for mismatched technology stacks, senior-only roles with no flexibility, on-site requirements mismatched with remote preference, vague descriptions with no stack details."
+    "LinkedIn-specific red flags: broad job titles used as catch-alls for mismatched role requirements, senior-only roles with no flexibility, on-site requirements mismatched with remote preference, vague descriptions with no role details."
   ],
   "available_fields": [
     "title", "description", "budget", "job_type", "experience_level",
@@ -16,5 +16,5 @@
     "applications_count", "apply_type", "posted_time",
     "poster_name", "company_url", "url"
   ],
-  "user_message_template": "Job Title: {title}\n\nDescription:\n{description}\n\nSalary: {budget}\nJob Type: {job_type}\nExperience Level: {experience_level}\nCompany: {company_name}\nLocation: {location}\nWork Type: {work_type}\nSector: {sector}\nApplications So Far: {applications_count}\nApply Type: {apply_type}\nPosted: {posted_time}\nPosted By: {poster_name}\nCompany URL: {company_url}\nURL: {url}\n\nEvaluate this job posting for the developer profile provided. Return a raw JSON object only."
+  "user_message_template": "Job Title: {title}\n\nDescription:\n{description}\n\nSalary: {budget}\nJob Type: {job_type}\nExperience Level: {experience_level}\nCompany: {company_name}\nLocation: {location}\nWork Type: {work_type}\nSector: {sector}\nApplications So Far: {applications_count}\nApply Type: {apply_type}\nPosted: {posted_time}\nPosted By: {poster_name}\nCompany URL: {company_url}\nURL: {url}\n\nEvaluate this job posting for the candidate profile provided. Return a raw JSON object only."
 }

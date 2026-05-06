@@ -1,7 +1,7 @@
 """Job evaluator — assembles prompts and calls the Claude API.
 
 Prompt assembly merges:
-- ``configs/prompts/base_profile.json`` (shared developer profile + rubric)
+- ``configs/prompts/base_profile.json`` (shared candidate profile + rubric)
 - ``configs/prompts/<platform>_context.json`` (platform-specific fields + template)
 - The NormalizedJob fields
 
@@ -243,16 +243,16 @@ class Evaluator:
 
     def _build_score_system_prompt(self) -> str:
         """Build the concise system prompt used for Pass 1 scoring."""
-        developer = self._base_profile.get("developer", {})
-        role = developer.get("role", "")
-        experience = developer.get("experience", "")
+        candidate = self._base_profile.get("candidate", {})
+        role = candidate.get("role", "")
+        experience = candidate.get("experience", "")
         primary_skills = ", ".join(self._base_profile.get("skills", {}).get("primary", []))
         not_a_good_fit = ", ".join(self._base_profile.get("not_a_good_fit", []))
         return (
             "You are a job-fit screener. Rate the relevance of the job posting "
-            "to the developer profile below on a scale of 1 to 10. Respond with "
+            "to the candidate profile below on a scale of 1 to 10. Respond with "
             "ONLY a single integer between 1 and 10 — no explanation, no other text.\n\n"
-            f"Developer: {role} ({experience})\n"
+            f"Candidate: {role} ({experience})\n"
             f"Primary skills: {primary_skills}\n"
             f"Not a good fit for: {not_a_good_fit}"
         )
@@ -289,7 +289,7 @@ class Evaluator:
         fields = ", ".join(platform_context.get("available_fields", []))
         return (
             f"{self._base_profile['system_instructions']}\n\n"
-            f"## Developer Profile\n{json.dumps(self._base_profile, indent=2)}\n\n"
+            f"## Candidate Profile\n{json.dumps(self._base_profile, indent=2)}\n\n"
             f"## Platform: {platform_context['platform']}\n"
             f"### Evaluation Notes\n{notes}\n\n"
             f"### Available Fields\n{fields}"

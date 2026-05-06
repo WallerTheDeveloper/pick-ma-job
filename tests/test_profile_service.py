@@ -27,6 +27,8 @@ def _make_profile_row(**overrides) -> ProfileRow:
         notable_projects=[{"name": "VR App", "description": "Unity XR project"}],
         languages=["English"],
         rubric={"scoring": {}},
+        cv_customize_threshold=7,
+        exclude_keywords=[],
         updated_at=datetime.now(timezone.utc),
     )
     defaults.update(overrides)
@@ -50,6 +52,7 @@ def _valid_data(**overrides) -> ProfileData:
         notable_projects=[{"name": "VR App", "description": "Unity XR project"}],
         languages=["English"],
         rubric={},
+        exclude_keywords=[],
     )
     defaults.update(overrides)
     return ProfileData(**defaults)
@@ -158,3 +161,4 @@ def test_empty_profile_data_has_empty_lists():
     assert data.notable_projects == []
     assert data.languages == []
     assert data.rubric == {}
+    assert data.exclude_keywords == []

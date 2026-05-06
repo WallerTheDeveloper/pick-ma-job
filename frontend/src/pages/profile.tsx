@@ -383,6 +383,23 @@ export function ProfilePage() {
         </CardContent>
       </Card>
 
+      {/* Exclude Keywords */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Exclude Job Title Keywords</CardTitle>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Jobs with these words in the title will be skipped during pipeline runs. Leave empty to use system defaults.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <TagInput
+            value={form.excludeKeywords}
+            onChange={(tags) => updateField("excludeKeywords", tags)}
+            placeholder="e.g. developer, engineer, programmer…"
+          />
+        </CardContent>
+      </Card>
+
       {/* Scoring Rubric */}
       <Card>
         <CardHeader>

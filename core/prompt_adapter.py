@@ -24,7 +24,7 @@ _CONFIGS_DIR = Path(__file__).parent.parent / "configs" / "prompts"
 
 _DEFAULT_SYSTEM_INSTRUCTIONS = (
     "You are a job-fit evaluator. Assess the provided job posting against the "
-    "developer profile above. Return ONLY a raw JSON object — no markdown, no "
+    "candidate profile above. Return ONLY a raw JSON object — no markdown, no "
     "backticks, no explanation outside the JSON. The JSON must include exactly "
     "these fields: scratchpad, evaluation, relevancy_score, recommendation, "
     "flags, summary. All fields except relevancy_score must be plain strings — "
@@ -34,7 +34,7 @@ _DEFAULT_SYSTEM_INSTRUCTIONS = (
 )
 
 _DEFAULT_SCORING_RUBRIC = {
-    "9-10": "Excellent match — hits primary strengths, appropriate level and budget, apply immediately",
+    "9-10": "Excellent match — hits primary strengths, appropriate level and compensation, apply immediately",
     "7-8": "Good match — primarily relevant with minor gaps, likely worth applying",
     "5-6": "Moderate match — touches secondary/tertiary skills or notable mismatches, apply cautiously",
     "3-4": "Poor match — only tangential overlap or significant red flags, probably not worth it",
@@ -46,7 +46,7 @@ def profile_row_to_prompt_dict(profile: ProfileRow) -> dict[str, Any]:
     """Convert a ``ProfileRow`` to the base_profile dict shape the Evaluator expects.
 
     The Evaluator's ``_assemble_system_prompt`` reads these top-level keys:
-    ``system_instructions``, ``developer``, ``background``, ``skills``,
+    ``system_instructions``, ``candidate``, ``background``, ``skills``,
     ``not_a_good_fit``, ``notable_projects``, ``languages``,
     ``scoring_rubric``, ``evaluation_factors``.
 
@@ -61,7 +61,7 @@ def profile_row_to_prompt_dict(profile: ProfileRow) -> dict[str, Any]:
 
     return {
         "system_instructions": system_instructions,
-        "developer": {
+        "candidate": {
             "role": profile.role or "",
             "experience": profile.experience or "",
             "rate": profile.rate or "",

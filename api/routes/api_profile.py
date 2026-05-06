@@ -32,6 +32,7 @@ def _profile_to_response(row: ProfileRow) -> ProfileResponse:
         languages=row.languages,
         rubric=row.rubric,
         cv_customize_threshold=row.cv_customize_threshold,
+        exclude_keywords=row.exclude_keywords,
         updated_at=row.updated_at,
     )
 
@@ -69,6 +70,7 @@ async def api_save_profile(
         languages=body.languages,
         rubric=body.rubric,
         cv_customize_threshold=body.cv_customize_threshold,
+        exclude_keywords=body.exclude_keywords,
     )
 
     try:

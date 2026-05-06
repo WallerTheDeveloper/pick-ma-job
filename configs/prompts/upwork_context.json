@@ -5,12 +5,12 @@
     "The 'proposals' count indicates competition level — fewer proposals on niche or specialized roles is a positive signal.",
     "Budget can be fixed-price or hourly. Flag suspiciously low budgets relative to the role's complexity and scope.",
     "Client rating is on a 1–5 scale (5 is the maximum). A rating of 4.5–5/5 is a green flag; below 4/5 or absent is a yellow/red flag.",
-    "Client location matters for timezone overlap — flag significant timezone mismatches relative to the developer's preferred working region.",
+    "Client location matters for timezone overlap — flag significant timezone mismatches relative to the candidate's preferred working region.",
     "Upwork-specific red flags: spec work, test tasks without pay, vague 'we'll discuss' budgets, milestone-heavy low-trust setups."
   ],
   "available_fields": [
     "title", "description", "budget", "job_type", "experience_level",
     "skills", "client_rating", "client_location", "proposals", "url"
   ],
-  "user_message_template": "Job Title: {title}\n\nDescription:\n{description}\n\nBudget: {budget}\nJob Type: {job_type}\nExperience Level: {experience_level}\nRequired Skills: {skills}\nClient Rating: {client_rating}/5\nClient Location: {client_location}\nProposals So Far: {proposals}\nURL: {url}\n\nEvaluate this job posting for the developer profile provided. Return a raw JSON object only."
+  "user_message_template": "Job Title: {title}\n\nDescription:\n{description}\n\nBudget: {budget}\nJob Type: {job_type}\nExperience Level: {experience_level}\nRequired Skills: {skills}\nClient Rating: {client_rating}/5\nClient Location: {client_location}\nProposals So Far: {proposals}\nURL: {url}\n\nEvaluate this job posting for the candidate profile provided. Return a raw JSON object only."
 }

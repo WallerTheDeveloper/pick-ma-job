@@ -166,6 +166,7 @@ class ProfileResponse(BaseModel):
     languages: list[str]
     rubric: dict
     cv_customize_threshold: int = 7
+    exclude_keywords: list[str] = []
     updated_at: datetime
 
 
@@ -186,6 +187,7 @@ class ProfileSaveRequest(BaseModel):
     languages: list[str] = []
     rubric: dict[str, Any] = Field(default_factory=dict)
     cv_customize_threshold: int = Field(default=7, ge=1, le=10)
+    exclude_keywords: list[str] = []
 
     @field_validator("notable_projects")
     @classmethod

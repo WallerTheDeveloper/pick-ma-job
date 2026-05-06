@@ -128,6 +128,7 @@ export const profileResponseSchema = z.object({
   languages: z.array(z.string()),
   rubric: z.record(z.string(), z.unknown()),
   cv_customize_threshold: z.number().int().min(1).max(10).default(7),
+  exclude_keywords: z.array(z.string()).default([]),
   updated_at: z.string(),
 });
 
@@ -161,6 +162,7 @@ export const profileSaveRequestSchema = z.object({
   languages: z.array(z.string()).default([]),
   rubric: z.record(z.string(), z.unknown()).default({}),
   cv_customize_threshold: z.number().int().min(1).max(10).default(7),
+  exclude_keywords: z.array(z.string()).default([]),
 });
 
 // ── CV ─────────────────────────────────────────────────────────────────────

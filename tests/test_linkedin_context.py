@@ -12,6 +12,7 @@ import pytest
 from core.evaluator import EvaluationResult, Evaluator
 from core.llm_client import LLMClient
 from core.prompt_adapter import load_platform_context
+from core.settings import Settings
 from scrapers.base import NormalizedJob
 
 # ---------------------------------------------------------------------------
@@ -20,14 +21,14 @@ from scrapers.base import NormalizedJob
 
 BASE_PROFILE = {
     "system_instructions": "You are a job-fit evaluator. Return ONLY a raw JSON object.",
-    "developer": {"role": "Unity Developer", "experience": "4 years", "rate": "€30/hr"},
+    "candidate": {"role": "Unity Developer", "experience": "4 years", "rate": "€30/hr"},
     "skills": {"primary": ["Unity", "AR Foundation"], "secondary": ["Rust"], "tertiary": ["Vue.js"]},
     "not_a_good_fit": ["Pure frontend"],
     "scoring_rubric": {"9-10": "Excellent match"},
     "evaluation_factors": ["Skills Match", "Work Type"],
 }
 
-SETTINGS = {"model": "claude-haiku-4-5-20251001", "temperature": 0}
+SETTINGS = Settings(claude_model="claude-haiku-4-5-20251001", claude_temperature=0.0)
 
 LINKEDIN_JOB = NormalizedJob(
     id="3987654321",

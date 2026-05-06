@@ -197,6 +197,13 @@ class PipelineService:
         evaluator = Evaluator(prompt_dict, self._settings, llm_client=self._llm_client)
         run_started_at = datetime.now(timezone.utc)
 
+        # Determine effective exclude keywords: user's list if non-empty, else global defaults
+        user_exclude = set(kw.lower() for kw in (profile.exclude_keywords or []))
+        effective_exclude: tuple[str, ...] = (
+            tuple(sorted(user_exclude)) if user_exclude
+            else self._exclude_keywords
+        )
+
         platform_results: list[tuple[PipelineStats, list[UUID], list[UUID], list[UUID], str]] = [
             await self._run_platform(
                 user_id=user_id,
@@ -204,6 +211,7 @@ class PipelineService:
                 evaluator=evaluator,
                 run_started_at=run_started_at,
                 user_languages=user_languages,
+                exclude_keywords=effective_exclude,
             )
             for config_row in search_configs
         ]
@@ -282,6 +290,7 @@ class PipelineService:
         evaluator: Evaluator,
         run_started_at: datetime,
         user_languages: list[str] | None = None,
+        exclude_keywords: tuple[str, ...] = (),
     ) -> tuple[PipelineStats, list[UUID], list[UUID], list[UUID], str]:
         platform = config_row.platform
         logger.info("Pipeline starting: user_id=%s platform=%s", user_id, platform)
@@ -335,7 +344,7 @@ class PipelineService:
                 jobs_skipped_blacklist += 1
                 continue
 
-            if self._is_filtered(job.title):
+            if self._is_filtered(job.title, exclude_keywords):
                 logger.debug("Pre-filter skipped: '%s'", job.title)
                 jobs_skipped_filter += 1
                 continue
@@ -591,10 +600,11 @@ class PipelineService:
                     errors=(f"DB insert failed for '{job.title}': {type(exc).__name__}: {exc}",),
                 )
 
-    def _is_filtered(self, title: str) -> bool:
+    def _is_filtered(self, title: str, keywords: tuple[str, ...] | None = None) -> bool:
         """Return True if the job title matches any excluded keyword (case-insensitive)."""
+        kw = keywords if keywords is not None else self._exclude_keywords
         title_lower = title.lower()
-        return any(kw in title_lower for kw in self._exclude_keywords)
+        return any(k in title_lower for k in kw)
 
     def _is_blacklisted(self, job: NormalizedJob, blacklist: tuple[str, ...]) -> bool:
         """Return True if the job's company name matches any blacklisted entry (substring, case-insensitive)."""

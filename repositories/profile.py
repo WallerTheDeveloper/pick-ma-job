@@ -26,6 +26,7 @@ class ProfileRow:
     languages: list[str]
     rubric: dict
     cv_customize_threshold: int
+    exclude_keywords: list[str]
     updated_at: datetime
 
 
@@ -45,6 +46,7 @@ def _row_to_profile(row: asyncpg.Record) -> ProfileRow:
         languages=list(row["languages"] or []),
         rubric=dict(row["rubric"] or {}),
         cv_customize_threshold=int(row["cv_customize_threshold"] or 7),
+        exclude_keywords=list(row["exclude_keywords"] or []),
         updated_at=row["updated_at"],
     )
 
@@ -53,7 +55,7 @@ _SELECT = """
     SELECT id, user_id, role, experience, rate,
            primary_skills, secondary_skills, tertiary_skills,
            not_a_good_fit, background, notable_projects, languages,
-           rubric, cv_customize_threshold, updated_at
+           rubric, cv_customize_threshold, exclude_keywords, updated_at
     FROM profiles
 """
 
@@ -86,6 +88,7 @@ class ProfileRepository:
         languages: list[str] | None = None,
         rubric: dict | None = None,
         cv_customize_threshold: int = 7,
+        exclude_keywords: list[str] | None = None,
     ) -> ProfileRow:
         """Insert or update the profile for the given user. Returns the resulting row."""
         async with self._pool.acquire() as conn:
@@ -95,13 +98,13 @@ class ProfileRepository:
                     user_id, role, experience, rate,
                     primary_skills, secondary_skills, tertiary_skills,
                     not_a_good_fit, background, notable_projects, languages,
-                    rubric, cv_customize_threshold, updated_at
+                    rubric, cv_customize_threshold, exclude_keywords, updated_at
                 )
                 VALUES (
                     $1, $2, $3, $4,
                     $5, $6, $7,
                     $8, $9, $10::jsonb, $11,
-                    $12::jsonb, $13, now()
+                    $12::jsonb, $13, $14, now()
                 )
                 ON CONFLICT (user_id) DO UPDATE SET
                     role                  = EXCLUDED.role,
@@ -116,11 +119,12 @@ class ProfileRepository:
                     languages             = EXCLUDED.languages,
                     rubric                = EXCLUDED.rubric,
                     cv_customize_threshold = EXCLUDED.cv_customize_threshold,
+                    exclude_keywords      = EXCLUDED.exclude_keywords,
                     updated_at            = now()
                 RETURNING id, user_id, role, experience, rate,
                           primary_skills, secondary_skills, tertiary_skills,
                           not_a_good_fit, background, notable_projects, languages,
-                          rubric, cv_customize_threshold, updated_at
+                          rubric, cv_customize_threshold, exclude_keywords, updated_at
                 """,
                 user_id,
                 role,
@@ -135,6 +139,7 @@ class ProfileRepository:
                 languages or [],
                 rubric or {},
                 cv_customize_threshold,
+                exclude_keywords or [],
             )
         logger.debug("Upserted profile user_id=%s", user_id)
         return _row_to_profile(row)
