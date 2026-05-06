@@ -69,6 +69,22 @@ export function RunStatus({ run }: RunStatusProps) {
               <span className="font-medium">{run.result.jobs_evaluated}</span>
               <span className="text-muted-foreground">Stored</span>
               <span className="font-medium">{run.result.jobs_stored}</span>
+              {run.result.rate_limit_hits > 0 && (
+                <>
+                  <span className="text-muted-foreground">Rate limit hits</span>
+                  <span className="font-medium text-amber-600">
+                    {run.result.rate_limit_hits}
+                  </span>
+                </>
+              )}
+              {(run.result.total_input_tokens > 0 || run.result.total_output_tokens > 0) && (
+                <>
+                  <span className="text-muted-foreground">Token usage</span>
+                  <span className="font-medium">
+                    {(run.result.total_input_tokens / 1000).toFixed(1)}k in / {(run.result.total_output_tokens / 1000).toFixed(1)}k out
+                  </span>
+                </>
+              )}
               {run.result.errors.length > 0 && (
                 <>
                   <span className="text-muted-foreground">Errors</span>

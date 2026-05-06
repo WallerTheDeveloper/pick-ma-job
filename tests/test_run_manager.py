@@ -247,7 +247,7 @@ async def test_execute_passes_platforms_to_pipeline():
          patch("services.run_manager.PipelineService", return_value=mock_service):
         await manager._execute(run_id, _USER_A, ["upwork"])
 
-    mock_service.run_pipeline.assert_called_once_with(_USER_A, ["upwork"])
+    mock_service.run_pipeline.assert_called_once_with(_USER_A, ["upwork"], run_id=run_id)
 
 
 @pytest.mark.asyncio

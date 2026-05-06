@@ -20,7 +20,7 @@ import asyncio
 from core.language_detector import LanguageDetector
 from core.evaluator import Evaluator
 from core.exceptions import DomainError
-from core.llm_client import LLMClient
+from core.llm_client import LLMClient, LLMError
 from core.prompt_adapter import load_platform_context, profile_row_to_prompt_dict
 from core.settings import Settings
 from repositories.company_blacklist import CompanyBlacklistRepository
@@ -68,6 +68,10 @@ class PipelineStats:
     jobs_stored: int = 0
     jobs_failed: int = 0
     jobs_score_parse_failed: int = 0
+    rate_limit_hits: int = 0
+    rate_limit_wait_seconds: float = 0.0
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
     errors: tuple[str, ...] = ()
 
     def __add__(self, other: "PipelineStats") -> "PipelineStats":
@@ -82,6 +86,10 @@ class PipelineStats:
             jobs_stored=self.jobs_stored + other.jobs_stored,
             jobs_failed=self.jobs_failed + other.jobs_failed,
             jobs_score_parse_failed=self.jobs_score_parse_failed + other.jobs_score_parse_failed,
+            rate_limit_hits=self.rate_limit_hits + other.rate_limit_hits,
+            rate_limit_wait_seconds=self.rate_limit_wait_seconds + other.rate_limit_wait_seconds,
+            total_input_tokens=self.total_input_tokens + other.total_input_tokens,
+            total_output_tokens=self.total_output_tokens + other.total_output_tokens,
             errors=self.errors + other.errors,
         )
 
@@ -99,7 +107,10 @@ class _EvalResult:
     evaluation: dict | None  # None means low score (skipped full eval)
     stored: bool
     pass1_parse_failed: bool
-    errors: tuple[str, ...]
+    input_tokens: int = 0
+    output_tokens: int = 0
+    is_rate_limit: bool = False
+    errors: tuple[str, ...] = ()
 
 
 class PipelineService:
@@ -459,10 +470,15 @@ class PipelineService:
         jobs_score_parse_failed = 0
         errors: list[str] = []
         new_job_ids: list[UUID] = []
+        rate_limit_hits = 0
+        total_input_tokens = 0
+        total_output_tokens = 0
 
         for result in eval_results:
             if isinstance(result, Exception):
                 jobs_failed += 1
+                if isinstance(result, LLMError) and result.retryable:
+                    rate_limit_hits += 1
                 errors.append(f"Job evaluation failed: {type(result).__name__}: {result}")
                 logger.error("Job evaluation failed: %s", result, exc_info=True)
             elif isinstance(result, _EvalResult):
@@ -474,9 +490,13 @@ class PipelineService:
                     jobs_stored += 1
                     new_job_ids.append(result.job_id)
                 errors.extend(result.errors)
+                total_input_tokens += result.input_tokens
+                total_output_tokens += result.output_tokens
+                if result.is_rate_limit:
+                    rate_limit_hits += 1
 
         logger.info(
-            "Pipeline done: platform=%s found=%d dedup=%d blacklist=%d filter=%d closed=%d language=%d low_score=%d stored=%d failed=%d parse_failed=%d",
+            "Pipeline done: platform=%s found=%d dedup=%d blacklist=%d filter=%d closed=%d language=%d low_score=%d stored=%d failed=%d parse_failed=%d rate_limit_hits=%d input_tokens=%d output_tokens=%d",
             platform,
             jobs_found,
             jobs_skipped_dedup,
@@ -488,6 +508,9 @@ class PipelineService:
             jobs_stored,
             jobs_failed,
             jobs_score_parse_failed,
+            rate_limit_hits,
+            total_input_tokens,
+            total_output_tokens,
         )
 
         return (
@@ -502,6 +525,10 @@ class PipelineService:
                 jobs_stored=jobs_stored,
                 jobs_failed=jobs_failed,
                 jobs_score_parse_failed=jobs_score_parse_failed,
+                rate_limit_hits=rate_limit_hits,
+                rate_limit_wait_seconds=0.0,
+                total_input_tokens=total_input_tokens,
+                total_output_tokens=total_output_tokens,
                 errors=tuple(errors),
             ),
             new_job_ids,
@@ -552,6 +579,23 @@ class PipelineService:
                     },
                 )
                 logger.debug("Pass 1 score=%d for job '%s'", score, job.title)
+            except LLMError as exc:
+                is_rate_limit = exc.retryable
+                logger.error(
+                    "Scoring failed for '%s': %s%s",
+                    job.title,
+                    exc,
+                    " (rate limit)" if is_rate_limit else "",
+                    exc_info=True,
+                )
+                return _EvalResult(
+                    job_id=job.id,
+                    evaluation=None,
+                    stored=False,
+                    pass1_parse_failed=False,
+                    is_rate_limit=is_rate_limit,
+                    errors=(f"Scoring failed for '{job.title}': LLMError: {exc}",),
+                )
             except Exception as exc:
                 logger.error(
                     "Scoring failed for '%s': %s",
@@ -583,6 +627,8 @@ class PipelineService:
                     evaluation=None,
                     stored=stored is not None,
                     pass1_parse_failed=parse_failed,
+                    input_tokens=meta.input_tokens,
+                    output_tokens=meta.output_tokens,
                     errors=(),
                 )
             except Exception as exc:

@@ -41,6 +41,10 @@ export const runResultSchema = z.object({
   jobs_skipped_closed: z.number().optional(),
   jobs_skipped_low_score: z.number().optional(),
   jobs_stored: z.number(),
+  rate_limit_hits: z.number().default(0),
+  rate_limit_wait_seconds: z.number().default(0),
+  total_input_tokens: z.number().default(0),
+  total_output_tokens: z.number().default(0),
   errors: z.array(z.string()),
 });
 

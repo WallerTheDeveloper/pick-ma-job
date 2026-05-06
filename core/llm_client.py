@@ -7,6 +7,7 @@ to eliminate duplicated retry / JSON-parsing logic.
 import asyncio
 import json
 import logging
+import random
 import time
 from dataclasses import dataclass
 
@@ -95,7 +96,7 @@ class LLMClient:
 
     client: anthropic.AsyncAnthropic
     default_model: str
-    default_max_retries: int = 3
+    default_max_retries: int = 6
 
     async def _call_api(
         self,
@@ -106,6 +107,10 @@ class LLMClient:
         max_tokens: int = 1024,
     ) -> LLMResponse:
         """Send a messages.create call with retry on transient errors.
+
+        Rate-limit errors (429) use longer backoffs that respect the
+        ``Retry-After`` header when available.  Server errors (503, 529)
+        use shorter exponential backoff.
 
         Returns an ``LLMResponse`` with content and usage metadata.
         Raises ``LLMError`` on failure.
@@ -131,13 +136,27 @@ class LLMClient:
                     duration_ms=duration_ms,
                 )
             except anthropic.APIStatusError as exc:
-                if (
-                    exc.status_code in RETRYABLE_STATUS_CODES
-                    and attempt < self.default_max_retries - 1
-                ):
-                    wait = 2 ** attempt
+                is_last_attempt = attempt >= self.default_max_retries - 1
+
+                if exc.status_code == 429 and not is_last_attempt:
+                    # Rate limit — use Retry-After header or default 60s
+                    retry_after = self._parse_retry_after(exc, attempt)
+                    # On later attempts, increase the base wait; always
+                    # respect the rate-limit window of 60s minimum.
+                    wait = max(retry_after, 60) if attempt >= 2 else retry_after
+                    jitter = random.uniform(0, 2)
                     logger.warning(
-                        "Anthropic API transient error %d (attempt %d/%d), retrying in %ds",
+                        "Rate limit hit (429), attempt %d/%d, waiting %.1fs",
+                        attempt + 1,
+                        self.default_max_retries,
+                        wait + jitter,
+                    )
+                    await asyncio.sleep(wait + jitter)
+                elif exc.status_code in {503, 529} and not is_last_attempt:
+                    # Server error — short exponential backoff
+                    wait = 2 ** attempt + random.uniform(0, 1)
+                    logger.warning(
+                        "Anthropic API server error %d (attempt %d/%d), retrying in %.1fs",
                         exc.status_code,
                         attempt + 1,
                         self.default_max_retries,
@@ -152,6 +171,22 @@ class LLMClient:
 
         # Unreachable, but satisfies the type checker.
         raise LLMError("Unexpected retry exhaustion")
+
+    def _parse_retry_after(self, exc: anthropic.APIStatusError, attempt: int = 0) -> float:
+        """Extract Retry-After seconds from response headers, with fallback.
+
+        Falls back to exponential backoff based on attempt number, capped
+        at 60s, when the header is absent.
+        """
+        try:
+            headers = exc.response.headers
+            retry_after = headers.get("retry-after") or headers.get("Retry-After")
+            if retry_after is not None:
+                return float(retry_after)
+        except Exception:
+            pass
+        # Fallback: exponential backoff capped at 60s
+        return min(2 ** attempt + 0.5, 60)
 
     async def generate_json(
         self,

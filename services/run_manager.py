@@ -147,12 +147,15 @@ class RunManager:
                 completed_at=completed_at,
             )
             logger.info(
-                "Run %s completed: found=%d language=%d stored=%d errors=%d",
+                "Run %s completed: found=%d language=%d stored=%d errors=%d rate_limit_hits=%d input_tokens=%d output_tokens=%d",
                 run_id,
                 result.jobs_found,
                 result.jobs_skipped_language,
                 result.jobs_stored,
                 len(result.errors),
+                result.rate_limit_hits,
+                result.total_input_tokens,
+                result.total_output_tokens,
             )
         except Exception as exc:
             logger.error("Run %s failed (user_id=%s): %s", run_id, user_id, exc, exc_info=True)

@@ -144,6 +144,7 @@ async def test_generate_text_passes_params():
 async def test_generate_text_retries_on_529_then_succeeds():
     """529 → retry → success (simulates CV service scenario from task spec)."""
     import anthropic
+    from unittest.mock import patch
 
     error_529 = anthropic.APIStatusError(
         message="overloaded",
@@ -157,15 +158,19 @@ async def test_generate_text_retries_on_529_then_succeeds():
     mock_client.messages.create = AsyncMock(side_effect=[error_529, success_msg])
 
     llm = LLMClient(client=mock_client, default_model="test")
-    result = await llm.generate_text(system="sys", user="usr")
+    with patch("core.llm_client.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        result = await llm.generate_text(system="sys", user="usr")
     assert result == "ok"
     assert mock_client.messages.create.call_count == 2
+    # 529 uses exponential backoff: 2**0 + jitter ≈ 0-1s
+    mock_sleep.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_generate_json_retries_on_429_then_succeeds():
-    """429 → retry → success."""
+    """429 → retry → success (uses rate-limit-aware backoff)."""
     import anthropic
+    from unittest.mock import patch
 
     error_429 = anthropic.APIStatusError(
         message="rate limited",
@@ -179,15 +184,19 @@ async def test_generate_json_retries_on_429_then_succeeds():
     mock_client.messages.create = AsyncMock(side_effect=[error_429, success_msg])
 
     llm = LLMClient(client=mock_client, default_model="test")
-    result = await llm.generate_json(system="sys", user="usr")
+    with patch("core.llm_client.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        result = await llm.generate_json(system="sys", user="usr")
     assert result == VALID_JSON
     assert mock_client.messages.create.call_count == 2
+    # 429 on first attempt uses exponential fallback (2**0 + 0.5 = 1.5s + jitter)
+    mock_sleep.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_generate_text_retries_on_503_then_succeeds():
     """503 → retry → success."""
     import anthropic
+    from unittest.mock import patch
 
     error_503 = anthropic.APIStatusError(
         message="service unavailable",
@@ -201,15 +210,18 @@ async def test_generate_text_retries_on_503_then_succeeds():
     mock_client.messages.create = AsyncMock(side_effect=[error_503, success_msg])
 
     llm = LLMClient(client=mock_client, default_model="test")
-    result = await llm.generate_text(system="sys", user="usr")
+    with patch("core.llm_client.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        result = await llm.generate_text(system="sys", user="usr")
     assert result == "ok"
     assert mock_client.messages.create.call_count == 2
+    mock_sleep.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_generate_text_exhausts_retries_raises_llm_error():
     """All 3 attempts fail with 529 → LLMError(retryable=True)."""
     import anthropic
+    from unittest.mock import patch
 
     error_529 = anthropic.APIStatusError(
         message="overloaded",
@@ -221,8 +233,9 @@ async def test_generate_text_exhausts_retries_raises_llm_error():
     mock_client.messages.create = AsyncMock(side_effect=[error_529, error_529, error_529])
 
     llm = LLMClient(client=mock_client, default_model="test", default_max_retries=3)
-    with pytest.raises(LLMError, match="529") as exc_info:
-        await llm.generate_text(system="sys", user="usr")
+    with patch("core.llm_client.asyncio.sleep", new_callable=AsyncMock):
+        with pytest.raises(LLMError, match="529") as exc_info:
+            await llm.generate_text(system="sys", user="usr")
     assert exc_info.value.retryable is True
     assert mock_client.messages.create.call_count == 3
 
@@ -246,6 +259,91 @@ async def test_generate_text_non_retryable_error_raises_immediately():
         await llm.generate_text(system="sys", user="usr")
     assert exc_info.value.retryable is False
     assert mock_client.messages.create.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_429_uses_retry_after_header():
+    """429 with Retry-After header uses the header value for backoff."""
+    import anthropic
+    from unittest.mock import patch
+
+    mock_response = MagicMock(status_code=429)
+    mock_response.headers = {"retry-after": "5"}
+    error_429 = anthropic.APIStatusError(
+        message="rate limited",
+        response=mock_response,
+        body=None,
+    )
+    success_msg = MagicMock()
+    success_msg.content = [MagicMock(text="ok")]
+
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(side_effect=[error_429, success_msg])
+
+    llm = LLMClient(client=mock_client, default_model="test")
+    with patch("core.llm_client.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        result = await llm.generate_text(system="sys", user="usr")
+    assert result == "ok"
+    # Verify sleep was called with the Retry-After value (5s) + some jitter
+    call_args = mock_sleep.call_args[0][0]
+    assert 5.0 <= call_args <= 7.0  # 5s + 0-2s jitter
+
+
+@pytest.mark.asyncio
+async def test_429_on_later_attempts_uses_60s_minimum():
+    """429 on attempt 2+ uses max(retry_after, 60) for backoff."""
+    import anthropic
+    from unittest.mock import patch
+
+    mock_response = MagicMock(status_code=429)
+    mock_response.headers = {}
+    error_429 = anthropic.APIStatusError(
+        message="rate limited",
+        response=mock_response,
+        body=None,
+    )
+
+    # Fail 3 times with 429, then succeed
+    success_msg = MagicMock()
+    success_msg.content = [MagicMock(text="ok")]
+
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(
+        side_effect=[error_429, error_429, error_429, success_msg]
+    )
+
+    llm = LLMClient(client=mock_client, default_model="test", default_max_retries=6)
+    with patch("core.llm_client.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        result = await llm.generate_text(system="sys", user="usr")
+    assert result == "ok"
+    assert mock_client.messages.create.call_count == 4
+    # First two retries: exponential fallback (2**0+0.5, 2**1+0.5)
+    # Third retry (attempt 2): max(2**2+0.5, 60) = 60
+    assert mock_sleep.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_429_exhausts_retries():
+    """429 exhausting all retries raises LLMError with retryable=True."""
+    import anthropic
+    from unittest.mock import patch
+
+    mock_response = MagicMock(status_code=429)
+    mock_response.headers = {}
+    error_429 = anthropic.APIStatusError(
+        message="rate limited",
+        response=mock_response,
+        body=None,
+    )
+
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(side_effect=error_429)
+
+    llm = LLMClient(client=mock_client, default_model="test", default_max_retries=3)
+    with patch("core.llm_client.asyncio.sleep", new_callable=AsyncMock):
+        with pytest.raises(LLMError, match="429") as exc_info:
+            await llm.generate_text(system="sys", user="usr")
+    assert exc_info.value.retryable is True
 
 
 # ---------------------------------------------------------------------------

@@ -2,7 +2,7 @@
   "model": "claude-haiku-4-5-20251001",
   "temperature": 0,
   "alert_threshold": 7,
-  "evaluation_concurrency": 8,
+  "evaluation_concurrency": 3,
   "pre_filters": {
     "exclude_title_keywords": [
       "unreal",
