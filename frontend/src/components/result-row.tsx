@@ -149,6 +149,16 @@ export function ResultRow({ result, onStatusChange, onDelete, isUpdating, isDele
                     Language not in profile
                   </span>
                 )}
+                {result.skip_reason === "job_closed" && (
+                  <Badge variant="destructive" className="text-xs">
+                    Closed
+                  </Badge>
+                )}
+                {result.skip_reason === "job_closed" && (
+                  <span className="text-muted-foreground italic">
+                    No longer accepting applications
+                  </span>
+                )}
                 {evaluation?.recommendation && (
                   <span className="truncate">{evaluation.recommendation}</span>
                 )}

@@ -34,6 +34,7 @@ class NormalizedJob:
     company_name: str | None = None
     location: str | None = None
     extras: dict = field(default_factory=dict)
+    is_closed: bool = False  # True if job is no longer accepting applications
 
     @property
     def effective_company_name(self) -> str | None:

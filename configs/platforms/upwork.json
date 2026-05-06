@@ -26,7 +26,8 @@
     "extras": {
       "client_rating": "clientRating",
       "client_location": "clientLocation",
-      "proposals": "proposals"
+      "proposals": "proposals",
+      "has_hired": "hasHired"
     }
   }
 }

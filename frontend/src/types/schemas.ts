@@ -36,9 +36,10 @@ export const runResultSchema = z.object({
   jobs_found: z.number(),
   jobs_skipped_dedup: z.number(),
   jobs_skipped_filter: z.number(),
+  jobs_skipped_blacklist: z.number().optional(),
   jobs_skipped_language: z.number().optional(),
+  jobs_skipped_closed: z.number().optional(),
   jobs_skipped_low_score: z.number().optional(),
-  jobs_evaluated: z.number(),
   jobs_stored: z.number(),
   errors: z.array(z.string()),
 });
@@ -77,6 +78,7 @@ export const jobResultSchema = z.object({
     .nullable(),
   skip_reason: z.string().nullable().optional(),
   detected_language: z.string().nullable().optional(),
+  is_closed: z.boolean().default(false),
   status: z.string(),
   created_at: z.string(),
 });

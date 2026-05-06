@@ -134,6 +134,9 @@ class UpworkScraper(BaseScraper):
             if value is not None:
                 extras[extra_key] = value
 
+        has_hired = extras.get("has_hired")
+        is_closed = bool(has_hired) if has_hired is not None else False
+
         return NormalizedJob(
             id=str(job_id),
             platform=self.platform,
@@ -147,6 +150,7 @@ class UpworkScraper(BaseScraper):
                 _get(item, mappings.get("experience_level", "experienceLevel"))
             ),
             extras=extras,
+            is_closed=is_closed,
         )
 
 

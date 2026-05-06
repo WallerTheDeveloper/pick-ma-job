@@ -241,6 +241,9 @@ class LinkedInScraper(BaseScraper):
             if value is not None:
                 extras[extra_key] = value
 
+        apply_type = extras.get("apply_type", "")
+        is_closed = str(apply_type).lower() == "expired"
+
         return NormalizedJob(
             id=str(job_id),
             platform=self.platform,
@@ -256,6 +259,7 @@ class LinkedInScraper(BaseScraper):
             company_name=_str_or_none(extras.get("company_name")),
             location=_str_or_none(extras.get("location")),
             extras=extras,
+            is_closed=is_closed,
         )
 
 

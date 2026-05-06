@@ -65,6 +65,7 @@ class JobResultResponse(BaseModel):
     evaluation: dict | None = None
     skip_reason: str | None = None
     detected_language: str | None = None
+    is_closed: bool = False
     status: str
     created_at: datetime
 
