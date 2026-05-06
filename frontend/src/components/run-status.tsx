@@ -65,8 +65,6 @@ export function RunStatus({ run }: RunStatusProps) {
               <span className="font-medium">{run.result.jobs_skipped_dedup}</span>
               <span className="text-muted-foreground">Skipped (filter)</span>
               <span className="font-medium">{run.result.jobs_skipped_filter}</span>
-              <span className="text-muted-foreground">Evaluated</span>
-              <span className="font-medium">{run.result.jobs_evaluated}</span>
               <span className="text-muted-foreground">Stored</span>
               <span className="font-medium">{run.result.jobs_stored}</span>
               {run.result.rate_limit_hits > 0 && (

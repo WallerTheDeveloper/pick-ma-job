@@ -39,6 +39,7 @@ function makeApiProfile(overrides: Partial<ProfileResponse> = {}): ProfileRespon
     languages: ["English", "Ukrainian"],
     rubric: {},
     cv_customize_threshold: 7,
+    exclude_keywords: [],
     updated_at: "2026-04-06T10:00:00Z",
     ...overrides,
   };
@@ -69,6 +70,7 @@ function makeFormState(overrides: Partial<FormState> = {}): FormState {
     notableProjects: [],
     rubric: makeRubricState(),
     cvCustomizeThreshold: 7,
+    excludeKeywords: [],
     ...overrides,
   };
 }
