@@ -7,7 +7,7 @@ import asyncpg
 from fastapi import APIRouter, Depends
 
 from api.deps import get_current_user, get_db_pool, get_profile_service, get_search_config_service
-from api.schemas import DashboardResponse, PipelineRunInfo, UserInfo
+from api.schemas import DashboardResponse, PipelineRunInfo, UserInfo, sanitize_run_result
 from repositories.pipeline_run import PipelineRunRepository
 from repositories.user import UserRow
 from services.profile import ProfileService
@@ -38,7 +38,7 @@ async def api_dashboard(
             status=r.status,
             started_at=r.started_at,
             completed_at=r.completed_at,
-            result=r.result,
+            result=sanitize_run_result(r.result) if r.result is not None else None,
             error=r.error,
         )
         for r in recent_db_runs

@@ -53,6 +53,31 @@ class DashboardResponse(BaseModel):
     recent_runs: list[PipelineRunInfo]
 
 
+def sanitize_run_result(result: dict) -> dict:
+    """Filter a pipeline run result dict to only include fields the frontend expects.
+
+    Old pipeline runs may contain stale fields (e.g., ``jobs_evaluated``) in their
+    JSONB column.  Passing them through raw causes Zod validation errors on the
+    frontend.  This function whitelists only the known fields and provides defaults
+    for optional ones so the API response always matches the frontend schema.
+    """
+    return {
+        "jobs_found": result.get("jobs_found", 0),
+        "jobs_skipped_dedup": result.get("jobs_skipped_dedup", 0),
+        "jobs_skipped_filter": result.get("jobs_skipped_filter", 0),
+        "jobs_skipped_blacklist": result.get("jobs_skipped_blacklist"),
+        "jobs_skipped_language": result.get("jobs_skipped_language"),
+        "jobs_skipped_closed": result.get("jobs_skipped_closed"),
+        "jobs_skipped_low_score": result.get("jobs_skipped_low_score"),
+        "jobs_stored": result.get("jobs_stored", 0),
+        "rate_limit_hits": result.get("rate_limit_hits", 0),
+        "rate_limit_wait_seconds": result.get("rate_limit_wait_seconds", 0),
+        "total_input_tokens": result.get("total_input_tokens", 0),
+        "total_output_tokens": result.get("total_output_tokens", 0),
+        "errors": result.get("errors", []),
+    }
+
+
 # ── Results ──────────────────────────────────────────────────────────────────
 
 class JobResultResponse(BaseModel):

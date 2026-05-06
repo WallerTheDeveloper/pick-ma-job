@@ -16,7 +16,7 @@ from api.deps import (
     get_run_manager,
     get_search_config_service,
 )
-from api.schemas import RunStartRequest, RunStartResponse, RunStatusResponse
+from api.schemas import RunStartRequest, RunStartResponse, RunStatusResponse, sanitize_run_result
 from repositories.user import UserRow
 from services.profile import ProfileService
 from api.limiter import limiter
@@ -88,20 +88,7 @@ async def api_get_run_status(
     if row is None or row.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found.")
 
-    result_data = None
-    if row.result is not None:
-        r = row.result
-        result_data = {
-            "jobs_found": r.get("jobs_found"),
-            "jobs_skipped_dedup": r.get("jobs_skipped_dedup"),
-            "jobs_skipped_filter": r.get("jobs_skipped_filter"),
-            "jobs_skipped_blacklist": r.get("jobs_skipped_blacklist"),
-            "jobs_skipped_language": r.get("jobs_skipped_language"),
-            "jobs_skipped_closed": r.get("jobs_skipped_closed"),
-            "jobs_skipped_low_score": r.get("jobs_skipped_low_score"),
-            "jobs_stored": r.get("jobs_stored"),
-            "errors": r.get("errors", []),
-        }
+    result_data = sanitize_run_result(row.result) if row.result is not None else None
 
     return RunStatusResponse(
         run_id=row.id,
