@@ -146,6 +146,8 @@ async def api_list_results(
                 evaluation=r.evaluation,
                 skip_reason=r.skip_reason,
                 detected_language=r.detected_language,
+                is_closed=r.is_closed,
+                company_name=r.company_name,
                 status=r.status,
                 created_at=r.created_at,
             )
@@ -191,6 +193,8 @@ async def api_update_result_status(
         evaluation=updated.evaluation,
         skip_reason=updated.skip_reason,
         detected_language=updated.detected_language,
+        is_closed=updated.is_closed,
+        company_name=updated.company_name,
         status=updated.status,
         created_at=updated.created_at,
     )
@@ -430,6 +434,8 @@ async def api_evaluate_result(
             evaluation=updated.evaluation,
             skip_reason=updated.skip_reason,
             detected_language=updated.detected_language,
+            is_closed=updated.is_closed,
+            company_name=updated.company_name,
             status=updated.status,
             created_at=updated.created_at,
         )

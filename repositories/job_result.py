@@ -37,6 +37,7 @@ class JobResultRow:
     skip_reason: str | None = None
     detected_language: str | None = None
     is_closed: bool = False
+    company_name: str | None = None
 
 
 def _row_to_job_result(row: asyncpg.Record) -> JobResultRow:
@@ -54,6 +55,7 @@ def _row_to_job_result(row: asyncpg.Record) -> JobResultRow:
         skip_reason=row.get("skip_reason"),
         detected_language=row.get("detected_language"),
         is_closed=row.get("is_closed", False),
+        company_name=row.get("company_name"),
     )
 
 
@@ -73,15 +75,16 @@ class JobResultRepository:
         skip_reason: str | None = None,
         detected_language: str | None = None,
         is_closed: bool = False,
+        company_name: str | None = None,
     ) -> JobResultRow | None:
         """Insert a job result. Returns None if the job already exists (dedup via UNIQUE constraint)."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
-                INSERT INTO job_results (user_id, platform, job_id, title, url, score, evaluation, skip_reason, detected_language, is_closed)
-                VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)
+                INSERT INTO job_results (user_id, platform, job_id, title, url, score, evaluation, skip_reason, detected_language, is_closed, company_name)
+                VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11)
                 ON CONFLICT (user_id, platform, job_id) DO NOTHING
-                RETURNING id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language, is_closed
+                RETURNING id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language, is_closed, company_name
                 """,
                 user_id,
                 platform,
@@ -93,6 +96,7 @@ class JobResultRepository:
                 skip_reason,
                 detected_language,
                 is_closed,
+                company_name,
             )
         if row is None:
             logger.debug("Skipped duplicate job user_id=%s platform=%s job_id=%s", user_id, platform, job_id)
@@ -268,7 +272,7 @@ class JobResultRepository:
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
                 f"""
-                SELECT id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language, is_closed
+                SELECT id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language, is_closed, company_name
                 FROM job_results
                 WHERE {where}
                 ORDER BY {order}
@@ -291,7 +295,7 @@ class JobResultRepository:
                 """
                 UPDATE job_results SET status = $1
                 WHERE id = $2 AND user_id = $3
-                RETURNING id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language, is_closed
+                RETURNING id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language, is_closed, company_name
                 """,
                 status,
                 result_id,
@@ -448,7 +452,7 @@ class JobResultRepository:
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
-                SELECT id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language, is_closed
+                SELECT id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language, is_closed, company_name
                 FROM job_results
                 WHERE id = $1 AND user_id = $2
                 """,
@@ -503,7 +507,7 @@ class JobResultRepository:
                 """
                 UPDATE job_results SET evaluation = $1::jsonb
                 WHERE id = $2 AND user_id = $3
-                RETURNING id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language, is_closed
+                RETURNING id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language, is_closed, company_name
                 """,
                 evaluation,
                 result_id,
@@ -542,7 +546,7 @@ class JobResultRepository:
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
                 f"""
-                SELECT id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language, is_closed
+                SELECT id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language, is_closed, company_name
                 FROM job_results
                 WHERE {where}
                 ORDER BY score DESC NULLS LAST
@@ -576,7 +580,7 @@ class JobResultRepository:
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
                 f"""
-                SELECT id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language, is_closed
+                SELECT id, user_id, platform, job_id, title, url, score, evaluation, status, created_at, skip_reason, detected_language, is_closed, company_name
                 FROM job_results
                 WHERE {where}
                 ORDER BY created_at DESC

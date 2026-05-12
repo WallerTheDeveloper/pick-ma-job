@@ -381,6 +381,7 @@ class PipelineService:
                         evaluation=None,
                         skip_reason="job_closed",
                         is_closed=True,
+                        company_name=job.effective_company_name,
                     )
                     if skipped_row is not None:
                         skipped_closed_ids.append(skipped_row.id)
@@ -434,6 +435,7 @@ class PipelineService:
                             evaluation=None,
                             skip_reason="language",
                             detected_language=detected_lang,
+                            company_name=job.effective_company_name,
                         )
                         if skipped_row is not None:
                             skipped_language_ids.append(skipped_row.id)
@@ -621,6 +623,7 @@ class PipelineService:
                     url=job.url,
                     score=score,
                     evaluation=None,
+                    company_name=job.effective_company_name,
                 )
                 return _EvalResult(
                     job_id=stored.id if stored else job.id,

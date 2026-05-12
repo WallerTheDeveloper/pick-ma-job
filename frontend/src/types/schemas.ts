@@ -83,6 +83,7 @@ export const jobResultSchema = z.object({
   skip_reason: z.string().nullable().optional(),
   detected_language: z.string().nullable().optional(),
   is_closed: z.boolean().default(false),
+  company_name: z.string().nullable().optional(),
   status: z.string(),
   created_at: z.string(),
 });

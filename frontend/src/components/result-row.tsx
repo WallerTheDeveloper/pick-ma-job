@@ -147,6 +147,11 @@ export function ResultRow({ result, onStatusChange, onDelete, isUpdating, isDele
                 <Badge variant="outline" className="text-xs">
                   {result.platform}
                 </Badge>
+                {result.company_name && (
+                  <Badge variant="outline" className="text-xs">
+                    {result.company_name}
+                  </Badge>
+                )}
                 {result.skip_reason === "language" && result.detected_language && (
                   <Badge variant="secondary" className="text-xs">
                     {result.detected_language}

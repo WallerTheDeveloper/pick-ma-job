@@ -91,6 +91,7 @@ class JobResultResponse(BaseModel):
     skip_reason: str | None = None
     detected_language: str | None = None
     is_closed: bool = False
+    company_name: str | None = None
     status: str
     created_at: datetime
 
