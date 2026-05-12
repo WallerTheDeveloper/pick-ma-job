@@ -46,25 +46,32 @@ export function DashboardPage() {
     queryFn: fetchDashboard,
   });
 
-  // Rehydrate an in-progress run so polling restarts immediately after a reload.
-  const latestRun = data?.recent_runs[0];
-  const seedRunId =
-    latestRun?.status === "running" || latestRun?.status === "pending"
-      ? latestRun.id
-      : undefined;
-
-  const { startRun, startStatus, startError, runStatus, isRunning } = useRun(seedRunId);
+  // useRun now rehydrates from sessionStorage internally, so no seedRunId needed.
+  const { startRun, startStatus, startError, runStatus, isRunning, activeRunId } = useRun();
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  // Use the polled status when available; fall back to the dashboard snapshot
-  // for the brief window between page load and the first poll response.
-  // This prevents a flicker from static-icon → animated RunStatus.
+  // Track which past run the user clicked to inspect.
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+
+  // The run ID to display: user-selected past run takes priority,
+  // otherwise fall back to the active run from useRun.
+  const displayedRunId = selectedRunId ?? activeRunId ?? undefined;
+
+  // Find the matching PipelineRunInfo from dashboard data for the snapshot fallback.
+  const matchedDashboardRun = data?.recent_runs.find((r) => r.id === displayedRunId);
+
+  // When viewing the active run, prefer the polled status with a dashboard snapshot
+  // fallback for the brief window between page load and the first poll response.
+  // When viewing a selected past run, use the dashboard snapshot data directly
+  // (no polling needed for completed runs).
   const displayedRun: RunStatusResponse | null =
-    runStatus ?? (seedRunId && latestRun ? toRunStatusResponse(latestRun) : null);
+    displayedRunId === activeRunId
+      ? (runStatus ?? (matchedDashboardRun ? toRunStatusResponse(matchedDashboardRun) : null))
+      : (matchedDashboardRun ? toRunStatusResponse(matchedDashboardRun) : null);
 
   // Treat seeded-but-not-yet-polled state as running so the button is
-  // immediately disabled and the static recent-runs list stays hidden.
-  const effectiveIsRunning = isRunning || (!!seedRunId && runStatus === null);
+  // immediately disabled.
+  const effectiveIsRunning = isRunning || (!!activeRunId && runStatus === null);
 
   if (isLoading) {
     return <p className="text-muted-foreground">Loading dashboard...</p>;
@@ -179,15 +186,19 @@ export function DashboardPage() {
         isRunning={effectiveIsRunning}
       />
 
-      {/* Recent runs history — hidden while a run is active or being rehydrated */}
-      {data.recent_runs.length > 0 && !displayedRun && (
+      {/* Recent runs history — always visible */}
+      {data.recent_runs.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-muted-foreground">
             Recent Runs
           </h3>
           <div className="space-y-2">
             {data.recent_runs.map((run) => (
-              <Card key={run.id} className="p-3 shadow-sm">
+              <Card
+                key={run.id}
+                className="p-3 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => setSelectedRunId(run.id)}
+              >
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">
                     {new Date(run.started_at).toLocaleString()}

@@ -8,10 +8,17 @@ import type { RunStatusResponse } from "@/types/schemas";
 
 export const RUN_STATUS_KEY = "run-status";
 
+const SESSION_STORAGE_KEY = "activeRunId";
+
+/** Check if a run status is terminal (no more polling needed). */
+function isTerminalStatus(status: string | undefined): boolean {
+  return status === "completed" || status === "failed" || status === "cancelled";
+}
+
 /**
  * Polls a specific run's status until it reaches a terminal state.
- * Safe to use standalone — e.g. for rehydrating an in-progress run on page reload (T-13).
- * Stops polling when status is `completed` or `failed`, and never polls in the background.
+ * Safe to use standalone — e.g. for rehydrating an in-progress run on page reload (T-06).
+ * Stops polling when status is terminal, and never polls in the background.
  * Invalidates `["results"]` and `["dashboard"]` queries on terminal transition.
  */
 export function useRunStatus(runId: string | null) {
@@ -24,7 +31,7 @@ export function useRunStatus(runId: string | null) {
     enabled: runId !== null,
     refetchInterval: (q) => {
       const status = q.state.data?.status;
-      if (status === "completed" || status === "failed") return false;
+      if (isTerminalStatus(status)) return false;
       return 2000;
     },
     refetchIntervalInBackground: false,
@@ -32,10 +39,7 @@ export function useRunStatus(runId: string | null) {
 
   useEffect(() => {
     const status = query.data?.status;
-    if (
-      (status === "completed" || status === "failed") &&
-      prevStatusRef.current !== status
-    ) {
+    if (isTerminalStatus(status) && prevStatusRef.current !== status) {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["results"] });
     }
@@ -47,26 +51,39 @@ export function useRunStatus(runId: string | null) {
 
 /**
  * Starts a pipeline run and tracks its status via polling.
- * Pass `initialRunId` to rehydrate an in-progress run after a page reload (T-13):
- * the hook will immediately begin polling that run so the animated UI appears
- * without a manual trigger.
+ * Persists the active run ID to sessionStorage so it survives page reloads and
+ * navigation. Clears sessionStorage once the run reaches a terminal state.
  */
 export function useRun(initialRunId?: string) {
   const queryClient = useQueryClient();
-  const [activeRunId, setActiveRunId] = useState<string | null>(null);
 
-  // Seed from dashboard data when the page reloads mid-run.
-  // The condition `activeRunId === null` prevents overwriting a user-initiated run.
+  // Seed activeRunId from sessionStorage (survives page reload) or initialRunId
+  const [activeRunId, setActiveRunId] = useState<string | null>(() => {
+    const stored = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (stored) return stored;
+    return initialRunId ?? null;
+  });
+
+  // Rehydrate from sessionStorage on mount (in case another tab set it)
   useEffect(() => {
-    if (initialRunId !== undefined && activeRunId === null) {
-      setActiveRunId(initialRunId);
+    const stored = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (stored && activeRunId === null) {
+      setActiveRunId(stored);
     }
-  }, [initialRunId, activeRunId]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync sessionStorage when activeRunId changes
+  useEffect(() => {
+    if (activeRunId) {
+      sessionStorage.setItem(SESSION_STORAGE_KEY, activeRunId);
+    }
+  }, [activeRunId]);
 
   const startMutation = useMutation({
     mutationFn: (args?: StartRunArgs | void) => startRun(args ?? undefined),
     onSuccess: (data) => {
       setActiveRunId(data.run_id);
+      sessionStorage.setItem(SESSION_STORAGE_KEY, data.run_id);
     },
   });
 
@@ -74,15 +91,21 @@ export function useRun(initialRunId?: string) {
 
   const runStatus: RunStatusResponse | null = statusQuery.data ?? null;
   const isRunning =
-    activeRunId !== null &&
-    runStatus?.status !== "completed" &&
-    runStatus?.status !== "failed";
+    activeRunId !== null && !isTerminalStatus(runStatus?.status);
+
+  // Clear sessionStorage once the run reaches a terminal state
+  useEffect(() => {
+    if (runStatus && isTerminalStatus(runStatus.status)) {
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+  }, [runStatus?.status]);
 
   function clearRun() {
     if (activeRunId) {
       queryClient.removeQueries({ queryKey: [RUN_STATUS_KEY, activeRunId] });
     }
     setActiveRunId(null);
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
   }
 
   return {
@@ -92,6 +115,7 @@ export function useRun(initialRunId?: string) {
     runStatus,
     isRunning,
     activeRunId,
+    setActiveRunId,
     clearRun,
   };
 }
