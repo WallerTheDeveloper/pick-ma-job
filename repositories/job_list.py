@@ -217,6 +217,32 @@ class JobListRepository:
             )
         logger.debug("Added %d items to list %s", len(job_result_ids), list_id)
 
+    async def add_items_for_user(self, list_id: UUID, user_id: UUID, job_result_ids: list[UUID]) -> int:
+        """Bulk-insert job result IDs into a list, verifying the list and jobs belong to user_id.
+
+        Returns the number of rows actually inserted (skips duplicates and non-owned jobs).
+        """
+        if not job_result_ids:
+            return 0
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                INSERT INTO job_list_items (list_id, job_result_id)
+                SELECT $1, j.id
+                FROM unnest($2::uuid[]) AS j(id)
+                JOIN job_results jr ON jr.id = j.id AND jr.user_id = $3
+                WHERE EXISTS (SELECT 1 FROM job_lists WHERE id = $1 AND user_id = $3)
+                ON CONFLICT (list_id, job_result_id) DO NOTHING
+                RETURNING list_id
+                """,
+                list_id,
+                job_result_ids,
+                user_id,
+            )
+        count = len(rows)
+        logger.debug("Added %d items to list %s for user %s", count, list_id, user_id)
+        return count
+
     async def get_list_ids_for_job(self, job_result_id: UUID, user_id: UUID) -> list[UUID]:
         """Return all list IDs that contain this job result, scoped to user_id."""
         async with self._pool.acquire() as conn:

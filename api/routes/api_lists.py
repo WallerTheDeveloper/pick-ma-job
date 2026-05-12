@@ -10,6 +10,8 @@ from api.csrf import require_csrf
 from api.deps import get_current_user, get_job_list_repo
 from api.schemas import (
     AddJobToListRequest,
+    BulkAddJobsRequest,
+    BulkAddJobsResponse,
     JobListCreateRequest,
     JobListJobsResponse,
     JobListRenameRequest,
@@ -160,6 +162,22 @@ async def api_add_job_to_list(
     if not added:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job result not found")
     return OkResponse()
+
+
+@router.post("/{list_id}/jobs/bulk")
+async def api_bulk_add_jobs_to_list(
+    list_id: UUID,
+    body: BulkAddJobsRequest,
+    user: Annotated[UserRow, Depends(get_current_user)],
+    repo: Annotated[JobListRepository, Depends(get_job_list_repo)],
+    _csrf: Annotated[None, Depends(require_csrf)],
+) -> BulkAddJobsResponse:
+    """Add multiple job results to a list at once."""
+    jl = await repo.find_by_id(list_id, user.id)
+    if jl is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="List not found")
+    added = await repo.add_items_for_user(list_id, user.id, body.job_result_ids)
+    return BulkAddJobsResponse(added=added)
 
 
 @router.delete("/{list_id}/jobs/{job_result_id}")

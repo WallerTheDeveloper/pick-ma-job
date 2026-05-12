@@ -2,12 +2,13 @@
 
 import { api } from "@/api/client";
 import {
+  bulkAddJobsResponseSchema,
   jobListSchema,
   jobListsResponseSchema,
   jobListJobsResponseSchema,
   okResponseSchema,
 } from "@/types/schemas";
-import type { JobList, JobListJobsResponse, JobListsResponse, OkResponse } from "@/types/schemas";
+import type { BulkAddJobsResponse, JobList, JobListJobsResponse, JobListsResponse, OkResponse } from "@/types/schemas";
 
 export async function fetchLists(): Promise<JobListsResponse> {
   return api("/api/lists", {}, jobListsResponseSchema);
@@ -47,6 +48,14 @@ export async function addJobToList(listId: string, jobResultId: string): Promise
     `/api/lists/${listId}/jobs`,
     { method: "POST", body: { job_result_id: jobResultId } },
     okResponseSchema,
+  );
+}
+
+export async function bulkAddJobsToList(listId: string, jobResultIds: string[]): Promise<BulkAddJobsResponse> {
+  return api(
+    `/api/lists/${listId}/jobs/bulk`,
+    { method: "POST", body: { job_result_ids: jobResultIds } },
+    bulkAddJobsResponseSchema,
   );
 }
 

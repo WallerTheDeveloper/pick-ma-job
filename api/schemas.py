@@ -310,6 +310,14 @@ class AddJobToListRequest(BaseModel):
     job_result_id: UUID
 
 
+class BulkAddJobsRequest(BaseModel):
+    job_result_ids: list[UUID] = Field(min_length=1, max_length=500)
+
+
+class BulkAddJobsResponse(BaseModel):
+    added: int
+
+
 # ── Platforms ────────────────────────────────────────────────────────────────
 
 class PlatformInfo(BaseModel):

@@ -2,7 +2,7 @@
 
 import { useState, useDeferredValue } from "react";
 import { toast } from "sonner";
-import { Loader2Icon } from "lucide-react";
+import { ListPlusIcon, Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -32,6 +32,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ResultRow } from "@/components/result-row";
 import { ListManager } from "@/components/list-manager";
+import { useQueryClient } from "@tanstack/react-query";
+import { BulkAddToListDialog } from "@/components/bulk-add-to-list-dialog";
 import { useResults } from "@/hooks/use-results";
 import { useListJobs } from "@/hooks/use-lists";
 import { resultStatusValues, type ResultStatus } from "@/types/schemas";
@@ -75,6 +77,8 @@ export function ResultsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAddListOpen, setBulkAddListOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const {
     results: allResults,
@@ -528,6 +532,15 @@ export function ResultsPage() {
               "Evaluate all"
             )}
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={selectedIds.size === 0}
+            onClick={() => setBulkAddListOpen(true)}
+          >
+            <ListPlusIcon className="mr-1 h-4 w-4" />
+            Add to list
+          </Button>
           <Dialog open={confirmBulkDeleteOpen} onOpenChange={setConfirmBulkDeleteOpen}>
             <DialogTrigger render={
               <Button variant="destructive" size="sm">
@@ -566,6 +579,16 @@ export function ResultsPage() {
           </Button>
         </div>
       </div>
+
+      <BulkAddToListDialog
+        open={bulkAddListOpen}
+        onOpenChange={setBulkAddListOpen}
+        selectedIds={selectedIds}
+        onSuccess={() => {
+          setSelectedIds(new Set());
+          queryClient.invalidateQueries({ queryKey: ["results"] });
+        }}
+      />
 
       {/* Results list */}
       {results.length > 0 && (

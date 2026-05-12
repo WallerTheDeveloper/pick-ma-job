@@ -283,6 +283,12 @@ export const jobListJobsResponseSchema = z.object({
 
 export type JobListJobsResponse = z.infer<typeof jobListJobsResponseSchema>;
 
+export const bulkAddJobsResponseSchema = z.object({
+  added: z.number(),
+});
+
+export type BulkAddJobsResponse = z.infer<typeof bulkAddJobsResponseSchema>;
+
 // ── Admin ──────────────────────────────────────────────────────────────────
 
 export const userStatsSchema = z.object({
