@@ -390,3 +390,15 @@ class UserStatsResponse(BaseModel):
 class AdminUsersResponse(BaseModel):
     total: int
     users: list[UserStatsResponse]
+
+
+# ── Proposals ────────────────────────────────────────────────────────────────
+
+class ProposalGenerateRequest(BaseModel):
+    force_regenerate: bool = False
+    adjustment_notes: str | None = Field(default=None, max_length=2000)
+
+
+class ProposalResponse(BaseModel):
+    proposal_text: str
+    from_cache: bool

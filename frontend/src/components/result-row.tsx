@@ -1,7 +1,7 @@
 /** Single result row — expandable with score, title, recommendation, details. */
 
 import { useState } from "react";
-import { ChevronDownIcon, ExternalLinkIcon, Loader2Icon, Trash2Icon } from "lucide-react";
+import { ChevronDownIcon, ExternalLinkIcon, Loader2Icon, PenLine, Trash2Icon } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,6 +31,7 @@ import {
 import { ScoreBadge } from "@/components/score-badge";
 import { AddToListMenu } from "@/components/add-to-list-menu";
 import { CustomizeCVDialog } from "@/components/customize-cv-dialog";
+import { ProposalDialog } from "@/components/proposal-dialog";
 import { evaluateJob } from "@/api/results";
 import { useLists } from "@/hooks/use-lists";
 import { useCV } from "@/hooks/use-cv";
@@ -55,6 +56,7 @@ export function ResultRow({ result, onStatusChange, onDelete, isUpdating, isDele
   const [open, setOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [customizeCVOpen, setCustomizeCVOpen] = useState(false);
+  const [proposalOpen, setProposalOpen] = useState(false);
   const evaluation = result.evaluation;
   const queryClient = useQueryClient();
   const { addJob, removeJob } = useLists();
@@ -72,6 +74,7 @@ export function ResultRow({ result, onStatusChange, onDelete, isUpdating, isDele
   const cvThreshold = profile?.cv_customize_threshold ?? 7;
   const showCustomizeCV = (result.score ?? 0) >= cvThreshold && cvData?.cv != null;
   const showEvaluate = result.evaluation === null && result.score !== null;
+  const showWriteProposal = result.platform === "upwork" && result.evaluation !== null;
 
   async function handleAddToList(listId: string) {
     await addJob({ listId, jobResultId: result.id });
@@ -102,6 +105,11 @@ export function ResultRow({ result, onStatusChange, onDelete, isUpdating, isDele
       result={result}
       open={customizeCVOpen}
       onOpenChange={setCustomizeCVOpen}
+    />
+    <ProposalDialog
+      result={result}
+      open={proposalOpen}
+      onOpenChange={setProposalOpen}
     />
     <Dialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
       <DialogContent showCloseButton={false}>
@@ -196,6 +204,16 @@ export function ResultRow({ result, onStatusChange, onDelete, isUpdating, isDele
                 onClick={() => setCustomizeCVOpen(true)}
               >
                 Customize CV
+              </Button>
+            )}
+            {showWriteProposal && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setProposalOpen(true)}
+              >
+                <PenLine className="mr-1 size-3" />
+                Write Proposal
               </Button>
             )}
             <Select

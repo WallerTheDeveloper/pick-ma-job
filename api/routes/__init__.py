@@ -14,6 +14,7 @@ from .api_profile import router as api_profile_router
 from .api_results import router as api_results_router
 from .api_search_config import router as api_search_config_router
 from .api_version import router as api_version_router
+from .api_proposals import router as api_proposals_router
 from .auth import router as auth_router
 
 all_routers = [
@@ -29,4 +30,5 @@ all_routers = [
     api_cv_router,
     api_platforms_router,
     api_version_router,
+    api_proposals_router,
 ]

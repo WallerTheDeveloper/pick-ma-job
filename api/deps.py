@@ -13,6 +13,7 @@ from repositories.job_list import JobListRepository
 from repositories.job_result import JobResultRepository
 from repositories.magic_link import MagicLinkRepository
 from repositories.profile import ProfileRepository
+from repositories.proposal import ProposalRepository
 from repositories.search_config import SearchConfigRepository
 from repositories.session import SessionRepository
 from repositories.user import UserRepository, UserRow
@@ -20,6 +21,7 @@ from services.auth import AuthService
 from services.auto_list_service import AutoListService
 from services.company_blacklist import CompanyBlacklistService
 from services.profile import ProfileService
+from services.proposal_service import ProposalService
 from services.run_manager import RunManager
 from services.search_config import SearchConfigService
 
@@ -150,3 +152,23 @@ async def get_current_user_optional(
     if not token:
         return None
     return await auth_service.get_user_from_session(token)
+
+
+async def get_proposal_repo(
+    pool: Annotated[asyncpg.Pool, Depends(get_db_pool)],
+) -> ProposalRepository:
+    """Construct a ProposalRepository with a per-request pool."""
+    return ProposalRepository(pool)
+
+
+async def get_proposal_service(
+    pool: Annotated[asyncpg.Pool, Depends(get_db_pool)],
+    llm_client: Annotated[LLMClient, Depends(get_llm_client)],
+) -> ProposalService:
+    """Construct a ProposalService with per-request repository instances."""
+    return ProposalService(
+        proposal_repo=ProposalRepository(pool),
+        job_result_repo=JobResultRepository(pool),
+        profile_repo=ProfileRepository(pool),
+        llm_client=llm_client,
+    )

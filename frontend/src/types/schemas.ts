@@ -373,3 +373,12 @@ export const dashboardResponseSchema = z.object({
 });
 
 export type DashboardResponse = z.infer<typeof dashboardResponseSchema>;
+
+// ── Proposals ────────────────────────────────────────────────────────────────
+
+export const proposalResponseSchema = z.object({
+  proposal_text: z.string(),
+  from_cache: z.boolean(),
+});
+
+export type ProposalResponse = z.infer<typeof proposalResponseSchema>;
