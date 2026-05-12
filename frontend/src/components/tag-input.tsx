@@ -11,26 +11,37 @@ interface TagInputProps {
   className?: string;
   fieldName?: string;
   onDuplicateConfirm?: (existingSkill: string, newSkill: string, fieldName: string) => Promise<boolean>;
+  onBeforeAdd?: (tag: string) => boolean | Promise<boolean>;
 }
 
-export function TagInput({ value, onChange, placeholder, className, fieldName, onDuplicateConfirm }: TagInputProps) {
+export function TagInput({ value, onChange, placeholder, className, fieldName, onDuplicateConfirm, onBeforeAdd }: TagInputProps) {
   const [inputValue, setInputValue] = useState("");
 
   async function commit() {
     const tag = inputValue.trim();
+    // 1. Empty check
     if (!tag) {
       setInputValue("");
       return;
     }
 
-    // 1. Exact match — block immediately
+    // 2. Exact match — block immediately
     if (value.includes(tag)) {
       toast.error("Skill already added");
       setInputValue("");
       return;
     }
 
-    // 2. Case-insensitive match in same field — show confirmation
+    // 2.5. onBeforeAdd callback — block if returns false
+    if (onBeforeAdd) {
+      const allowed = await onBeforeAdd(tag);
+      if (!allowed) {
+        setInputValue("");
+        return;
+      }
+    }
+
+    // 3. Case-insensitive match in same field — show confirmation
     if (onDuplicateConfirm) {
       const existingMatch = value.find(v => v.toLowerCase() === tag.toLowerCase());
       if (existingMatch) {
@@ -42,7 +53,7 @@ export function TagInput({ value, onChange, placeholder, className, fieldName, o
       }
     }
 
-    // 3. No duplicate — add
+    // 4. No duplicate — add
     onChange([...value, tag]);
     setInputValue("");
   }

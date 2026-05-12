@@ -30,11 +30,13 @@ import { useProfile } from "@/hooks/use-profile";
 import {
   emptyForm,
   formToRequest,
+  findSkillInOtherFields,
   profileToForm,
   validateForm,
   type FormState,
   type ProjectEntry,
   type RubricState,
+  type TagFieldKey,
 } from "@/pages/profile-helpers";
 
 // ── Duplicate skill confirmation dialog state ──────────────────────────────────
@@ -164,6 +166,17 @@ export function ProfilePage() {
     }
   }
 
+  // ── Cross-field duplicate blocking ────────────────────────────────────────
+
+  function handleCrossFieldCheck(tag: string, field: TagFieldKey): boolean {
+    const found = findSkillInOtherFields(tag, field, form);
+    if (found) {
+      toast.error(`Skill '${tag}' is already in ${found.fieldName}`);
+      return false;
+    }
+    return true;
+  }
+
   // ── Render ───────────────────────────────────────────────────────────────
 
   if (isLoading) {
@@ -274,6 +287,7 @@ export function ProfilePage() {
               onChange={(tags) => updateField("primarySkills", tags)}
               placeholder="Unity, C#, AR/VR…"
               fieldName="Primary Skills"
+              onBeforeAdd={(tag) => handleCrossFieldCheck(tag, "primarySkills")}
               onDuplicateConfirm={handleDuplicateConfirm}
             />
           </div>
@@ -285,6 +299,7 @@ export function ProfilePage() {
               onChange={(tags) => updateField("secondarySkills", tags)}
               placeholder="Rust, C++, Backend Architecture…"
               fieldName="Secondary Skills"
+              onBeforeAdd={(tag) => handleCrossFieldCheck(tag, "secondarySkills")}
               onDuplicateConfirm={handleDuplicateConfirm}
             />
           </div>
@@ -296,6 +311,7 @@ export function ProfilePage() {
               onChange={(tags) => updateField("tertiarySkills", tags)}
               placeholder="Vue.js, TypeScript, Blender…"
               fieldName="Tertiary Skills"
+              onBeforeAdd={(tag) => handleCrossFieldCheck(tag, "tertiarySkills")}
               onDuplicateConfirm={handleDuplicateConfirm}
             />
           </div>
@@ -355,6 +371,7 @@ export function ProfilePage() {
             onChange={(tags) => updateField("languages", tags)}
             placeholder="English, German, Ukrainian…"
             fieldName="Languages"
+            onBeforeAdd={(tag) => handleCrossFieldCheck(tag, "languages")}
             onDuplicateConfirm={handleDuplicateConfirm}
           />
         </CardContent>
@@ -419,6 +436,7 @@ export function ProfilePage() {
             onChange={(tags) => updateField("notAGoodFit", tags)}
             placeholder="Pure frontend, Data science, DevOps-only…"
             fieldName="Not a Good Fit"
+            onBeforeAdd={(tag) => handleCrossFieldCheck(tag, "notAGoodFit")}
             onDuplicateConfirm={handleDuplicateConfirm}
           />
         </CardContent>
@@ -438,6 +456,7 @@ export function ProfilePage() {
             onChange={(tags) => updateField("excludeKeywords", tags)}
             placeholder="e.g. developer, engineer, programmer…"
             fieldName="Exclude Keywords"
+            onBeforeAdd={(tag) => handleCrossFieldCheck(tag, "excludeKeywords")}
             onDuplicateConfirm={handleDuplicateConfirm}
           />
         </CardContent>

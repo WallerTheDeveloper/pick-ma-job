@@ -172,3 +172,48 @@ export function validateForm(form: FormState): string | null {
   }
   return null;
 }
+
+// ── Cross-field tag duplicate detection ───────────────────────────────────────
+
+export type TagFieldKey =
+  | "primarySkills"
+  | "secondarySkills"
+  | "tertiarySkills"
+  | "notAGoodFit"
+  | "languages"
+  | "excludeKeywords";
+
+export const TAG_FIELD_LABELS: Record<TagFieldKey, string> = {
+  primarySkills: "Primary Skills",
+  secondarySkills: "Secondary Skills",
+  tertiarySkills: "Tertiary Skills",
+  notAGoodFit: "Not a Good Fit",
+  languages: "Languages",
+  excludeKeywords: "Exclude Keywords",
+};
+
+export const TAG_FIELDS: TagFieldKey[] = [
+  "primarySkills",
+  "secondarySkills",
+  "tertiarySkills",
+  "notAGoodFit",
+  "languages",
+  "excludeKeywords",
+];
+
+/** Check whether a skill already exists (case-insensitive) in a different tag field. */
+export function findSkillInOtherFields(
+  skill: string,
+  currentField: TagFieldKey,
+  form: Pick<FormState, TagFieldKey>,
+): { field: TagFieldKey; fieldName: string } | null {
+  const skillLower = skill.toLowerCase();
+  for (const field of TAG_FIELDS) {
+    if (field === currentField) continue;
+    const fieldValue = form[field];
+    if (fieldValue.some((s) => s.toLowerCase() === skillLower)) {
+      return { field, fieldName: TAG_FIELD_LABELS[field] };
+    }
+  }
+  return null;
+}
