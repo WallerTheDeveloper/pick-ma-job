@@ -25,7 +25,7 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-60 border-r border-sidebar-border bg-sidebar text-sidebar-foreground flex flex-col">
+      <aside className="w-60 border-r border-sidebar-border bg-sidebar text-sidebar-foreground flex flex-col h-screen sticky top-0">
         <div className="px-4 py-5">
           <h1 className="text-lg font-semibold tracking-tight text-sidebar-primary">Pick Ma Job</h1>
         </div>
@@ -72,7 +72,7 @@ export function AppShell() {
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-x-hidden p-6">
+      <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-6">
         <Outlet />
       </main>
     </div>
