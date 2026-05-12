@@ -1,6 +1,6 @@
 /** Results page — filter, sort, paginate, and manage job evaluation results. */
 
-import { useState, useDeferredValue } from "react";
+import { useState, useDeferredValue, useEffect } from "react";
 import { toast } from "sonner";
 import { ListPlusIcon, Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -107,6 +107,19 @@ export function ResultsPage() {
     bulkEvaluate,
     isBulkEvaluating,
   } = useResults();
+
+  // Clear selection when filters, search, date range, or list changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [
+    filters.status,
+    filters.platform,
+    filters.minScore,
+    filters.sort,
+    searchTerm,
+    dateRange,
+    selectedListId,
+  ]);
 
   const listJobsParams = selectedListId !== null
     ? {
