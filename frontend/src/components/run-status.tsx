@@ -1,6 +1,6 @@
 /** Pipeline run status display — shows progress and result summary. */
 
-import { Loader2, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Clock, Ban } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { RunStatusResponse } from "@/types/schemas";
 
@@ -18,6 +18,8 @@ function StatusIcon({ status }: { status: string }) {
       return <CheckCircle2 className="h-4 w-4 text-green-600" />;
     case "failed":
       return <XCircle className="h-4 w-4 text-destructive" />;
+    case "cancelled":
+      return <Ban className="h-4 w-4 text-amber-500" />;
     default:
       return <Clock className="h-4 w-4 text-muted-foreground" />;
   }
@@ -54,6 +56,10 @@ export function RunStatus({ run }: RunStatusProps) {
               ))}
             </div>
           </>
+        )}
+
+        {run.status === "cancelled" && (
+          <p className="text-amber-600">Pipeline run was cancelled. Jobs already processed have been preserved.</p>
         )}
 
         {run.status === "completed" && run.result && (

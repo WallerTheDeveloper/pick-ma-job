@@ -248,3 +248,55 @@ async def test_start_run_conflict_when_run_active(client, test_app):
 
     assert resp.status_code == 409
     assert "already" in resp.json()["detail"].lower()
+
+
+# ── Cancel run endpoint ──────────────────────────────────────────────────────
+
+async def test_cancel_run_returns_200_for_running_run(client, test_app):
+    """POST /api/run/{run_id}/cancel returns 200 when run is active."""
+    run_id = uuid4()
+    run_mgr, _ = _setup_overrides(test_app, all_configs=[_fake_search_config("upwork")])
+    run_mgr.cancel_run = AsyncMock()
+
+    resp = await client.post(
+        f"/api/run/{run_id}/cancel",
+        cookies={"session_token": "tok"},
+    )
+    test_app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    assert resp.json()["ok"] is True
+    run_mgr.cancel_run.assert_called_once()
+
+
+async def test_cancel_run_returns_404_for_unknown_run(client, test_app):
+    """POST /api/run/{run_id}/cancel returns 404 when run doesn't exist."""
+    from core.exceptions import NotFoundError
+    from services.run_manager import RunNotActiveError
+
+    run_mgr, _ = _setup_overrides(test_app, all_configs=[_fake_search_config("upwork")])
+    run_mgr.cancel_run = AsyncMock(side_effect=NotFoundError("Run not found."))
+
+    resp = await client.post(
+        f"/api/run/{uuid4()}/cancel",
+        cookies={"session_token": "tok"},
+    )
+    test_app.dependency_overrides.clear()
+
+    assert resp.status_code == 404
+
+
+async def test_cancel_run_returns_409_for_completed_run(client, test_app):
+    """POST /api/run/{run_id}/cancel returns 409 when run is already completed."""
+    from services.run_manager import RunNotActiveError
+
+    run_mgr, _ = _setup_overrides(test_app, all_configs=[_fake_search_config("upwork")])
+    run_mgr.cancel_run = AsyncMock(side_effect=RunNotActiveError("Run is not active."))
+
+    resp = await client.post(
+        f"/api/run/{uuid4()}/cancel",
+        cookies={"session_token": "tok"},
+    )
+    test_app.dependency_overrides.clear()
+
+    assert resp.status_code == 409

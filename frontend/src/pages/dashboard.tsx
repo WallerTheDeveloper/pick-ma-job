@@ -3,9 +3,19 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, CheckCircle2, XCircle, Clock, Play, UserCircle, Settings2 } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Clock, Play, Ban, UserCircle, Settings2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { fetchDashboard } from "@/api/dashboard";
 import { useRun } from "@/hooks/use-run";
 import { RunStatus } from "@/components/run-status";
@@ -22,6 +32,8 @@ function RunStatusIcon({ status }: { status: string }) {
       return <CheckCircle2 className="h-4 w-4 text-green-600" />;
     case "failed":
       return <XCircle className="h-4 w-4 text-destructive" />;
+    case "cancelled":
+      return <Ban className="h-4 w-4 text-amber-500" />;
     default:
       return <Clock className="h-4 w-4 text-muted-foreground" />;
   }
@@ -47,8 +59,9 @@ export function DashboardPage() {
   });
 
   // useRun now rehydrates from sessionStorage internally, so no seedRunId needed.
-  const { startRun, startStatus, startError, runStatus, isRunning, activeRunId } = useRun();
+  const { startRun, startStatus, startError, runStatus, isRunning, activeRunId, cancelRun, isCancelling } = useRun();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
 
   // Track which past run the user clicked to inspect.
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
@@ -72,6 +85,13 @@ export function DashboardPage() {
   // Treat seeded-but-not-yet-polled state as running so the button is
   // immediately disabled.
   const effectiveIsRunning = isRunning || (!!activeRunId && runStatus === null);
+
+  function handleCancelConfirm() {
+    if (activeRunId) {
+      cancelRun(activeRunId);
+    }
+    setConfirmCancelOpen(false);
+  }
 
   if (isLoading) {
     return <p className="text-muted-foreground">Loading dashboard...</p>;
@@ -168,6 +188,16 @@ export function DashboardPage() {
               )}
             </Button>
           )}
+          {effectiveIsRunning && (
+            <Button
+              variant="outline"
+              onClick={() => setConfirmCancelOpen(true)}
+              disabled={isCancelling}
+            >
+              <Ban className="mr-2 h-4 w-4" />
+              Cancel Run
+            </Button>
+          )}
         </div>
 
         {startError && (
@@ -185,6 +215,23 @@ export function DashboardPage() {
         onRun={(platforms) => startRun({ platforms })}
         isRunning={effectiveIsRunning}
       />
+
+      <AlertDialog open={confirmCancelOpen} onOpenChange={setConfirmCancelOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Pipeline Run?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to stop this pipeline run? Jobs already processed will be preserved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Running</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCancelConfirm}>
+              Cancel Run
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Recent runs history — always visible */}
       {data.recent_runs.length > 0 && (

@@ -1,8 +1,8 @@
-/** Hook for triggering pipeline runs and polling their status. */
+/** Hook for triggering pipeline runs, polling their status, and cancelling. */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useRef } from "react";
-import { startRun, getRunStatus } from "@/api/pipeline";
+import { cancelRun, startRun, getRunStatus } from "@/api/pipeline";
 import type { StartRunArgs } from "@/api/pipeline";
 import type { RunStatusResponse } from "@/types/schemas";
 
@@ -87,6 +87,14 @@ export function useRun(initialRunId?: string) {
     },
   });
 
+  const cancelMutation = useMutation({
+    mutationFn: (runId: string) => cancelRun(runId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [RUN_STATUS_KEY] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+
   const statusQuery = useRunStatus(activeRunId);
 
   const runStatus: RunStatusResponse | null = statusQuery.data ?? null;
@@ -117,5 +125,7 @@ export function useRun(initialRunId?: string) {
     activeRunId,
     setActiveRunId,
     clearRun,
+    cancelRun: cancelMutation.mutate,
+    isCancelling: cancelMutation.isPending,
   };
 }

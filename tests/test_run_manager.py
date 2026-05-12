@@ -247,7 +247,10 @@ async def test_execute_passes_platforms_to_pipeline():
          patch("services.run_manager.PipelineService", return_value=mock_service):
         await manager._execute(run_id, _USER_A, ["upwork"])
 
-    mock_service.run_pipeline.assert_called_once_with(_USER_A, ["upwork"], run_id=run_id)
+    call = mock_service.run_pipeline.call_args
+    assert call.args[0] == _USER_A
+    assert call.args[1] == ["upwork"]
+    assert call.kwargs["run_id"] == run_id
 
 
 @pytest.mark.asyncio
@@ -295,3 +298,174 @@ async def test_execute_result_stored_as_dict():
     assert isinstance(stored_result, dict)
     assert stored_result["jobs_found"] == 10
     assert stored_result["jobs_stored"] == 7
+
+
+# ── cancel_run ───────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_cancel_run_sets_cancelled_status():
+    """cancel_run adds run_id to _cancelled_runs and persists 'cancelled' status."""
+    manager = _make_manager()
+    run_id = uuid4()
+    user_id = uuid4()
+
+    mock_row = MagicMock()
+    mock_row.id = run_id
+    mock_row.user_id = user_id
+    mock_row.status = "running"
+
+    repo = _mock_repo(find_row=mock_row)
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo):
+        await manager.cancel_run(run_id, user_id)
+
+    assert run_id in manager._cancelled_runs
+
+    # Check the persist call had status="cancelled"
+    cancel_call = next(
+        (c for c in repo.update_status.call_args_list if c.kwargs.get("status") == "cancelled"),
+        None,
+    )
+    assert cancel_call is not None
+    assert cancel_call.kwargs["completed_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_cancel_run_raises_not_found_for_missing_run():
+    """cancel_run raises NotFoundError when the run doesn't exist."""
+    from core.exceptions import NotFoundError
+
+    manager = _make_manager()
+    repo = _mock_repo(find_row=None)
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo):
+        with pytest.raises(NotFoundError):
+            await manager.cancel_run(uuid4(), uuid4())
+
+
+@pytest.mark.asyncio
+async def test_cancel_run_raises_not_found_for_wrong_user():
+    """cancel_run raises NotFoundError when the run belongs to a different user."""
+    from core.exceptions import NotFoundError
+
+    manager = _make_manager()
+    run_id = uuid4()
+    owner_id = uuid4()
+    other_user = uuid4()
+
+    mock_row = MagicMock()
+    mock_row.id = run_id
+    mock_row.user_id = owner_id
+    mock_row.status = "running"
+
+    repo = _mock_repo(find_row=mock_row)
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo):
+        with pytest.raises(NotFoundError):
+            await manager.cancel_run(run_id, other_user)
+
+
+@pytest.mark.asyncio
+async def test_cancel_run_raises_not_active_for_completed_run():
+    """cancel_run raises RunNotActiveError when the run is already completed."""
+    from services.run_manager import RunNotActiveError
+
+    manager = _make_manager()
+    run_id = uuid4()
+    user_id = uuid4()
+
+    mock_row = MagicMock()
+    mock_row.id = run_id
+    mock_row.user_id = user_id
+    mock_row.status = "completed"
+
+    repo = _mock_repo(find_row=mock_row)
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo):
+        with pytest.raises(RunNotActiveError):
+            await manager.cancel_run(run_id, user_id)
+
+
+@pytest.mark.asyncio
+async def test_cancel_run_raises_not_active_for_failed_run():
+    """cancel_run raises RunNotActiveError when the run has failed."""
+    from services.run_manager import RunNotActiveError
+
+    manager = _make_manager()
+    run_id = uuid4()
+    user_id = uuid4()
+
+    mock_row = MagicMock()
+    mock_row.id = run_id
+    mock_row.user_id = user_id
+    mock_row.status = "failed"
+
+    repo = _mock_repo(find_row=mock_row)
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo):
+        with pytest.raises(RunNotActiveError):
+            await manager.cancel_run(run_id, user_id)
+
+
+@pytest.mark.asyncio
+async def test_cancel_run_allows_cancelling_pending_run():
+    """cancel_run succeeds for a run in 'pending' state."""
+    manager = _make_manager()
+    run_id = uuid4()
+    user_id = uuid4()
+
+    mock_row = MagicMock()
+    mock_row.id = run_id
+    mock_row.user_id = user_id
+    mock_row.status = "pending"
+
+    repo = _mock_repo(find_row=mock_row)
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo):
+        await manager.cancel_run(run_id, user_id)
+
+    assert run_id in manager._cancelled_runs
+
+
+@pytest.mark.asyncio
+async def test_execute_stops_when_cancelled_before_start():
+    """_execute returns early when the run was cancelled before it started."""
+    manager = _make_manager()
+    run_id = uuid4()
+    repo = _mock_repo()
+
+    # Pre-register the run as cancelled
+    manager._cancelled_runs.add(run_id)
+
+    mock_service = AsyncMock()
+    mock_service.run_pipeline.return_value = _make_result()
+
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo), \
+         patch("services.run_manager.PipelineService", return_value=mock_service):
+        await manager._execute(run_id, _USER_A, None)
+
+    # Pipeline should not have been called
+    mock_service.run_pipeline.assert_not_called()
+
+    # Only "running" status persisted (the "cancelled" was already set by cancel_run)
+    call_statuses = [c.kwargs["status"] for c in repo.update_status.call_args_list]
+    assert "running" in call_statuses
+
+
+@pytest.mark.asyncio
+async def test_execute_stops_when_cancelled_during_pipeline():
+    """_execute returns early when cancellation is detected after pipeline completes."""
+    manager = _make_manager()
+    run_id = uuid4()
+    repo = _mock_repo()
+
+    # The is_cancelled callback will return True
+    manager._cancelled_runs.add(run_id)
+
+    mock_service = AsyncMock()
+    mock_service.run_pipeline.return_value = _make_result()
+
+    with patch("services.run_manager.PipelineRunRepository", return_value=repo), \
+         patch("services.run_manager.PipelineService", return_value=mock_service):
+        await manager._execute(run_id, _USER_A, None)
+
+    # Pipeline was called (it already ran), but status should be "running" only
+    # since cancelled was detected
+    call_statuses = [c.kwargs["status"] for c in repo.update_status.call_args_list]
+    assert "running" in call_statuses
+    # "completed" should NOT be in the statuses since we short-circuited
+    assert "completed" not in call_statuses

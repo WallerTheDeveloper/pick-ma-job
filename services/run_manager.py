@@ -6,12 +6,14 @@ No in-memory state is kept for run status — all queries go to the DB.
 Lifecycle:
     pending  →  running  →  completed
                           →  failed
+                          →  cancelled
 
 On startup, ``reconcile_stale_runs`` marks any rows that were left in
 ``pending`` or ``running`` (from a previous process) as ``failed``.
 """
 
 import asyncio
+import collections.abc
 import logging
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -20,7 +22,7 @@ from uuid import UUID, uuid4
 import asyncpg
 
 from core.context import run_id_var, user_id_var
-from core.exceptions import ConflictError
+from core.exceptions import ConflictError, DomainError, NotFoundError
 from core.llm_client import LLMClient
 from core.settings import Settings
 from repositories.company_blacklist import CompanyBlacklistRepository
@@ -38,6 +40,13 @@ _STALE_RUN_MINUTES = 30
 
 # Backward-compatible alias — existing tests catch RunActiveError.
 RunActiveError = ConflictError
+
+
+class RunNotActiveError(DomainError):
+    """Raised when trying to cancel a run that is not in pending or running state."""
+
+    def __init__(self, message: str = "Run is not active."):
+        super().__init__(message, http_status=409)
 
 
 class RunManager:
@@ -58,6 +67,7 @@ class RunManager:
         self._llm_client = llm_client
         self._pool = pool
         self._settings = settings
+        self._cancelled_runs: set[UUID] = set()
 
     async def reconcile_stale_runs(self, stale_after_minutes: int = _STALE_RUN_MINUTES) -> None:
         """Mark pending/running rows older than stale_after_minutes as failed.
@@ -105,6 +115,37 @@ class RunManager:
         asyncio.create_task(self._execute(run_id, user_id, platforms))
         return run_id
 
+    async def cancel_run(self, run_id: UUID, user_id: UUID) -> None:
+        """Cancel a running or pending pipeline run.
+
+        Sets an in-memory cancellation flag and updates the DB status to
+        ``cancelled``. The background task checks this flag between platform
+        evaluations and stops gracefully.
+
+        Args:
+            run_id: The run to cancel.
+            user_id: The authenticated user (for ownership check).
+
+        Raises:
+            NotFoundError: If the run does not exist or does not belong to the user.
+            RunNotActiveError: If the run is not in ``pending`` or ``running`` state.
+        """
+        repo = PipelineRunRepository(self._pool)
+        run = await repo.find_by_id(run_id)
+        if run is None or run.user_id != user_id:
+            raise NotFoundError("Run not found.")
+        if run.status not in ("pending", "running"):
+            raise RunNotActiveError("Run is not active.")
+
+        self._cancelled_runs.add(run_id)
+        await self._persist_status(
+            run_id,
+            user_id,
+            status="cancelled",
+            completed_at=datetime.now(timezone.utc),
+        )
+        logger.info("Run %s cancelled by user %s", run_id, user_id)
+
     async def get_run(self, run_id: UUID) -> PipelineRunRow | None:
         """Return the current DB row for ``run_id``, or None if not found."""
         repo = PipelineRunRepository(self._pool)
@@ -125,6 +166,12 @@ class RunManager:
 
         await self._persist_status(run_id, user_id, status="running")
 
+        # Check if the run was cancelled while still pending
+        if run_id in self._cancelled_runs:
+            self._cancelled_runs.discard(run_id)
+            logger.info("Run %s was cancelled before execution started", run_id)
+            return
+
         service = PipelineService(
             profile_repo=ProfileRepository(self._pool),
             search_config_repo=SearchConfigRepository(self._pool),
@@ -136,8 +183,19 @@ class RunManager:
             auto_list_service=AutoListService(job_list_repo=JobListRepository(self._pool)),
         )
 
+        is_cancelled: collections.abc.Callable[[], bool] = lambda: run_id in self._cancelled_runs
+
         try:
-            result = await service.run_pipeline(user_id, platforms, run_id=run_id)
+            result = await service.run_pipeline(
+                user_id, platforms, run_id=run_id, is_cancelled=is_cancelled,
+            )
+
+            # Check if cancelled during pipeline execution
+            if run_id in self._cancelled_runs:
+                self._cancelled_runs.discard(run_id)
+                logger.info("Run %s cancelled during execution", run_id)
+                return
+
             completed_at = datetime.now(timezone.utc)
             await self._persist_status(
                 run_id,

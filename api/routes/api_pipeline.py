@@ -16,11 +16,12 @@ from api.deps import (
     get_run_manager,
     get_search_config_service,
 )
-from api.schemas import RunStartRequest, RunStartResponse, RunStatusResponse, sanitize_run_result
+from api.schemas import OkResponse, RunStartRequest, RunStartResponse, RunStatusResponse, sanitize_run_result
 from repositories.user import UserRow
 from services.profile import ProfileService
 from api.limiter import limiter
-from services.run_manager import RunManager
+from core.exceptions import NotFoundError
+from services.run_manager import RunManager, RunNotActiveError
 from services.search_config import KNOWN_PLATFORMS, SearchConfigService
 
 logger = logging.getLogger(__name__)
@@ -98,3 +99,20 @@ async def api_get_run_status(
         result=result_data,
         error=row.error,
     )
+
+
+@router.post("/{run_id}/cancel")
+async def api_cancel_run(
+    run_id: UUID,
+    user: Annotated[UserRow, Depends(get_current_user)],
+    _csrf: Annotated[None, Depends(require_csrf)],
+    run_manager: Annotated[RunManager, Depends(get_run_manager)],
+) -> OkResponse:
+    """Cancel a running or pending pipeline run."""
+    try:
+        await run_manager.cancel_run(run_id, user.id)
+    except NotFoundError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found.")
+    except RunNotActiveError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    return OkResponse()

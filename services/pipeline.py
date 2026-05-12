@@ -16,6 +16,7 @@ from pathlib import Path
 from uuid import UUID
 
 import asyncio
+import collections.abc
 
 from core.language_detector import LanguageDetector
 from core.evaluator import Evaluator
@@ -155,6 +156,7 @@ class PipelineService:
         user_id: UUID,
         platforms: list[str] | None = None,
         run_id: UUID | None = None,
+        is_cancelled: collections.abc.Callable[[], bool] | None = None,
     ) -> PipelineStats:
         """Run the full pipeline for a user on one or all configured platforms.
 
@@ -215,17 +217,22 @@ class PipelineService:
             else self._exclude_keywords
         )
 
-        platform_results: list[tuple[PipelineStats, list[UUID], list[UUID], list[UUID], str]] = [
-            await self._run_platform(
+        platform_results: list[tuple[PipelineStats, list[UUID], list[UUID], list[UUID], str]] = []
+        for config_row in search_configs:
+            # Check for cancellation between platform evaluations
+            if is_cancelled is not None and is_cancelled():
+                logger.info("Pipeline cancelled by user — stopping between platform evaluations")
+                break
+            result = await self._run_platform(
                 user_id=user_id,
                 config_row=config_row,
                 evaluator=evaluator,
                 run_started_at=run_started_at,
                 user_languages=user_languages,
                 exclude_keywords=effective_exclude,
+                is_cancelled=is_cancelled,
             )
-            for config_row in search_configs
-        ]
+            platform_results.append(result)
 
         # Auto-create job lists after all platforms complete
         if self._auto_list_service is not None and run_id is not None:
@@ -302,6 +309,7 @@ class PipelineService:
         run_started_at: datetime,
         user_languages: list[str] | None = None,
         exclude_keywords: tuple[str, ...] = (),
+        is_cancelled: collections.abc.Callable[[], bool] | None = None,
     ) -> tuple[PipelineStats, list[UUID], list[UUID], list[UUID], str]:
         platform = config_row.platform
         logger.info("Pipeline starting: user_id=%s platform=%s", user_id, platform)
@@ -450,6 +458,11 @@ class PipelineService:
                 filtered_jobs.append(job)
             jobs_to_evaluate = filtered_jobs
 
+        # Check for cancellation before starting evaluations
+        if is_cancelled is not None and is_cancelled():
+            logger.info("Pipeline cancelled by user — skipping evaluations for platform=%s", platform)
+            return PipelineStats(errors=("Cancelled by user.",)), [], [], [], platform
+
         # Evaluate jobs concurrently with semaphore
         semaphore = asyncio.Semaphore(self._concurrency)
         eval_tasks = [
@@ -464,6 +477,11 @@ class PipelineService:
             for job in jobs_to_evaluate
         ]
         eval_results = await asyncio.gather(*eval_tasks, return_exceptions=True)
+
+        # Check for cancellation after evaluations complete
+        if is_cancelled is not None and is_cancelled():
+            logger.info("Pipeline cancelled by user after evaluations for platform=%s", platform)
+            # Still return partial results for jobs already processed
 
         # Aggregate results from concurrent evaluation
         jobs_skipped_low_score = 0
