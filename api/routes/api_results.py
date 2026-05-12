@@ -398,7 +398,7 @@ async def api_evaluate_result(
     evaluator = Evaluator(prompt_dict, settings, llm_client=llm_client)
 
     try:
-        eval_result = await evaluator.evaluate_full(job, platform_context, result.score)
+        eval_result = await evaluator.evaluate_full(job, platform_context, result.score, force=True)
     except Exception as exc:
         logger.error(
             "Evaluation failed for result_id=%s: %s",
@@ -409,13 +409,6 @@ async def api_evaluate_result(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Evaluation failed: {type(exc).__name__}",
-        )
-
-    # Check if evaluation was skipped due to low score
-    if eval_result.evaluation is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Job score ({result.score}) is below evaluation threshold",
         )
 
     # Update the job result with evaluation data

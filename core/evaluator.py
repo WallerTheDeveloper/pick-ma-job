@@ -171,25 +171,26 @@ class Evaluator:
         job: NormalizedJob,
         platform_context: dict,
         existing_score: int,
+        force: bool = False,
     ) -> EvaluationResult:
         """Run Pass 2 (full evaluation) for a job that already has a score from Pass 1.
 
-        Only runs if existing_score >= self._score_threshold.
-        Returns EvaluationResult.from_score(existing_score) if below threshold.
+        Only runs if existing_score >= self._score_threshold *unless* ``force=True``.
 
         Args:
             job: The normalized job to evaluate.
             platform_context: Loaded ``configs/prompts/<platform>_context.json``.
             existing_score: The score from Pass 1 (already stored in DB).
+            force: If True, bypass the score threshold check and run Pass 2 regardless.
 
         Returns:
             An ``EvaluationResult`` — fully populated for high-score jobs,
-            score-only for low-score jobs.
+            score-only for low-score jobs (when force=False).
 
         Raises:
             LLMError: If Claude returns invalid JSON after retries.
         """
-        if existing_score < self._score_threshold:
+        if existing_score < self._score_threshold and not force:
             logger.info(
                 "Existing score (%d < %d) — skipping full evaluation for '%s'",
                 existing_score,
@@ -197,6 +198,14 @@ class Evaluator:
                 job.title,
             )
             return EvaluationResult.from_score(existing_score)
+
+        if force and existing_score < self._score_threshold:
+            logger.info(
+                "Forced full evaluation for '%s' (score=%d < threshold=%d)",
+                job.title,
+                existing_score,
+                self._score_threshold,
+            )
 
         system_prompt = self._assemble_system_prompt(platform_context)
         user_message = self._assemble_user_message(job, platform_context)

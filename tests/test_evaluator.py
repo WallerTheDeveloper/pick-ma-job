@@ -272,3 +272,91 @@ def test_evaluate_parse_failure_logs_warning(caplog):
     with caplog.at_level(logging.WARNING):
         run(evaluator.evaluate(JOB, PLATFORM_CONTEXT))
     assert any("pass1_parse_failed" in record.message for record in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# evaluate_full() — Pass 2 with existing score (used for manual + bulk eval)
+# ---------------------------------------------------------------------------
+
+
+def test_evaluate_full_above_threshold_returns_full_result():
+    """evaluate_full with a score above threshold calls LLM and returns full result."""
+    evaluator = _make_sequential_evaluator([
+        json.dumps(VALID_RESPONSE),  # Pass 2 full eval
+    ])
+    result = run(evaluator.evaluate_full(JOB, PLATFORM_CONTEXT, existing_score=8))
+    assert result.relevancy_score == 8
+    assert result.evaluation == "Strong Unity AR match."
+    assert result.summary == "Good AR fit."
+
+
+def test_evaluate_full_below_threshold_returns_score_only():
+    """evaluate_full with a score below threshold returns score-only result without calling LLM."""
+    mock_client = _make_sequential_anthropic_mock([
+        json.dumps(VALID_RESPONSE),  # should NOT be called
+    ])
+    llm = LLMClient(client=mock_client, default_model="test-model")
+    evaluator = _make_evaluator(llm)
+    result = run(evaluator.evaluate_full(JOB, PLATFORM_CONTEXT, existing_score=3))
+    assert result.relevancy_score == 3
+    assert result.evaluation is None
+    assert result.summary is None
+    # No LLM call was made
+    assert mock_client.messages.create.call_count == 0
+
+
+def test_evaluate_full_force_true_bypasses_threshold():
+    """evaluate_full with force=True bypasses the threshold and runs Pass 2 even for low scores."""
+    evaluator = _make_sequential_evaluator([
+        json.dumps(VALID_RESPONSE),  # Pass 2 full eval
+    ])
+    result = run(evaluator.evaluate_full(JOB, PLATFORM_CONTEXT, existing_score=3, force=True))
+    assert result.relevancy_score == 8
+    assert result.evaluation == "Strong Unity AR match."
+    assert result.summary == "Good AR fit."
+
+
+def test_evaluate_full_force_true_logs_forced_evaluation(caplog):
+    """evaluate_full with force=True on a low-score job logs the forced evaluation."""
+    import logging
+
+    evaluator = _make_sequential_evaluator([
+        json.dumps(VALID_RESPONSE),  # Pass 2 full eval
+    ])
+    with caplog.at_level(logging.INFO):
+        result = run(evaluator.evaluate_full(JOB, PLATFORM_CONTEXT, existing_score=3, force=True))
+    assert result.relevancy_score == 8
+    assert any(
+        "Forced full evaluation" in record.message and "score=3" in record.message
+        for record in caplog.records
+    )
+
+
+def test_evaluate_full_force_false_default_skips_low_score():
+    """evaluate_full defaults force=False, so low scores skip Pass 2."""
+    mock_client = _make_sequential_anthropic_mock([
+        json.dumps(VALID_RESPONSE),  # should NOT be called
+    ])
+    llm = LLMClient(client=mock_client, default_model="test-model")
+    evaluator = _make_evaluator(llm)
+    result = run(evaluator.evaluate_full(JOB, PLATFORM_CONTEXT, existing_score=2))
+    assert result.relevancy_score == 2
+    assert result.evaluation is None
+    assert mock_client.messages.create.call_count == 0
+
+
+def test_evaluate_full_force_true_high_score_no_extra_log(caplog):
+    """evaluate_full with force=True on a high-score job does not log the forced-evaluation message."""
+    import logging
+
+    evaluator = _make_sequential_evaluator([
+        json.dumps(VALID_RESPONSE),
+    ])
+    with caplog.at_level(logging.INFO):
+        result = run(evaluator.evaluate_full(JOB, PLATFORM_CONTEXT, existing_score=8, force=True))
+    assert result.relevancy_score == 8
+    # The "Forced full evaluation" log should NOT appear for score >= threshold
+    assert not any(
+        "Forced full evaluation" in record.message
+        for record in caplog.records
+    )
