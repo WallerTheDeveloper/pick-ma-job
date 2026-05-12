@@ -24,6 +24,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { TagInput } from "@/components/tag-input";
+import { TagInputProvider } from "@/components/tag-input-provider";
 import { CVUploadCard } from "@/components/cv-upload-card";
 import { CompanyBlacklistCard } from "@/components/company-blacklist-card";
 import { useProfile } from "@/hooks/use-profile";
@@ -194,6 +195,7 @@ export function ProfilePage() {
 
   return (
     <div className="space-y-6">
+    <TagInputProvider>
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -287,6 +289,7 @@ export function ProfilePage() {
               onChange={(tags) => updateField("primarySkills", tags)}
               placeholder="Unity, C#, AR/VR…"
               fieldName="Primary Skills"
+              fieldKey="primarySkills"
               onBeforeAdd={(tag) => handleCrossFieldCheck(tag, "primarySkills")}
               onDuplicateConfirm={handleDuplicateConfirm}
             />
@@ -299,6 +302,7 @@ export function ProfilePage() {
               onChange={(tags) => updateField("secondarySkills", tags)}
               placeholder="Rust, C++, Backend Architecture…"
               fieldName="Secondary Skills"
+              fieldKey="secondarySkills"
               onBeforeAdd={(tag) => handleCrossFieldCheck(tag, "secondarySkills")}
               onDuplicateConfirm={handleDuplicateConfirm}
             />
@@ -311,6 +315,7 @@ export function ProfilePage() {
               onChange={(tags) => updateField("tertiarySkills", tags)}
               placeholder="Vue.js, TypeScript, Blender…"
               fieldName="Tertiary Skills"
+              fieldKey="tertiarySkills"
               onBeforeAdd={(tag) => handleCrossFieldCheck(tag, "tertiarySkills")}
               onDuplicateConfirm={handleDuplicateConfirm}
             />
@@ -371,6 +376,7 @@ export function ProfilePage() {
             onChange={(tags) => updateField("languages", tags)}
             placeholder="English, German, Ukrainian…"
             fieldName="Languages"
+            fieldKey="languages"
             onBeforeAdd={(tag) => handleCrossFieldCheck(tag, "languages")}
             onDuplicateConfirm={handleDuplicateConfirm}
           />
@@ -436,6 +442,7 @@ export function ProfilePage() {
             onChange={(tags) => updateField("notAGoodFit", tags)}
             placeholder="Pure frontend, Data science, DevOps-only…"
             fieldName="Not a Good Fit"
+            fieldKey="notAGoodFit"
             onBeforeAdd={(tag) => handleCrossFieldCheck(tag, "notAGoodFit")}
             onDuplicateConfirm={handleDuplicateConfirm}
           />
@@ -456,6 +463,7 @@ export function ProfilePage() {
             onChange={(tags) => updateField("excludeKeywords", tags)}
             placeholder="e.g. developer, engineer, programmer…"
             fieldName="Exclude Keywords"
+            fieldKey="excludeKeywords"
             onBeforeAdd={(tag) => handleCrossFieldCheck(tag, "excludeKeywords")}
             onDuplicateConfirm={handleDuplicateConfirm}
           />
@@ -530,6 +538,7 @@ export function ProfilePage() {
               value={form.rubric.priorityKeywords}
               onChange={(tags) => updateRubric("priorityKeywords", tags)}
               placeholder="multiplayer, AR, game server…"
+              fieldKey="priorityKeywords"
             />
           </div>
 
@@ -542,6 +551,7 @@ export function ProfilePage() {
               value={form.rubric.avoidKeywords}
               onChange={(tags) => updateRubric("avoidKeywords", tags)}
               placeholder="Unreal, Godot, WordPress…"
+              fieldKey="avoidKeywords"
             />
           </div>
 
@@ -576,6 +586,7 @@ export function ProfilePage() {
         </Button>
       </div>
     </form>
+    </TagInputProvider>
 
     <CompanyBlacklistCard />
 

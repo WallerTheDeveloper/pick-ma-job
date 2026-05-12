@@ -2,10 +2,13 @@
  * Tag/chip input with drag-and-drop reordering.
  *
  * Press Enter or comma to add a tag, click × to remove.
- * Tags can be reordered by dragging via @dnd-kit.
+ * Tags can be reordered by dragging within the same field.
+ *
+ * When wrapped in a <TagInputProvider>, tags can also be dragged
+ * between different TagInput fields (cross-field DnD).
  */
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   DndContext,
   closestCenter,
@@ -17,14 +20,26 @@ import {
   horizontalListSortingStrategy,
   arrayMove,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { restrictToParentElement } from "@dnd-kit/modifiers";
+import { useDroppable } from "@dnd-kit/core";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+  useTagInputContext,
+  buildTagId,
+  buildContainerId,
+} from "@/components/tag-input-provider";
 
 // ── SortableTag ─────────────────────────────────────────────────────────────
 
-function SortableTag({ tag, onRemove }: { tag: string; onRemove: () => void }) {
+function SortableTag({
+  id,
+  tag,
+  onRemove,
+}: {
+  id: string;
+  tag: string;
+  onRemove: () => void;
+}) {
   const {
     attributes,
     listeners,
@@ -32,14 +47,21 @@ function SortableTag({ tag, onRemove }: { tag: string; onRemove: () => void }) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: tag });
+  } = useSortable({ id });
 
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 10 : 0,
-  };
+  // Use explicit translate3d to avoid the widening/stretching bug
+  // caused by CSS.Transform.toString including scale transforms.
+  const style: React.CSSProperties = transform
+    ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 10 : 0,
+      }
+    : {
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 10 : 0,
+      };
 
   return (
     <span
@@ -72,6 +94,9 @@ interface TagInputProps {
   onChange: (tags: string[]) => void;
   placeholder?: string;
   className?: string;
+  /** Unique key for this field when using cross-field DnD. Required inside TagInputProvider. */
+  fieldKey?: string;
+  /** Display name for this field (used in duplicate error messages). */
   fieldName?: string;
   onDuplicateConfirm?: (
     existingSkill: string,
@@ -86,11 +111,53 @@ export function TagInput({
   onChange,
   placeholder,
   className,
+  fieldKey,
   fieldName,
   onDuplicateConfirm,
   onBeforeAdd,
 }: TagInputProps) {
+  const provider = useTagInputContext();
+  const isInProvider = provider !== null;
+  const resolvedFieldKey = fieldKey ?? fieldName ?? "";
+
   const [inputValue, setInputValue] = useState("");
+
+  // ── Register with provider for cross-field DnD ───────────────────────────
+
+  const onChangeRef = useCallback(
+    (tags: string[]) => onChange(tags),
+    [onChange],
+  );
+
+  useEffect(() => {
+    if (!isInProvider || !resolvedFieldKey) return;
+    provider.registerField(resolvedFieldKey, {
+      value,
+      onChange: onChangeRef,
+      fieldLabel: fieldName ?? resolvedFieldKey,
+    });
+    return () => {
+      provider.unregisterField(resolvedFieldKey);
+    };
+  }, [
+    isInProvider,
+    resolvedFieldKey,
+    value,
+    onChangeRef,
+    fieldName,
+    provider,
+  ]);
+
+  // ── Droppable container for cross-field drops ───────────────────────────
+
+  const containerId = isInProvider && resolvedFieldKey
+    ? buildContainerId(resolvedFieldKey)
+    : undefined;
+
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+    id: containerId ?? "unused",
+    disabled: !isInProvider,
+  });
 
   // ── Tag commit logic ──────────────────────────────────────────────────────
 
@@ -148,9 +215,9 @@ export function TagInput({
     onChange(value.filter((_, i) => i !== index));
   }
 
-  // ── Drag-and-drop ─────────────────────────────────────────────────────────
+  // ── Local drag-and-drop (when no provider) ─────────────────────────────
 
-  function handleDragEnd(event: DragEndEvent) {
+  function handleLocalDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     const oldIndex = value.indexOf(active.id as string);
@@ -159,48 +226,68 @@ export function TagInput({
     onChange(arrayMove(value, oldIndex, newIndex));
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Build sortable items ────────────────────────────────────────────────
 
-  return (
-    <DndContext
-      collisionDetection={closestCenter}
-      modifiers={[restrictToParentElement]}
-      onDragEnd={handleDragEnd}
+  const sortableItems = isInProvider
+    ? value.map((tag) => buildTagId(resolvedFieldKey, tag))
+    : value;
+
+  // ── Render ──────────────────────────────────────────────────────────────
+
+  const containerDiv = (
+    <div
+      ref={isInProvider ? setDroppableRef : undefined}
+      className={cn(
+        "flex flex-wrap gap-1.5 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 min-h-10 cursor-text transition-colors",
+        isOver && "border-primary/50 bg-primary/5",
+        className,
+      )}
+      style={{ touchAction: "none" }}
+      onClick={(e) => {
+        const input = (e.currentTarget as HTMLDivElement).querySelector(
+          "input",
+        );
+        input?.focus();
+      }}
     >
-      <div
-        className={cn(
-          "flex flex-wrap gap-1.5 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 min-h-10 cursor-text",
-          className,
-        )}
-        style={{ touchAction: "none" }}
-        onClick={(e) => {
-          const input = (e.currentTarget as HTMLDivElement).querySelector(
-            "input",
-          );
-          input?.focus();
-        }}
-      >
-        <SortableContext
-          items={value}
-          strategy={horizontalListSortingStrategy}
-        >
-          {value.map((tag, i) => (
+      <SortableContext items={sortableItems} strategy={horizontalListSortingStrategy}>
+        {value.map((tag, i) => {
+          const sortableId = isInProvider
+            ? buildTagId(resolvedFieldKey, tag)
+            : tag;
+          return (
             <SortableTag
-              key={tag}
+              key={sortableId}
+              id={sortableId}
               tag={tag}
               onRemove={() => removeTag(i)}
             />
-          ))}
-        </SortableContext>
-        <input
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onBlur={commit}
-          placeholder={value.length === 0 ? placeholder : undefined}
-          className="flex-1 min-w-24 bg-transparent outline-none placeholder:text-muted-foreground"
-        />
-      </div>
+          );
+        })}
+      </SortableContext>
+      <input
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={commit}
+        placeholder={value.length === 0 ? placeholder : undefined}
+        className="flex-1 min-w-24 bg-transparent outline-none placeholder:text-muted-foreground"
+      />
+    </div>
+  );
+
+  // When inside a provider, the DndContext is provided by TagInputProvider
+  if (isInProvider) {
+    return containerDiv;
+  }
+
+  // When standalone, render our own DndContext for internal reorder
+  return (
+    <DndContext
+      collisionDetection={closestCenter}
+      onDragEnd={handleLocalDragEnd}
+    >
+      {containerDiv}
     </DndContext>
   );
 }
