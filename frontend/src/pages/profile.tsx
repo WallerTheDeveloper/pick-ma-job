@@ -37,11 +37,21 @@ import {
   type RubricState,
 } from "@/pages/profile-helpers";
 
+// ── Duplicate skill confirmation dialog state ──────────────────────────────────
+
+interface DuplicateDialogState {
+  existingSkill: string;
+  newSkill: string;
+  fieldName: string;
+  resolve: (confirmed: boolean) => void;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function ProfilePage() {
   const { profile, isLoading, error, save, isSaving } = useProfile();
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [duplicateDialog, setDuplicateDialog] = useState<DuplicateDialogState | null>(null);
 
   useEffect(() => {
     if (profile && !isLoading) {
@@ -134,6 +144,27 @@ export function ProfilePage() {
       toast.error(err instanceof Error ? err.message : "Failed to save profile.");
     }
   }
+
+  // ── Duplicate skill confirmation ──────────────────────────────────────────
+
+  async function handleDuplicateConfirm(
+    existingSkill: string,
+    newSkill: string,
+    fieldName: string,
+  ): Promise<boolean> {
+    return new Promise((resolve) => {
+      setDuplicateDialog({ existingSkill, newSkill, fieldName, resolve });
+    });
+  }
+
+  function handleDuplicateResponse(confirmed: boolean) {
+    if (duplicateDialog) {
+      duplicateDialog.resolve(confirmed);
+      setDuplicateDialog(null);
+    }
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────
 
   if (isLoading) {
     return <p className="text-muted-foreground">Loading profile...</p>;
@@ -242,6 +273,8 @@ export function ProfilePage() {
               value={form.primarySkills}
               onChange={(tags) => updateField("primarySkills", tags)}
               placeholder="Unity, C#, AR/VR…"
+              fieldName="Primary Skills"
+              onDuplicateConfirm={handleDuplicateConfirm}
             />
           </div>
           <div className="space-y-1">
@@ -251,6 +284,8 @@ export function ProfilePage() {
               value={form.secondarySkills}
               onChange={(tags) => updateField("secondarySkills", tags)}
               placeholder="Rust, C++, Backend Architecture…"
+              fieldName="Secondary Skills"
+              onDuplicateConfirm={handleDuplicateConfirm}
             />
           </div>
           <div className="space-y-1">
@@ -260,6 +295,8 @@ export function ProfilePage() {
               value={form.tertiarySkills}
               onChange={(tags) => updateField("tertiarySkills", tags)}
               placeholder="Vue.js, TypeScript, Blender…"
+              fieldName="Tertiary Skills"
+              onDuplicateConfirm={handleDuplicateConfirm}
             />
           </div>
         </CardContent>
@@ -317,6 +354,8 @@ export function ProfilePage() {
             value={form.languages}
             onChange={(tags) => updateField("languages", tags)}
             placeholder="English, German, Ukrainian…"
+            fieldName="Languages"
+            onDuplicateConfirm={handleDuplicateConfirm}
           />
         </CardContent>
       </Card>
@@ -379,6 +418,8 @@ export function ProfilePage() {
             value={form.notAGoodFit}
             onChange={(tags) => updateField("notAGoodFit", tags)}
             placeholder="Pure frontend, Data science, DevOps-only…"
+            fieldName="Not a Good Fit"
+            onDuplicateConfirm={handleDuplicateConfirm}
           />
         </CardContent>
       </Card>
@@ -396,6 +437,8 @@ export function ProfilePage() {
             value={form.excludeKeywords}
             onChange={(tags) => updateField("excludeKeywords", tags)}
             placeholder="e.g. developer, engineer, programmer…"
+            fieldName="Exclude Keywords"
+            onDuplicateConfirm={handleDuplicateConfirm}
           />
         </CardContent>
       </Card>
@@ -404,7 +447,7 @@ export function ProfilePage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Scoring Rubric</CardTitle>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Fine-tune how the AI scores jobs. Leave fields empty to use defaults.
           </p>
         </CardHeader>
@@ -516,6 +559,26 @@ export function ProfilePage() {
     </form>
 
     <CompanyBlacklistCard />
+
+    {/* Duplicate skill confirmation dialog */}
+    <AlertDialog
+      open={duplicateDialog !== null}
+      onOpenChange={(open) => { if (!open) handleDuplicateResponse(false); }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Duplicate Skill</AlertDialogTitle>
+          <AlertDialogDescription>
+            You've already added '{duplicateDialog?.existingSkill}' in {duplicateDialog?.fieldName}.
+            Are you sure you want to add '{duplicateDialog?.newSkill}' to {duplicateDialog?.fieldName}?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => handleDuplicateResponse(false)}>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={() => handleDuplicateResponse(true)}>Add Anyway</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     </div>
   );
 }

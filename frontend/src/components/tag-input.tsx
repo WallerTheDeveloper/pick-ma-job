@@ -1,6 +1,7 @@
 /** Tag/chip input — press Enter or comma to add a tag, click × to remove. */
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 interface TagInputProps {
@@ -8,16 +9,41 @@ interface TagInputProps {
   onChange: (tags: string[]) => void;
   placeholder?: string;
   className?: string;
+  fieldName?: string;
+  onDuplicateConfirm?: (existingSkill: string, newSkill: string, fieldName: string) => Promise<boolean>;
 }
 
-export function TagInput({ value, onChange, placeholder, className }: TagInputProps) {
+export function TagInput({ value, onChange, placeholder, className, fieldName, onDuplicateConfirm }: TagInputProps) {
   const [inputValue, setInputValue] = useState("");
 
-  function commit() {
+  async function commit() {
     const tag = inputValue.trim();
-    if (tag && !value.includes(tag)) {
-      onChange([...value, tag]);
+    if (!tag) {
+      setInputValue("");
+      return;
     }
+
+    // 1. Exact match — block immediately
+    if (value.includes(tag)) {
+      toast.error("Skill already added");
+      setInputValue("");
+      return;
+    }
+
+    // 2. Case-insensitive match in same field — show confirmation
+    if (onDuplicateConfirm) {
+      const existingMatch = value.find(v => v.toLowerCase() === tag.toLowerCase());
+      if (existingMatch) {
+        const confirmed = await onDuplicateConfirm(existingMatch, tag, fieldName ?? "");
+        if (!confirmed) {
+          setInputValue("");
+          return;
+        }
+      }
+    }
+
+    // 3. No duplicate — add
+    onChange([...value, tag]);
     setInputValue("");
   }
 
