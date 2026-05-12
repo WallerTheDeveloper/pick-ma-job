@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -167,9 +168,24 @@ export function CustomizeCVDialog({ result, open, onOpenChange }: CustomizeCVDia
                     .filter((s) => showChangesOnly ? s.changed : true)
                     .map((section) => (
                       <div key={section.title}>
-                        <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground mb-1">
-                          {section.title}
-                        </h3>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">
+                            {section.title}
+                          </h3>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5"
+                            onClick={() => {
+                              navigator.clipboard.writeText(section.content).then(
+                                () => toast.success(`Copied ${section.title}`),
+                                () => toast.error("Failed to copy."),
+                              );
+                            }}
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
                         <div className={
                           section.changed
                             ? "bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 pl-3 py-2 rounded-r"
