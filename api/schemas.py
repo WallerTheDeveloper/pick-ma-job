@@ -351,6 +351,7 @@ class CVCustomizeRequest(BaseModel):
     job_result_id: UUID
     force_regenerate: bool = False
     adjustment_notes: str | None = Field(default=None, max_length=2000)
+    humanize: bool = True
 
 
 class CVSectionDiff(BaseModel):

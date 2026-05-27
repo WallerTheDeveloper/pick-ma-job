@@ -127,6 +127,7 @@ async def api_customize_cv(
         cv_customize_threshold=threshold,
         force_regenerate=body.force_regenerate,
         adjustment_notes=body.adjustment_notes,
+        humanize=body.humanize,
     )
 
     section_models = None

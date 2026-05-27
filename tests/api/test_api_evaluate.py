@@ -4,6 +4,8 @@ Tests the T03 change: manual evaluation bypasses the score threshold (force=True
 while bulk evaluation still skips low-score jobs.
 """
 
+from __future__ import annotations
+
 import json
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
