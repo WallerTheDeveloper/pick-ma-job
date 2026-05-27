@@ -46,7 +46,7 @@ class AnthropicProvider:
                     model=model,
                     input_tokens=response.usage.input_tokens,
                     output_tokens=response.usage.output_tokens,
-                    duration_ms=tf50_mins,
+                    duration_ms=duration_ms,
                 )
             except anthropic.APIStatusError as exc:
                 is_last_attempt = attempt >= self._max_retries - 1
