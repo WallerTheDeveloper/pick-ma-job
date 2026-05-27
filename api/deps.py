@@ -6,7 +6,7 @@ from typing import Annotated
 import asyncpg
 from fastapi import Depends, HTTPException, Request, status
 
-from core.llm_client import LLMClient
+from core.llm_client import LLMClient, MultiModelLLMClient
 from core.settings import Settings
 from repositories.company_blacklist import CompanyBlacklistRepository
 from repositories.job_list import JobListRepository
@@ -33,9 +33,17 @@ async def get_db_pool(request: Request) -> asyncpg.Pool:
     return request.app.state.db_pool
 
 
-async def get_llm_client(request: Request) -> LLMClient:
-    """Return the shared LLMClient stored on app.state by the lifespan handler."""
+def get_multi_model_client(request: Request) -> MultiModelLLMClient:
+    """Return the MultiModelLLMClient stored on app.state by the lifespan handler."""
     return request.app.state.llm_client
+
+
+async def get_llm_client(request: Request) -> LLMClient:
+    """Return the default LLMClient (backward compat route).
+
+    Returns the 'default' pass client from the MultiModelLLMClient.
+    """
+    return request.app.state.llm_client.for_pass("default")
 
 
 def get_settings(request: Request) -> Settings:

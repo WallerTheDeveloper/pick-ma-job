@@ -14,7 +14,6 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-import anthropic
 import resend
 import uvicorn
 from dotenv import load_dotenv
@@ -29,7 +28,8 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from api.limiter import limiter
 from api.routes import all_routers
 from core.exceptions import DomainError
-from core.llm_client import LLMClient
+from core.llm_client import LLMClient, MultiModelLLMClient
+from core.llm_provider import create_provider
 from core.logging import configure_logging
 from core.settings import Settings
 from db.pool import close_pool, create_pool
@@ -87,6 +87,28 @@ def _read_version() -> str:
         )
 
 
+def _build_multi_model_client(settings: Settings) -> MultiModelLLMClient:
+    """Build a MultiModelLLMClient from settings and env vars.
+
+    Creates per-pass LLMClient instances with the appropriate provider and model.
+    """
+    anthropic_api_key = os.environ["ANTHROPIC_API_KEY"]
+    anthropic_provider = create_provider("anthropic", api_key=anthropic_api_key)
+
+    # Build per-pass clients
+    clients: dict[str, LLMClient] = {}
+
+    # Default client uses the configured claude_model (for evaluator, pipeline, etc.)
+    default_model = settings.claude_model
+    clients["default"] = LLMClient(provider=anthropic_provider, default_model=default_model)
+    clients["evaluate"] = LLMClient(provider=anthropic_provider, default_model=default_model)
+    clients["optimize"] = LLMClient(provider=anthropic_provider, default_model=settings.cv_models.optimize)
+    clients["humanize"] = LLMClient(provider=anthropic_provider, default_model=settings.cv_models.humanize)
+    clients["keyword_audit"] = LLMClient(provider=anthropic_provider, default_model=settings.cv_models.keyword_audit)
+
+    return MultiModelLLMClient(clients=clients)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     validate_env()
@@ -108,7 +130,12 @@ async def lifespan(app: FastAPI):
 
     # Load and validate settings at startup — fails fast on malformed config
     app.state.settings = Settings.from_json_file()
-    logger.info("Settings loaded: model=%s score_threshold=%d", app.state.settings.claude_model, app.state.settings.score_threshold)
+    settings = app.state.settings
+    logger.info(
+        "Settings loaded: model=%s score_threshold=%d",
+        settings.claude_model,
+        settings.score_threshold,
+    )
 
     resend.api_key = os.environ["RESEND_API_KEY"]
 
@@ -124,18 +151,16 @@ async def lifespan(app: FastAPI):
             )
         logger.info("Backfilled is_admin for ADMIN_EMAIL=%s", admin_email)
 
-    app.state.anthropic_client = anthropic.AsyncAnthropic(
-        api_key=os.environ["ANTHROPIC_API_KEY"],
-    )
-    app.state.llm_client = LLMClient(
-        client=app.state.anthropic_client,
-        default_model=app.state.settings.claude_model,
-    )
+    # Build multi-model LLM client
+    app.state.llm_client = _build_multi_model_client(settings)
+
+    # Default LLMClient for backward compatibility (evaluator, pipeline, etc.)
+    default_llm = app.state.llm_client.for_pass("default")
 
     app.state.run_manager = RunManager(
-        llm_client=app.state.llm_client,
+        llm_client=default_llm,
         pool=app.state.db_pool,
-        settings=app.state.settings,
+        settings=settings,
     )
     await app.state.run_manager.reconcile_stale_runs()
 
@@ -150,7 +175,6 @@ async def lifespan(app: FastAPI):
     yield
 
     cleanup_task.cancel()
-    await app.state.anthropic_client.close()
     await close_pool(app.state.db_pool)
     logger.info("Application stopped")
 

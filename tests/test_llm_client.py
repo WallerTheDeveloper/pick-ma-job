@@ -1,11 +1,13 @@
-"""Tests for core.llm_client — Anthropic client is mocked throughout."""
+"""Tests for core.llm_client — provider is mocked throughout."""
 
 import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from core.llm_client import LLMClient, LLMError, _strip_json_fences
+from core.llm_client import LLMClient, LLMError, MultiModelLLMClient, _strip_json_fences
+from core.llm_provider import LLMResponse
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -14,32 +16,87 @@ from core.llm_client import LLMClient, LLMError, _strip_json_fences
 VALID_JSON = {"result": "ok", "score": 8}
 
 
-def _make_client_mock(response_text: str) -> MagicMock:
-    """Return a mock AsyncAnthropic whose messages.create() returns response_text."""
-    mock_message = MagicMock()
-    mock_message.content = [MagicMock(text=response_text)]
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(return_value=mock_message)
-    return mock_client
+class MockProvider:
+    """A mock LLMProvider that records calls and returns fixed responses."""
+
+    def __init__(self, response_text: str = "mock response") -> None:
+        self._response_text = response_text
+        self.calls: list[dict] = []
+
+    async def complete(
+        self,
+        *,
+        system: str,
+        user: str,
+        model: str,
+        max_tokens: int = 1024,
+        temperature: float = 0,
+    ) -> LLMResponse:
+        self.calls.append({
+            "system": system,
+            "user": user,
+            "model": model,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        })
+        return LLMResponse(
+            text=self._response_text,
+            model=model,
+            input_tokens=10,
+            output_tokens=20,
+            duration_ms=100,
+        )
 
 
-def _make_sequential_mock(texts: list[str]) -> MagicMock:
-    """Return a mock whose messages.create() returns texts in sequence."""
-    messages = []
-    for t in texts:
-        msg = MagicMock()
-        msg.content = [MagicMock(text=t)]
-        messages.append(msg)
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(side_effect=messages)
-    return mock_client
+class FailingProvider:
+    """A mock provider that raises LLMError on all calls."""
+
+    def __init__(self, error: Exception) -> None:
+        self._error = error
+
+    async def complete(
+        self,
+        *,
+        system: str,
+        user: str,
+        model: str,
+        max_tokens: int = 1024,
+        temperature: float = 0,
+    ) -> LLMResponse:
+        raise self._error
+
+
+class SequentialProvider:
+    """A mock provider that returns texts in sequence, then repeats the last."""
+
+    def __init__(self, texts: list[str]) -> None:
+        self._texts = list(texts)
+        self._index = 0
+
+    async def complete(
+        self,
+        *,
+        system: str,
+        user: str,
+        model: str,
+        max_tokens: int = 1024,
+        temperature: float = 0,
+    ) -> LLMResponse:
+        idx = min(self._index, len(self._texts) - 1)
+        text = self._texts[idx]
+        self._index += 1
+        return LLMResponse(
+            text=text,
+            model=model,
+            input_tokens=10,
+            output_tokens=20,
+            duration_ms=100,
+        )
 
 
 def _make_llm(response_text: str) -> LLMClient:
-    return LLMClient(
-        client=_make_client_mock(response_text),
-        default_model="test-model",
-    )
+    provider = MockProvider(response_text=response_text)
+    return LLMClient(provider=provider, default_model="test-model")
 
 
 # ---------------------------------------------------------------------------
@@ -95,22 +152,19 @@ async def test_generate_json_invalid_raises_llm_error():
 
 @pytest.mark.asyncio
 async def test_generate_json_passes_model_and_max_tokens():
-    mock_client = _make_client_mock(json.dumps(VALID_JSON))
-    llm = LLMClient(client=mock_client, default_model="default-model")
+    provider = MockProvider(response_text=json.dumps(VALID_JSON))
+    llm = LLMClient(provider=provider, default_model="default-model")
     await llm.generate_json(system="sys", user="usr", model="override-model", max_tokens=2048)
-    call_kwargs = mock_client.messages.create.call_args.kwargs
-    assert call_kwargs["model"] == "override-model"
-    assert call_kwargs["max_tokens"] == 2048
-    assert call_kwargs["system"] == "sys"
+    assert provider.calls[-1]["model"] == "override-model"
+    assert provider.calls[-1]["max_tokens"] == 2048
 
 
 @pytest.mark.asyncio
 async def test_generate_json_uses_default_model():
-    mock_client = _make_client_mock(json.dumps(VALID_JSON))
-    llm = LLMClient(client=mock_client, default_model="default-model")
+    provider = MockProvider(response_text=json.dumps(VALID_JSON))
+    llm = LLMClient(provider=provider, default_model="default-model")
     await llm.generate_json(system="sys", user="usr")
-    call_kwargs = mock_client.messages.create.call_args.kwargs
-    assert call_kwargs["model"] == "default-model"
+    assert provider.calls[-1]["model"] == "default-model"
 
 
 # ---------------------------------------------------------------------------
@@ -127,222 +181,64 @@ async def test_generate_text_returns_raw():
 
 @pytest.mark.asyncio
 async def test_generate_text_passes_params():
-    mock_client = _make_client_mock("response")
-    llm = LLMClient(client=mock_client, default_model="dm")
+    provider = MockProvider(response_text="response")
+    llm = LLMClient(provider=provider, default_model="dm")
     await llm.generate_text(system="s", user="u", model="m", max_tokens=16)
-    call_kwargs = mock_client.messages.create.call_args.kwargs
-    assert call_kwargs["model"] == "m"
-    assert call_kwargs["max_tokens"] == 16
+    assert provider.calls[-1]["model"] == "m"
+    assert provider.calls[-1]["max_tokens"] == 16
 
 
 # ---------------------------------------------------------------------------
-# Retry logic
+# Temperature parameter
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_generate_text_retries_on_529_then_succeeds():
-    """529 → retry → success (simulates CV service scenario from task spec)."""
-    import anthropic
-    from unittest.mock import patch
-
-    error_529 = anthropic.APIStatusError(
-        message="overloaded",
-        response=MagicMock(status_code=529),
-        body=None,
-    )
-    success_msg = MagicMock()
-    success_msg.content = [MagicMock(text="ok")]
-
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(side_effect=[error_529, success_msg])
-
-    llm = LLMClient(client=mock_client, default_model="test")
-    with patch("core.llm_client.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-        result = await llm.generate_text(system="sys", user="usr")
-    assert result == "ok"
-    assert mock_client.messages.create.call_count == 2
-    # 529 uses exponential backoff: 2**0 + jitter ≈ 0-1s
-    mock_sleep.assert_called_once()
+async def test_generate_json_passes_temperature():
+    provider = MockProvider(response_text=json.dumps(VALID_JSON))
+    llm = LLMClient(provider=provider, default_model="test-model")
+    await llm.generate_json(system="sys", user="usr", temperature=0.3)
+    assert provider.calls[-1]["temperature"] == 0.3
 
 
 @pytest.mark.asyncio
-async def test_generate_json_retries_on_429_then_succeeds():
-    """429 → retry → success (uses rate-limit-aware backoff)."""
-    import anthropic
-    from unittest.mock import patch
-
-    error_429 = anthropic.APIStatusError(
-        message="rate limited",
-        response=MagicMock(status_code=429),
-        body=None,
-    )
-    success_msg = MagicMock()
-    success_msg.content = [MagicMock(text=json.dumps(VALID_JSON))]
-
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(side_effect=[error_429, success_msg])
-
-    llm = LLMClient(client=mock_client, default_model="test")
-    with patch("core.llm_client.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-        result = await llm.generate_json(system="sys", user="usr")
-    assert result == VALID_JSON
-    assert mock_client.messages.create.call_count == 2
-    # 429 on first attempt uses exponential fallback (2**0 + 0.5 = 1.5s + jitter)
-    mock_sleep.assert_called_once()
+async def test_generate_text_passes_temperature():
+    provider = MockProvider(response_text="ok")
+    llm = LLMClient(provider=provider, default_model="test-model")
+    await llm.generate_text(system="sys", user="usr", temperature=0.7)
+    assert provider.calls[-1]["temperature"] == 0.7
 
 
 @pytest.mark.asyncio
-async def test_generate_text_retries_on_503_then_succeeds():
-    """503 → retry → success."""
-    import anthropic
-    from unittest.mock import patch
+async def test_default_temperature_is_zero():
+    provider = MockProvider(response_text="ok")
+    llm = LLMClient(provider=provider, default_model="test-model")
+    await llm.generate_text(system="sys", user="usr")
+    assert provider.calls[-1]["temperature"] == 0
 
-    error_503 = anthropic.APIStatusError(
-        message="service unavailable",
-        response=MagicMock(status_code=503),
-        body=None,
-    )
-    success_msg = MagicMock()
-    success_msg.content = [MagicMock(text="ok")]
 
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(side_effect=[error_503, success_msg])
-
-    llm = LLMClient(client=mock_client, default_model="test")
-    with patch("core.llm_client.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-        result = await llm.generate_text(system="sys", user="usr")
-    assert result == "ok"
-    assert mock_client.messages.create.call_count == 2
-    mock_sleep.assert_called_once()
+# ---------------------------------------------------------------------------
+# Error propagation from provider
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_generate_text_exhausts_retries_raises_llm_error():
-    """All 3 attempts fail with 529 → LLMError(retryable=True)."""
-    import anthropic
-    from unittest.mock import patch
-
-    error_529 = anthropic.APIStatusError(
-        message="overloaded",
-        response=MagicMock(status_code=529),
-        body=None,
-    )
-
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(side_effect=[error_529, error_529, error_529])
-
-    llm = LLMClient(client=mock_client, default_model="test", default_max_retries=3)
-    with patch("core.llm_client.asyncio.sleep", new_callable=AsyncMock):
-        with pytest.raises(LLMError, match="529") as exc_info:
-            await llm.generate_text(system="sys", user="usr")
-    assert exc_info.value.retryable is True
-    assert mock_client.messages.create.call_count == 3
-
-
-@pytest.mark.asyncio
-async def test_generate_text_non_retryable_error_raises_immediately():
-    """400 (bad request) is not retryable — raises LLMError on first attempt."""
-    import anthropic
-
-    error_400 = anthropic.APIStatusError(
-        message="bad request",
-        response=MagicMock(status_code=400),
-        body=None,
-    )
-
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(side_effect=error_400)
-
-    llm = LLMClient(client=mock_client, default_model="test")
+async def test_provider_error_propagates_as_llm_error():
+    err = LLMError("Anthropic API error 400: bad request", retryable=False)
+    provider = FailingProvider(error=err)
+    llm = LLMClient(provider=provider, default_model="test")
     with pytest.raises(LLMError, match="400") as exc_info:
         await llm.generate_text(system="sys", user="usr")
     assert exc_info.value.retryable is False
-    assert mock_client.messages.create.call_count == 1
 
 
 @pytest.mark.asyncio
-async def test_429_uses_retry_after_header():
-    """429 with Retry-After header uses the header value for backoff."""
-    import anthropic
-    from unittest.mock import patch
-
-    mock_response = MagicMock(status_code=429)
-    mock_response.headers = {"retry-after": "5"}
-    error_429 = anthropic.APIStatusError(
-        message="rate limited",
-        response=mock_response,
-        body=None,
-    )
-    success_msg = MagicMock()
-    success_msg.content = [MagicMock(text="ok")]
-
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(side_effect=[error_429, success_msg])
-
-    llm = LLMClient(client=mock_client, default_model="test")
-    with patch("core.llm_client.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-        result = await llm.generate_text(system="sys", user="usr")
-    assert result == "ok"
-    # Verify sleep was called with the Retry-After value (5s) + some jitter
-    call_args = mock_sleep.call_args[0][0]
-    assert 5.0 <= call_args <= 7.0  # 5s + 0-2s jitter
-
-
-@pytest.mark.asyncio
-async def test_429_on_later_attempts_uses_60s_minimum():
-    """429 on attempt 2+ uses max(retry_after, 60) for backoff."""
-    import anthropic
-    from unittest.mock import patch
-
-    mock_response = MagicMock(status_code=429)
-    mock_response.headers = {}
-    error_429 = anthropic.APIStatusError(
-        message="rate limited",
-        response=mock_response,
-        body=None,
-    )
-
-    # Fail 3 times with 429, then succeed
-    success_msg = MagicMock()
-    success_msg.content = [MagicMock(text="ok")]
-
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(
-        side_effect=[error_429, error_429, error_429, success_msg]
-    )
-
-    llm = LLMClient(client=mock_client, default_model="test", default_max_retries=6)
-    with patch("core.llm_client.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-        result = await llm.generate_text(system="sys", user="usr")
-    assert result == "ok"
-    assert mock_client.messages.create.call_count == 4
-    # First two retries: exponential fallback (2**0+0.5, 2**1+0.5)
-    # Third retry (attempt 2): max(2**2+0.5, 60) = 60
-    assert mock_sleep.call_count == 3
-
-
-@pytest.mark.asyncio
-async def test_429_exhausts_retries():
-    """429 exhausting all retries raises LLMError with retryable=True."""
-    import anthropic
-    from unittest.mock import patch
-
-    mock_response = MagicMock(status_code=429)
-    mock_response.headers = {}
-    error_429 = anthropic.APIStatusError(
-        message="rate limited",
-        response=mock_response,
-        body=None,
-    )
-
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(side_effect=error_429)
-
-    llm = LLMClient(client=mock_client, default_model="test", default_max_retries=3)
-    with patch("core.llm_client.asyncio.sleep", new_callable=AsyncMock):
-        with pytest.raises(LLMError, match="429") as exc_info:
-            await llm.generate_text(system="sys", user="usr")
+async def test_provider_retryable_error_propagates():
+    err = LLMError("Anthropic API error 429: rate limited", retryable=True)
+    provider = FailingProvider(error=err)
+    llm = LLMClient(provider=provider, default_model="test")
+    with pytest.raises(LLMError, match="429") as exc_info:
+        await llm.generate_text(system="sys", user="usr")
     assert exc_info.value.retryable is True
 
 

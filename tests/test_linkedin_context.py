@@ -5,18 +5,18 @@ against a LinkedIn NormalizedJob produces valid JSON output via the Evaluator.
 """
 
 import json
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from core.evaluator import EvaluationResult, Evaluator
 from core.llm_client import LLMClient
+from core.llm_provider import LLMResponse
 from core.prompt_adapter import load_platform_context
 from core.settings import Settings
 from scrapers.base import NormalizedJob
 
 # ---------------------------------------------------------------------------
-# Fixtures
+# Fixtures / Constants
 # ---------------------------------------------------------------------------
 
 BASE_PROFILE = {
@@ -62,24 +62,82 @@ VALID_CLAUDE_RESPONSE = json.dumps({
     "summary": "Excellent AR/Unity fit at a Berlin tech startup.",
 })
 
+# ---------------------------------------------------------------------------
+# Mock LLM Providers
+# ---------------------------------------------------------------------------
 
-def _make_client_mock(score_text: str, full_response_text: str) -> MagicMock:
-    """Mock returning score on first call, full response on second."""
-    score_message = MagicMock()
-    score_message.content = [MagicMock(text=score_text)]
 
-    full_message = MagicMock()
-    full_message.content = [MagicMock(text=full_response_text)]
+class MockProvider:
+    """A mock LLMProvider that returns a fixed response for every call."""
 
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(side_effect=[score_message, full_message])
-    return mock_client
+    def __init__(self, response_text: str = "mock response") -> None:
+        self._response_text = response_text
+
+    async def complete(
+        self, *, system: str, user: str, model: str,
+        max_tokens: int = 1024, temperature: float = 0,
+    ) -> LLMResponse:
+        return LLMResponse(
+            text=self._response_text, model=model,
+            input_tokens=10, output_tokens=20, duration_ms=100,
+        )
+
+
+class SequentialProvider:
+    """A mock provider that returns texts in sequence, one per call."""
+
+    def __init__(self, texts: list[str]) -> None:
+        self._texts = list(texts)
+        self._index = 0
+
+    async def complete(
+        self, *, system: str, user: str, model: str,
+        max_tokens: int = 1024, temperature: float = 0,
+    ) -> LLMResponse:
+        text = self._texts[self._index]
+        self._index += 1
+        return LLMResponse(
+            text=text, model=model,
+            input_tokens=10, output_tokens=20, duration_ms=100,
+        )
+
+
+class RecordingProvider:
+    """A mock provider that records every call and returns texts in sequence."""
+
+    def __init__(self, texts: list[str]) -> None:
+        self._texts = list(texts)
+        self._index = 0
+        self.calls: list[dict] = []
+
+    async def complete(
+        self, *, system: str, user: str, model: str,
+        max_tokens: int = 1024, temperature: float = 0,
+    ) -> LLMResponse:
+        self.calls.append({
+            "system": system,
+            "user": user,
+            "model": model,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        })
+        text = self._texts[self._index]
+        self._index += 1
+        return LLMResponse(
+            text=text, model=model,
+            input_tokens=10, output_tokens=20, duration_ms=100,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
 def _make_evaluator(score_text: str, full_response_text: str) -> Evaluator:
-    """Create an Evaluator backed by a mock Anthropic client."""
-    mock_client = _make_client_mock(score_text, full_response_text)
-    llm = LLMClient(client=mock_client, default_model="test-model")
+    """Create an Evaluator backed by a SequentialProvider."""
+    provider = SequentialProvider([score_text, full_response_text])
+    llm = LLMClient(provider=provider, default_model="test-model")
     return Evaluator(BASE_PROFILE, SETTINGS, llm_client=llm)
 
 
@@ -178,28 +236,15 @@ async def test_mock_evaluation_user_message_interpolates_extras():
     """Verify all LinkedIn extras reach the assembled user message."""
     ctx = load_platform_context("linkedin")
 
-    captured_calls = []
-
-    async def capture_create(**kwargs):
-        captured_calls.append(kwargs)
-        msg = MagicMock()
-        if len(captured_calls) == 1:
-            msg.content = [MagicMock(text="8")]
-        else:
-            msg.content = [MagicMock(text=VALID_CLAUDE_RESPONSE)]
-        return msg
-
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(side_effect=capture_create)
-
-    llm = LLMClient(client=mock_client, default_model="test-model")
+    provider = RecordingProvider(["8", VALID_CLAUDE_RESPONSE])
+    llm = LLMClient(provider=provider, default_model="test-model")
     evaluator = Evaluator(BASE_PROFILE, SETTINGS, llm_client=llm)
 
     await evaluator.evaluate(LINKEDIN_JOB, ctx)
 
     # The second call is the full evaluation — check its user message
-    assert len(captured_calls) == 2
-    user_msg = captured_calls[1]["messages"][0]["content"]
+    assert len(provider.calls) == 2
+    user_msg = provider.calls[1]["user"]
     assert "Acme Corp" in user_msg
     assert "Berlin, Germany" in user_msg
     assert "Remote" in user_msg
@@ -240,26 +285,13 @@ async def test_linkedin_job_with_no_extras_renders_na():
         extras={},
     )
 
-    captured_calls = []
-
-    async def capture_create(**kwargs):
-        captured_calls.append(kwargs)
-        msg = MagicMock()
-        if len(captured_calls) == 1:
-            msg.content = [MagicMock(text="7")]
-        else:
-            msg.content = [MagicMock(text=VALID_CLAUDE_RESPONSE)]
-        return msg
-
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(side_effect=capture_create)
-
-    llm = LLMClient(client=mock_client, default_model="test-model")
+    provider = RecordingProvider(["7", VALID_CLAUDE_RESPONSE])
+    llm = LLMClient(provider=provider, default_model="test-model")
     evaluator = Evaluator(BASE_PROFILE, SETTINGS, llm_client=llm)
 
     result = await evaluator.evaluate(minimal_job, ctx)
 
     assert isinstance(result, EvaluationResult)
-    user_msg = captured_calls[1]["messages"][0]["content"]
+    user_msg = provider.calls[1]["user"]
     # All missing extras should fall back to N/A
     assert "N/A" in user_msg

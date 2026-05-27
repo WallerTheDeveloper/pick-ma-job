@@ -9,7 +9,7 @@ from uuid import UUID
 
 from pypdf import PdfReader
 
-from core.llm_client import LLMClient
+from core.llm_client import LLMClient, MultiModelLLMClient
 from repositories.cv import CVRepository, CVRow
 from repositories.cv_customization import CVCustomizationRepository
 from repositories.job_result import JobResultRepository
@@ -65,7 +65,7 @@ class CVService:
         cv_repo: CVRepository,
         cv_customization_repo: CVCustomizationRepository,
         job_result_repo: JobResultRepository,
-        llm_client: LLMClient,
+        llm_client: MultiModelLLMClient,
     ) -> None:
         self._cv_repo = cv_repo
         self._cv_customization_repo = cv_customization_repo
@@ -195,7 +195,7 @@ class CVService:
         user_message = _STRUCTURE_PROMPT["user_template"].format(cv_text=raw_text)
         model = _STRUCTURE_PROMPT.get("model")
 
-        return await self._llm.generate_json(
+        return await self._llm.for_pass("optimize").generate_json(
             system=system,
             user=user_message,
             model=model,
@@ -240,7 +240,7 @@ class CVService:
 
         model = _CUSTOMIZE_PROMPT.get("model")
 
-        return await self._llm.generate_json(
+        return await self._llm.for_pass("optimize").generate_json(
             system=system,
             user=user_message,
             model=model,

@@ -3,6 +3,19 @@
   "temperature": 0,
   "alert_threshold": 7,
   "evaluation_concurrency": 3,
+  "providers": {
+    "anthropic": {
+      "api_key_env": "ANTHROPIC_API_KEY",
+      "default_max_retries": 6
+    }
+  },
+  "models": {
+    "cv_models": {
+      "optimize": "claude-haiku-4-5-20251001",
+      "humanize": "claude-sonnet-4-6-20250514",
+      "keyword_audit": "claude-haiku-4-5-20251001"
+    }
+  },
   "pre_filters": {
     "exclude_title_keywords": [
       "unreal",
