@@ -56,6 +56,7 @@ export async function customizeCV(
   jobResultId: string,
   forceRegenerate = false,
   adjustmentNotes?: string,
+  humanize = true,
 ): Promise<CVCustomizeResponse> {
   return api(
     "/api/cv/customize",
@@ -65,6 +66,7 @@ export async function customizeCV(
         job_result_id: jobResultId,
         force_regenerate: forceRegenerate,
         adjustment_notes: adjustmentNotes || null,
+        humanize,
       },
     },
     cvCustomizeResponseSchema,

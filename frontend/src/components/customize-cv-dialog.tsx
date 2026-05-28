@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Copy } from "lucide-react";
+import { Copy, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,6 +11,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 import { useCV, useCustomizeCV } from "@/hooks/use-cv";
 import type { JobResult, CVSectionDiff } from "@/types/schemas";
 
@@ -37,6 +45,8 @@ export function CustomizeCVDialog({ result, open, onOpenChange }: CustomizeCVDia
   const [adjustmentNotes, setAdjustmentNotes] = useState("");
   const [warnings, setWarnings] = useState<string[]>([]);
   const [showChangesOnly, setShowChangesOnly] = useState(false);
+  const [humanize, setHumanize] = useState(true);
+  const [humanizedApplied, setHumanizedApplied] = useState(false);
 
   const cv = cvData?.cv ?? null;
   const originalText = cv ? formatStructured(cv.structured as Record<string, unknown>) : "";
@@ -46,12 +56,13 @@ export function CustomizeCVDialog({ result, open, onOpenChange }: CustomizeCVDia
     if (customizeMutation.isPending || customizedText) return;
 
     customizeMutation.mutate(
-      { jobResultId: result.id },
+      { jobResultId: result.id, humanize },
       {
         onSuccess: (data) => {
           setCustomizedText(data.customized_text);
           setSections(data.sections ?? null);
           setWarnings(data.warnings ?? []);
+          setHumanizedApplied(humanize);
         },
         onError: (err) => {
           toast.error(err.message || "Failed to generate customized CV.");
@@ -64,13 +75,14 @@ export function CustomizeCVDialog({ result, open, onOpenChange }: CustomizeCVDia
 
   function handleRegenerate() {
     customizeMutation.mutate(
-      { jobResultId: result.id, forceRegenerate: true, adjustmentNotes: adjustmentNotes || undefined },
+      { jobResultId: result.id, forceRegenerate: true, adjustmentNotes: adjustmentNotes || undefined, humanize },
       {
         onSuccess: (data) => {
           setCustomizedText(data.customized_text);
           setSections(data.sections ?? null);
           setWarnings(data.warnings ?? []);
           setAdjustmentNotes("");
+          setHumanizedApplied(humanize);
           toast.success("CV regenerated.");
         },
         onError: (err) => toast.error(err.message || "Failed to regenerate CV."),
@@ -108,6 +120,7 @@ export function CustomizeCVDialog({ result, open, onOpenChange }: CustomizeCVDia
         setAdjustmentNotes("");
         setWarnings([]);
         setShowChangesOnly(false);
+        setHumanizedApplied(false);
       }
       onOpenChange(next);
     }}>
@@ -117,6 +130,27 @@ export function CustomizeCVDialog({ result, open, onOpenChange }: CustomizeCVDia
             Customize CV — {result.title}
           </DialogTitle>
         </DialogHeader>
+
+        <div className="flex items-center gap-2 px-6 pt-4">
+          <span className="text-xs text-muted-foreground">
+            AI-tell protection
+          </span>
+          <Switch
+            checked={humanize}
+            onCheckedChange={setHumanize}
+          />
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger className="cursor-help">
+                <Info className="h-3.5 w-3.5 text-muted-foreground" />
+              </TooltipTrigger>
+              <TooltipContent>
+                Rewrites the CV to sound more natural and reduce AI detection markers.
+                Turn off for raw AI output.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
 
         {warnings.length > 0 && !isGenerating && (
           <div className="mx-6 mt-4 rounded-md border border-yellow-500/50 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-200">
@@ -146,6 +180,18 @@ export function CustomizeCVDialog({ result, open, onOpenChange }: CustomizeCVDia
           <div className="flex flex-col md:flex-1 min-w-0 min-h-0 flex-1">
             <div className="flex items-center justify-between px-4 py-2 text-xs font-medium text-muted-foreground uppercase bg-muted border-b shrink-0">
               <span>Customized CV</span>
+              <div className="flex items-center gap-1.5">
+                {humanizedApplied && (
+                  <Badge variant="secondary" className="text-xs">
+                    Humanized
+                  </Badge>
+                )}
+                {warnings.length > 0 && !isGenerating && (
+                  <Badge variant="outline" className="text-xs text-yellow-600">
+                    {warnings.length} warning{warnings.length > 1 ? 's' : ''}
+                  </Badge>
+                )}
+              </div>
               {sections && sections.length > 0 && (
                 <Button
                   variant="ghost"
