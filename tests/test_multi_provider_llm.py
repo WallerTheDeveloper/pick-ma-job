@@ -121,12 +121,12 @@ async def test_anthropic_provider_complete():
     result = await provider.complete(
         system="system prompt",
         user="user prompt",
-        model="claude-sonnet-4-6-20250514",
+        model="claude-sonnet-4-20250514",
     )
 
     assert isinstance(result, LLMResponse)
     assert result.text == "hello world"
-    assert result.model == "claude-sonnet-4-6-20250514"
+    assert result.model == "claude-sonnet-4-20250514"
     assert result.input_tokens == 5
     assert result.output_tokens == 10
     assert result.duration_ms >= 0
@@ -163,7 +163,7 @@ async def test_anthropic_provider_retry_on_429():
 async def test_multi_model_client_for_pass():
     """MultiModelLLMClient.for_pass('humanize') returns the Sonnet-configured client."""
     optimize_client = _make_client(model="claude-haiku-4-5-20251001", default_temperature=0)
-    humanize_client = _make_client(model="claude-sonnet-4-6-20250514", default_temperature=0.3)
+    humanize_client = _make_client(model="claude-sonnet-4-20250514", default_temperature=0.3)
 
     multi = MultiModelLLMClient(clients={
         "optimize": optimize_client,
@@ -175,7 +175,7 @@ async def test_multi_model_client_for_pass():
 
     # Verify the humanize client's provider received the call
     hum_provider = humanize_client.provider  # type: ignore[attr-defined]
-    assert hum_provider.calls[-1]["model"] == "claude-sonnet-4-6-20250514"
+    assert hum_provider.calls[-1]["model"] == "claude-sonnet-4-20250514"
     assert hum_provider.calls[-1]["temperature"] == 0.3
 
 

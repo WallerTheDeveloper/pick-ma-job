@@ -55,7 +55,7 @@ def test_default_cv_models():
     assert DEFAULT_CV_MODELS.optimize.provider == "anthropic"
     assert DEFAULT_CV_MODELS.optimize.model == "claude-haiku-4-5-20251001"
     assert DEFAULT_CV_MODELS.optimize.temperature == 0
-    assert DEFAULT_CV_MODELS.humanize.model == "claude-sonnet-4-6-20250514"
+    assert DEFAULT_CV_MODELS.humanize.model == "claude-sonnet-4-20250514"
     assert DEFAULT_CV_MODELS.humanize.temperature == 0.3
     assert DEFAULT_CV_MODELS.keyword_audit.model == "claude-haiku-4-5-20251001"
     assert DEFAULT_CV_MODELS.keyword_audit.temperature == 0
@@ -87,7 +87,7 @@ def test_from_json_file_parses_cv_models_dict():
             },
             "humanize": {
                 "provider": "anthropic",
-                "model": "claude-sonnet-4-6-20250514",
+                "model": "claude-sonnet-4-20250514",
                 "temperature": 0.3,
             },
             "keyword_audit": {
@@ -103,7 +103,7 @@ def test_from_json_file_parses_cv_models_dict():
     assert settings.cv_models.optimize.provider == "anthropic"
     assert settings.cv_models.optimize.model == "claude-haiku-4-5-20251001"
     assert settings.cv_models.optimize.temperature == 0
-    assert settings.cv_models.humanize.model == "claude-sonnet-4-6-20250514"
+    assert settings.cv_models.humanize.model == "claude-sonnet-4-20250514"
     assert settings.cv_models.humanize.temperature == 0.3
     assert settings.cv_models.keyword_audit.model == "claude-haiku-4-5-20251001"
     assert settings.cv_models.keyword_audit.temperature == 0
@@ -132,7 +132,7 @@ def test_from_json_file_partial_cv_models_uses_defaults_for_missing():
         "cv_models": {
             "humanize": {
                 "provider": "anthropic",
-                "model": "claude-sonnet-4-6-20250514",
+                "model": "claude-sonnet-4-20250514",
                 "temperature": 0.5,
             },
         },
@@ -144,7 +144,7 @@ def test_from_json_file_partial_cv_models_uses_defaults_for_missing():
     assert settings.cv_models.optimize.model == DEFAULT_CV_MODELS.optimize.model
     assert settings.cv_models.keyword_audit.model == DEFAULT_CV_MODELS.keyword_audit.model
     # humanize uses the specified values
-    assert settings.cv_models.humanize.model == "claude-sonnet-4-6-20250514"
+    assert settings.cv_models.humanize.model == "claude-sonnet-4-20250514"
     assert settings.cv_models.humanize.temperature == 0.5
 
 
@@ -223,7 +223,7 @@ def test_from_json_file_different_provider_per_pass():
             },
             "humanize": {
                 "provider": "anthropic",
-                "model": "claude-sonnet-4-6-20250514",
+                "model": "claude-sonnet-4-20250514",
                 "temperature": 0.3,
             },
             "keyword_audit": {
@@ -250,7 +250,7 @@ def test_from_json_file_actual_settings():
     assert settings.cv_models.optimize.model == "claude-haiku-4-5-20251001"
     assert settings.cv_models.optimize.temperature == 0
     assert settings.cv_models.humanize.provider == "anthropic"
-    assert settings.cv_models.humanize.model == "claude-sonnet-4-6-20250514"
+    assert settings.cv_models.humanize.model == "claude-sonnet-4-20250514"
     assert settings.cv_models.humanize.temperature == 0.3
     assert settings.cv_models.keyword_audit.provider == "anthropic"
     assert settings.cv_models.keyword_audit.model == "claude-haiku-4-5-20251001"

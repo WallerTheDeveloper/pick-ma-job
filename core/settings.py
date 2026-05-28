@@ -55,7 +55,7 @@ DEFAULT_CV_MODELS = CVModelConfig(
     ),
     humanize=PassModelConfig(
         provider="anthropic",
-        model="claude-sonnet-4-6-20250514",
+        model="claude-sonnet-4-20250514",
         temperature=0.3,
     ),
     keyword_audit=PassModelConfig(
@@ -127,7 +127,7 @@ class Settings(BaseSettings):
         ),
         humanize=PassModelConfig(
             provider="anthropic",
-            model="claude-sonnet-4-6-20250514",
+            model="claude-sonnet-4-20250514",
             temperature=0.3,
         ),
         keyword_audit=PassModelConfig(
