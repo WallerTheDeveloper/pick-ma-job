@@ -9,11 +9,21 @@
       "default_max_retries": 6
     }
   },
-  "models": {
-    "cv_models": {
-      "optimize": "claude-haiku-4-5-20251001",
-      "humanize": "claude-sonnet-4-6-20250514",
-      "keyword_audit": "claude-haiku-4-5-20251001"
+  "cv_models": {
+    "optimize": {
+      "provider": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "temperature": 0
+    },
+    "humanize": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6-20250514",
+      "temperature": 0.3
+    },
+    "keyword_audit": {
+      "provider": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "temperature": 0
     }
   },
   "pre_filters": {

@@ -43,9 +43,13 @@ class MockProvider:
         )
 
 
-def _make_client(model: str = "test-model", response_text: str = "ok") -> LLMClient:
+def _make_client(
+    model: str = "test-model",
+    response_text: str = "ok",
+    default_temperature: float = 0,
+) -> LLMClient:
     provider = MockProvider(response_text=response_text)
-    return LLMClient(provider=provider, default_model=model)
+    return LLMClient(provider=provider, default_model=model, default_temperature=default_temperature)
 
 
 # ---------------------------------------------------------------------------
@@ -120,10 +124,37 @@ async def test_temperature_passes_through():
 
 @pytest.mark.asyncio
 async def test_default_temperature_is_zero():
-    """Temperature defaults to 0 when not specified."""
+    """When default_temperature=0 and no explicit temperature, provider gets 0."""
     provider = MockProvider()
-    client = LLMClient(provider=provider, default_model="test-model")
+    client = LLMClient(provider=provider, default_model="test-model", default_temperature=0)
     multi = MultiModelLLMClient(clients={"optimize": client})
 
     await multi.for_pass("optimize").generate_text(system="sys", user="usr")
     assert provider.calls[0]["temperature"] == 0
+
+
+@pytest.mark.asyncio
+async def test_per_pass_default_temperature():
+    """Each pass can have its own default_temperature from settings."""
+    opt_client = _make_client(model="haiku", default_temperature=0)
+    hum_client = _make_client(model="sonnet", default_temperature=0.3)
+    audit_client = _make_client(model="haiku", default_temperature=0)
+
+    multi = MultiModelLLMClient(clients={
+        "optimize": opt_client,
+        "humanize": hum_client,
+        "keyword_audit": audit_client,
+    })
+
+    # Without explicit temperature, each pass uses its default
+    await multi.for_pass("optimize").generate_text(system="sys", user="usr")
+    await multi.for_pass("humanize").generate_text(system="sys", user="usr")
+    await multi.for_pass("keyword_audit").generate_text(system="sys", user="usr")
+
+    opt_provider = opt_client.provider  # type: ignore[attr-defined]
+    hum_provider = hum_client.provider  # type: ignore[attr-defined]
+    audit_provider = audit_client.provider  # type: ignore[attr-defined]
+
+    assert opt_provider.calls[-1]["temperature"] == 0
+    assert hum_provider.calls[-1]["temperature"] == 0.3
+    assert audit_provider.calls[-1]["temperature"] == 0

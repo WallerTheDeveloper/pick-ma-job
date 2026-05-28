@@ -189,7 +189,7 @@ async def test_generate_text_passes_params():
 
 
 # ---------------------------------------------------------------------------
-# Temperature parameter
+# Temperature parameter — explicit override
 # ---------------------------------------------------------------------------
 
 
@@ -209,12 +209,74 @@ async def test_generate_text_passes_temperature():
     assert provider.calls[-1]["temperature"] == 0.7
 
 
+# ---------------------------------------------------------------------------
+# default_temperature — fallback when temperature=None
+# ---------------------------------------------------------------------------
+
+
 @pytest.mark.asyncio
-async def test_default_temperature_is_zero():
+async def test_default_temperature_zero():
+    """When default_temperature=0 and temperature is not passed, provider gets 0."""
     provider = MockProvider(response_text="ok")
-    llm = LLMClient(provider=provider, default_model="test-model")
+    llm = LLMClient(provider=provider, default_model="test-model", default_temperature=0)
     await llm.generate_text(system="sys", user="usr")
     assert provider.calls[-1]["temperature"] == 0
+
+
+@pytest.mark.asyncio
+async def test_default_temperature_nonzero():
+    """When default_temperature=0.3 and temperature is None, provider gets 0.3."""
+    provider = MockProvider(response_text="ok")
+    llm = LLMClient(provider=provider, default_model="test-model", default_temperature=0.3)
+    await llm.generate_text(system="sys", user="usr")
+    assert provider.calls[-1]["temperature"] == 0.3
+
+
+@pytest.mark.asyncio
+async def test_explicit_temperature_overrides_default():
+    """Explicit temperature=0.5 overrides default_temperature=0.3."""
+    provider = MockProvider(response_text="ok")
+    llm = LLMClient(provider=provider, default_model="test-model", default_temperature=0.3)
+    await llm.generate_text(system="sys", user="usr", temperature=0.5)
+    assert provider.calls[-1]["temperature"] == 0.5
+
+
+@pytest.mark.asyncio
+async def test_none_temperature_uses_default():
+    """Passing temperature=None explicitly uses default_temperature."""
+    provider = MockProvider(response_text="ok")
+    llm = LLMClient(provider=provider, default_model="test-model", default_temperature=0.7)
+    await llm.generate_text(system="sys", user="usr", temperature=None)
+    assert provider.calls[-1]["temperature"] == 0.7
+
+
+@pytest.mark.asyncio
+async def test_default_temperature_applies_to_generate_json():
+    """default_temperature flows through generate_json as well."""
+    provider = MockProvider(response_text=json.dumps(VALID_JSON))
+    llm = LLMClient(provider=provider, default_model="test-model", default_temperature=0.3)
+    await llm.generate_json(system="sys", user="usr")
+    assert provider.calls[-1]["temperature"] == 0.3
+
+
+@pytest.mark.asyncio
+async def test_default_temperature_applies_to_generate_text_with_metadata():
+    """default_temperature flows through generate_text_with_metadata."""
+    provider = MockProvider(response_text="ok")
+    llm = LLMClient(provider=provider, default_model="test-model", default_temperature=0.5)
+    text, resp = await llm.generate_text_with_metadata(system="sys", user="usr")
+    assert text == "ok"
+    assert provider.calls[-1]["temperature"] == 0.5
+
+
+@pytest.mark.asyncio
+async def test_default_temperature_applies_to_generate_json_with_metadata():
+    """default_temperature flows through generate_json_with_metadata."""
+    provider = MockProvider(response_text=json.dumps(VALID_JSON))
+    llm = LLMClient(provider=provider, default_model="test-model", default_temperature=0.4)
+    result, resp = await llm.generate_json_with_metadata(system="sys", user="usr")
+    assert result == VALID_JSON
+    assert provider.calls[-1]["temperature"] == 0.4
 
 
 # ---------------------------------------------------------------------------

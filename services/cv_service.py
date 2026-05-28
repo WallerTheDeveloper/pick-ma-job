@@ -92,6 +92,33 @@ _TECH_KEYWORD_PATTERN = re.compile(
 )
 
 
+def _prompt_model(prompt: dict) -> str | None:
+    """Extract model override from a prompt config, or None if not specified.
+
+    When the prompt file specifies a ``model`` key, it overrides the
+    per-pass default from ``settings.json``.  When absent, ``None`` signals
+    the ``LLMClient`` to use its ``default_model`` (which is set from
+    ``cv_models`` in settings).
+    """
+    return prompt.get("model")
+
+
+def _prompt_temperature(prompt: dict) -> float | None:
+    """Extract temperature override from a prompt config, or None if absent.
+
+    When the prompt file specifies a ``temperature`` key, it overrides the
+    per-pass default from ``settings.json``.  When absent, ``None`` signals
+    the ``LLMClient`` to use its ``default_temperature`` (which is set from
+    ``cv_models`` in settings).
+
+    Priority order:
+    1. Prompt JSON ``temperature`` → explicit override
+    2. ``None`` → ``LLMClient.default_temperature`` (from settings cv_models)
+    3. ``LLMClient.default_temperature`` → falls back to top-level settings
+    """
+    return prompt.get("temperature")
+
+
 class CVService:
     def __init__(
         self,
@@ -219,6 +246,7 @@ class CVService:
             final_text = _diff_to_full_text(optimize_result)
             warnings = _verify_customization(final_text, cv.structured)
             sections = optimize_result.get("sections")
+            humanized_diff = optimize_result
             if warnings:
                 logger.warning(
                     "Verification warnings (no humanization) for user_id=%s job_result_id=%s: %s",
@@ -247,13 +275,13 @@ class CVService:
         """Call Claude to parse raw CV text into structured sections."""
         system = _STRUCTURE_PROMPT["system"]
         user_message = _STRUCTURE_PROMPT["user_template"].format(cv_text=raw_text)
-        model = _STRUCTURE_PROMPT.get("model")
 
         return await self._llm.for_pass("optimize").generate_json(
             system=system,
             user=user_message,
-            model=model,
+            model=_prompt_model(_STRUCTURE_PROMPT),
             max_tokens=4096,
+            temperature=_prompt_temperature(_STRUCTURE_PROMPT),
         )
 
     async def _call_customize(
@@ -292,13 +320,12 @@ class CVService:
                 "Apply this feedback in the new version."
             )
 
-        model = _CUSTOMIZE_PROMPT.get("model")
-
         return await self._llm.for_pass("optimize").generate_json(
             system=system,
             user=user_message,
-            model=model,
+            model=_prompt_model(_CUSTOMIZE_PROMPT),
             max_tokens=4096,
+            temperature=_prompt_temperature(_CUSTOMIZE_PROMPT),
         )
 
     # ── Pass 2: Extract Skeleton (algorithmic) ───────────────────────────────
@@ -395,7 +422,12 @@ class CVService:
         job_title: str,
         adjustment_notes: str | None = None,
     ) -> dict:
-        """Call Sonnet with cv_humanize.json prompt at temperature=0.3.
+        """Call Sonnet with cv_humanize.json prompt.
+
+        Model and temperature priority:
+        1. Prompt JSON file ``model``/``temperature`` overrides → if present, used
+        2. Settings ``cv_models.humanize`` defaults → when prompt omits, client uses these
+        3. Top-level settings → final fallback
 
         Returns diff-style JSON: {"sections": [...]}
         """
@@ -417,15 +449,12 @@ class CVService:
                 "Apply this feedback in the new version."
             )
 
-        model = _HUMANIZE_PROMPT.get("model")
-        temperature = _HUMANIZE_PROMPT.get("temperature", 0.3)
-
         return await self._llm.for_pass("humanize").generate_json(
             system=system,
             user=user_message,
-            model=model,
+            model=_prompt_model(_HUMANIZE_PROMPT),
             max_tokens=4096,
-            temperature=temperature,
+            temperature=_prompt_temperature(_HUMANIZE_PROMPT),
         )
 
     # ── Pass 4: Keyword Alignment Audit (LLM call) ──────────────────────────
@@ -438,6 +467,11 @@ class CVService:
     ) -> dict:
         """Call Haiku with cv_keyword_audit.json prompt.
 
+        Model and temperature priority:
+        1. Prompt JSON file ``model``/``temperature`` overrides → if present, used
+        2. Settings ``cv_models.keyword_audit`` defaults → when prompt omits, client uses these
+        3. Top-level settings → final fallback
+
         Returns: {"present": [...], "missing": [...], "forced": [...], "patches": [...]}
         """
         system = _KEYWORD_AUDIT_PROMPT["system"]
@@ -446,15 +480,12 @@ class CVService:
             cv_text=cv_text,
         )
 
-        model = _KEYWORD_AUDIT_PROMPT.get("model")
-        temperature = _KEYWORD_AUDIT_PROMPT.get("temperature", 0)
-
         return await self._llm.for_pass("keyword_audit").generate_json(
             system=system,
             user=user_message,
-            model=model,
+            model=_prompt_model(_KEYWORD_AUDIT_PROMPT),
             max_tokens=512,
-            temperature=temperature,
+            temperature=_prompt_temperature(_KEYWORD_AUDIT_PROMPT),
         )
 
     # ── Pass 4b: Apply Keyword Patches (algorithmic) ────────────────────────
@@ -518,14 +549,14 @@ class CVService:
         # Pass 2: Extract skeleton
         skeleton = self._extract_skeleton(optimize_result, cv_structured, job_description)
 
-        # Pass 3: Human-voice rewrite (Sonnet, temperature=0.3)
+        # Pass 3: Human-voice rewrite (model/temperature from settings or prompt override)
         humanized = await self._call_humanize(
             skeleton=skeleton,
             job_title=job_title,
             adjustment_notes=adjustment_notes,
         )
 
-        # Pass 4: Keyword audit + patch (Haiku, temperature=0)
+        # Pass 4: Keyword audit + patch (model/temperature from settings or prompt override)
         cv_text = _diff_to_full_text(humanized)
         audit = await self._call_keyword_audit(
             cv_text=cv_text,

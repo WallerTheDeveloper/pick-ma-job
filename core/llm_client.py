@@ -77,12 +77,16 @@ class LLMClient:
     Args:
         provider: An ``LLMProvider`` implementation (e.g. ``AnthropicProvider``).
         default_model: Model name used when *model* is not overridden per-call.
+        default_temperature: Temperature used when *temperature* is not
+            overridden per-call.  Enables per-pass temperature configuration
+            from ``settings.json`` ``cv_models`` entries.
         default_max_retries: Kept for backward compatibility but retry logic
             is now handled by the provider.
     """
 
     provider: LLMProvider
     default_model: str
+    default_temperature: float = 0
     default_max_retries: int = 6  # Kept for compat but retry is now per-provider
 
     async def _call_api(
@@ -92,7 +96,7 @@ class LLMClient:
         user: str,
         model: str | None = None,
         max_tokens: int = 1024,
-        temperature: float = 0,
+        temperature: float | None = None,
     ) -> LLMResponse:
         """Send a completion call to the provider.
 
@@ -100,12 +104,13 @@ class LLMClient:
         Raises ``LLMError`` on failure (from the provider).
         """
         model_name = model or self.default_model
+        effective_temperature = temperature if temperature is not None else self.default_temperature
         return await self.provider.complete(
             system=system,
             user=user,
             model=model_name,
             max_tokens=max_tokens,
-            temperature=temperature,
+            temperature=effective_temperature,
         )
 
     async def generate_json(
@@ -115,7 +120,7 @@ class LLMClient:
         user: str,
         model: str | None = None,
         max_tokens: int = 1024,
-        temperature: float = 0,
+        temperature: float | None = None,
     ) -> dict:
         """Call the LLM and parse the response as JSON.
 
@@ -139,7 +144,7 @@ class LLMClient:
         user: str,
         model: str | None = None,
         max_tokens: int = 1024,
-        temperature: float = 0,
+        temperature: float | None = None,
     ) -> tuple[dict, LLMResponse]:
         """Call the LLM, parse JSON, and return both the parsed dict and metadata."""
         resp = await self._call_api(
@@ -161,7 +166,7 @@ class LLMClient:
         user: str,
         model: str | None = None,
         max_tokens: int = 1024,
-        temperature: float = 0,
+        temperature: float | None = None,
     ) -> str:
         """Call the LLM and return the raw text response."""
         resp = await self._call_api(
@@ -177,7 +182,7 @@ class LLMClient:
         user: str,
         model: str | None = None,
         max_tokens: int = 1024,
-        temperature: float = 0,
+        temperature: float | None = None,
     ) -> tuple[str, LLMResponse]:
         """Call the LLM and return both the raw text and metadata."""
         resp = await self._call_api(

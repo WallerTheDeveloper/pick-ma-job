@@ -90,21 +90,60 @@ def _read_version() -> str:
 def _build_multi_model_client(settings: Settings) -> MultiModelLLMClient:
     """Build a MultiModelLLMClient from settings and env vars.
 
-    Creates per-pass LLMClient instances with the appropriate provider and model.
+    Creates per-pass LLMClient instances with the appropriate provider,
+    model, and temperature from ``Settings.cv_models``.  Each pass can
+    route to a different provider or model independently.
     """
-    anthropic_api_key = os.environ["ANTHROPIC_API_KEY"]
-    anthropic_provider = create_provider("anthropic", api_key=anthropic_api_key)
+    # Cache provider instances by name to reuse connections
+    _provider_cache: dict[str, object] = {}
 
-    # Build per-pass clients
+    def _get_provider(provider_name: str) -> object:
+        if provider_name not in _provider_cache:
+            if provider_name == "anthropic":
+                api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+                if not api_key:
+                    raise RuntimeError(
+                        f"ANTHROPIC_API_KEY env var required for provider "
+                        f"'{provider_name}' referenced in cv_models config."
+                    )
+                _provider_cache[provider_name] = create_provider(
+                    "anthropic", api_key=api_key,
+                )
+            else:
+                raise ValueError(
+                    f"Unknown provider '{provider_name}' in cv_models config. "
+                    f"Supported providers: anthropic"
+                )
+        return _provider_cache[provider_name]
+
+    cv = settings.cv_models
     clients: dict[str, LLMClient] = {}
 
-    # Default client uses the configured claude_model (for evaluator, pipeline, etc.)
-    default_model = settings.claude_model
-    clients["default"] = LLMClient(provider=anthropic_provider, default_model=default_model)
-    clients["evaluate"] = LLMClient(provider=anthropic_provider, default_model=default_model)
-    clients["optimize"] = LLMClient(provider=anthropic_provider, default_model=settings.cv_models.optimize)
-    clients["humanize"] = LLMClient(provider=anthropic_provider, default_model=settings.cv_models.humanize)
-    clients["keyword_audit"] = LLMClient(provider=anthropic_provider, default_model=settings.cv_models.keyword_audit)
+    # Default / evaluate client uses the configured claude_model
+    default_provider = _get_provider("anthropic")
+    clients["default"] = LLMClient(
+        provider=default_provider,
+        default_model=settings.claude_model,
+        default_temperature=settings.claude_temperature,
+    )
+    clients["evaluate"] = LLMClient(
+        provider=default_provider,
+        default_model=settings.claude_model,
+        default_temperature=settings.claude_temperature,
+    )
+
+    # Per-pass clients from cv_models configuration
+    for pass_name, pass_config in [
+        ("optimize", cv.optimize),
+        ("humanize", cv.humanize),
+        ("keyword_audit", cv.keyword_audit),
+    ]:
+        provider = _get_provider(pass_config.provider)
+        clients[pass_name] = LLMClient(
+            provider=provider,
+            default_model=pass_config.model,
+            default_temperature=pass_config.temperature,
+        )
 
     return MultiModelLLMClient(clients=clients)
 
@@ -135,6 +174,12 @@ async def lifespan(app: FastAPI):
         "Settings loaded: model=%s score_threshold=%d",
         settings.claude_model,
         settings.score_threshold,
+    )
+    logger.info(
+        "CV models: optimize=%s/%.1f humanize=%s/%.1f keyword_audit=%s/%.1f",
+        settings.cv_models.optimize.model, settings.cv_models.optimize.temperature,
+        settings.cv_models.humanize.model, settings.cv_models.humanize.temperature,
+        settings.cv_models.keyword_audit.model, settings.cv_models.keyword_audit.temperature,
     )
 
     resend.api_key = os.environ["RESEND_API_KEY"]

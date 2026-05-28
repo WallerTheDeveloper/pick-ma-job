@@ -20,16 +20,81 @@ _DEFAULT_SETTINGS_PATH = Path(__file__).parent.parent / "configs" / "settings.js
 
 
 @dataclass(frozen=True)
+class PassModelConfig:
+    """Per-pass model configuration: provider, model name, and temperature.
+
+    Each pipeline pass (optimize, humanize, keyword_audit) is configured
+    independently so you can route different passes to different models
+    or providers without code changes.
+    """
+
+    provider: str
+    model: str
+    temperature: float
+
+
+@dataclass(frozen=True)
 class CVModelConfig:
     """Per-pass model configuration for CV customization.
 
-    Each field can be either a simple model string (using the default provider)
-    or a dict with 'provider' and 'model' keys for multi-provider routing.
+    Each field maps a pipeline pass name to a ``PassModelConfig`` that
+    specifies which provider, model, and temperature to use for that pass.
     """
 
-    optimize: str = "claude-haiku-4-5-20251001"
-    humanize: str = "claude-sonnet-4-6-20250514"
-    keyword_audit: str = "claude-haiku-4-5-20251001"
+    optimize: PassModelConfig
+    humanize: PassModelConfig
+    keyword_audit: PassModelConfig
+
+
+# Default configuration used when ``cv_models`` is absent from settings.json.
+DEFAULT_CV_MODELS = CVModelConfig(
+    optimize=PassModelConfig(
+        provider="anthropic",
+        model="claude-haiku-4-5-20251001",
+        temperature=0,
+    ),
+    humanize=PassModelConfig(
+        provider="anthropic",
+        model="claude-sonnet-4-6-20250514",
+        temperature=0.3,
+    ),
+    keyword_audit=PassModelConfig(
+        provider="anthropic",
+        model="claude-haiku-4-5-20251001",
+        temperature=0,
+    ),
+)
+
+
+def _parse_pass_config(
+    raw: Any,
+    pass_name: str,
+    default: PassModelConfig,
+    fallback_model: str,
+    fallback_temperature: float,
+) -> PassModelConfig:
+    """Parse a single pass config from raw JSON data.
+
+    Priority:
+    1. If *raw* is a dict with provider/model/temperature, use it directly.
+    2. If *raw* is a string (legacy format), treat it as the model name
+       with the default provider and fallback temperature.
+    3. Fall back to *default* config.
+    """
+    if isinstance(raw, dict):
+        return PassModelConfig(
+            provider=raw.get("provider", default.provider),
+            model=raw.get("model", default.model),
+            temperature=raw.get("temperature", default.temperature),
+        )
+    if isinstance(raw, str):
+        # Legacy format: just a model name string
+        return PassModelConfig(
+            provider=default.provider,
+            model=raw,
+            temperature=fallback_temperature,
+        )
+    return default
 
 
 @dataclass(frozen=True)
@@ -54,7 +119,23 @@ class Settings(BaseSettings):
     evaluation_concurrency: int = Field(default=8, ge=1, le=50)
     exclude_title_keywords: list[str] = []
     providers: dict[str, ProviderConfig] = {}
-    cv_models: CVModelConfig = field(default_factory=CVModelConfig)
+    cv_models: CVModelConfig = field(default_factory=lambda: CVModelConfig(
+        optimize=PassModelConfig(
+            provider="anthropic",
+            model="claude-haiku-4-5-20251001",
+            temperature=0,
+        ),
+        humanize=PassModelConfig(
+            provider="anthropic",
+            model="claude-sonnet-4-6-20250514",
+            temperature=0.3,
+        ),
+        keyword_audit=PassModelConfig(
+            provider="anthropic",
+            model="claude-haiku-4-5-20251001",
+            temperature=0,
+        ),
+    ))
 
     @classmethod
     def from_json_file(cls, path: Path | str = _DEFAULT_SETTINGS_PATH) -> Settings:
@@ -78,16 +159,38 @@ class Settings(BaseSettings):
                 default_max_retries=cfg.get("default_max_retries", 6),
             )
 
-        # Parse cv_models section
-        cv_models_raw = raw.pop("models", {}).pop("cv_models", {})
+        # Top-level fallback values
+        fallback_model = raw.get("model", "claude-haiku-4-5-20251001")
+        fallback_temperature = raw.get("temperature", 0)
+
+        # Parse cv_models section — supports both new dict format and legacy
+        # flat string format.  The section can appear at the top level as
+        # ``cv_models`` or nested under ``models.cv_models`` (legacy).
+        cv_models_raw = raw.pop("cv_models", None)
+        if cv_models_raw is None:
+            # Try legacy nested path: models.cv_models
+            cv_models_raw = raw.pop("models", {}).pop("cv_models", None)
+
         if isinstance(cv_models_raw, dict):
             cv_models = CVModelConfig(
-                optimize=cv_models_raw.get("optimize", "claude-haiku-4-5-20251001"),
-                humanize=cv_models_raw.get("humanize", "claude-sonnet-4-6-20250514"),
-                keyword_audit=cv_models_raw.get("keyword_audit", "claude-haiku-4-5-20251001"),
+                optimize=_parse_pass_config(
+                    cv_models_raw.get("optimize"), "optimize",
+                    DEFAULT_CV_MODELS.optimize,
+                    fallback_model, fallback_temperature,
+                ),
+                humanize=_parse_pass_config(
+                    cv_models_raw.get("humanize"), "humanize",
+                    DEFAULT_CV_MODELS.humanize,
+                    fallback_model, fallback_temperature,
+                ),
+                keyword_audit=_parse_pass_config(
+                    cv_models_raw.get("keyword_audit"), "keyword_audit",
+                    DEFAULT_CV_MODELS.keyword_audit,
+                    fallback_model, fallback_temperature,
+                ),
             )
         else:
-            cv_models = CVModelConfig()
+            cv_models = DEFAULT_CV_MODELS
 
         data = {
             "claude_model": raw.get("model", "claude-haiku-4-5-20251001"),
