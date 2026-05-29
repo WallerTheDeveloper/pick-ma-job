@@ -189,6 +189,15 @@ KEYWORD_AUDIT_RESPONSE = json.dumps({
     ]
 })
 
+VOICE_FRAGMENTS_RESPONSE = json.dumps({
+    "fragments": [
+        {"section": "SUMMARY", "voice": "Really a backend person who spent years neck-deep in Python and FastAPI. The API work was honestly the most fun."},
+        {"section": "EXPERIENCE", "voice": "The backend team stuff was where I learned the most. Shipping microservices at scale is always harder than people think."},
+        {"section": "SKILLS", "voice": "Python and FastAPI are what I use daily. Docker is pretty much second nature."},
+        {"section": "EDUCATION", "voice": "Got my CS degree mostly because the math classes were genuinely interesting."},
+    ]
+})
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -208,7 +217,7 @@ def mock_repos():
 def mock_multi_client():
     """Create a MultiModelLLMClient with sequential mock providers for the 3 LLM passes."""
     optimize_provider = SequentialProvider([OPTIMIZE_RESPONSE])
-    humanize_provider = SequentialProvider([HUMANIZE_RESPONSE])
+    humanize_provider = SequentialProvider([VOICE_FRAGMENTS_RESPONSE])
     audit_provider = SequentialProvider([KEYWORD_AUDIT_RESPONSE])
 
     optimize_client = LLMClient(provider=optimize_provider, default_model="haiku-model", default_temperature=0)
@@ -553,7 +562,7 @@ async def test_force_regenerate_reruns_pipeline(mock_repos):
 
     # Full pipeline providers
     optimize_provider = SequentialProvider([OPTIMIZE_RESPONSE])
-    humanize_provider = SequentialProvider([HUMANIZE_RESPONSE])
+    humanize_provider = SequentialProvider([VOICE_FRAGMENTS_RESPONSE])
     audit_provider = SequentialProvider([KEYWORD_AUDIT_RESPONSE])
 
     optimize_client = LLMClient(provider=optimize_provider, default_model="haiku-model", default_temperature=0)

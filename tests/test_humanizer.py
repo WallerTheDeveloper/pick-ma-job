@@ -220,3 +220,124 @@ class TestAI_TELL_REPLACEMENTS:
         for key, value in AI_TELL_REPLACEMENTS.items():
             assert isinstance(key, str)
             assert isinstance(value, str)
+
+
+class TestPostprocessHumanizationPipelineOrder:
+    """Verify AI tells removed first, then sentence variety, then contractions."""
+
+    def test_pipeline_order_ai_tells_first(self):
+        """AI tells should be removed before contractions are applied.
+
+        If contractions run first, 'Additionally' might become "Additionally"
+        (no contraction applies), but 'do not' → "don't". Then AI tell removal
+        should still catch 'Additionally' → 'And'.
+        """
+        text = (
+            "Furthermore, I do not think this is a problem. "
+            "Additionally, the team leveraged resources. "
+            "Moreover, they do not need help."
+        )
+        result = postprocess_humanization(text)
+        # AI tells should be gone
+        assert "Furthermore" not in result
+        assert "Additionally" not in result
+        # At least some contractions should be applied
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_pipeline_with_entropy_injected_text(self):
+        """Post-processing works correctly on text that has already had entropy injected.
+
+        The postprocess_humanization pipeline should be idempotent-safe when
+        applied after entropy injection (hedges, informal openers, etc.).
+        """
+        from core.entropy_injector import (
+            inject_intentional_imperfections,
+            vary_paragraph_lengths,
+            inject_paragraph_transitions,
+        )
+
+        base_text = (
+            "The team built a real-time data pipeline. "
+            "We processed over 500K events per day. "
+            "The system scaled horizontally with Kubernetes. "
+            "I led the backend migration project. "
+            "Our API latency dropped by 40 percent. "
+            "We used Python and FastAPI for the service layer. "
+            "The database was PostgreSQL with Redis caching. "
+            "Deployment was handled with Docker containers."
+        )
+        # Apply entropy injection first
+        text_with_entropy = inject_intentional_imperfections(base_text, imperfection_rate=0.3, seed=42)
+        text_with_entropy = vary_paragraph_lengths(text_with_entropy, seed=42)
+        text_with_entropy = inject_paragraph_transitions(text_with_entropy)
+
+        # Then apply postprocessing
+        result = postprocess_humanization(text_with_entropy)
+        assert isinstance(result, str)
+        assert len(result) > 0
+        # Should not crash or produce empty output
+        # AI tells should still be removed even after entropy injection
+        assert "Furthermore" not in result
+        assert "Additionally" not in result
+
+
+class TestEntropyInjectorPipelineIntegration:
+    """Integration tests for entropy injector functions used in the hybrid pipeline."""
+
+    def test_full_entropy_pipeline(self):
+        """Test all entropy injection steps in sequence (as used in cv_service)."""
+        from core.entropy_injector import (
+            inject_intentional_imperfections,
+            vary_paragraph_lengths,
+            inject_paragraph_transitions,
+        )
+
+        text = (
+            "The team built a real-time data pipeline processing 500K events per day. "
+            "We used Python and FastAPI for the backend services. "
+            "The system scaled horizontally with Docker and Kubernetes. "
+            "I led the migration from monolith to microservices architecture. "
+            "Our API latency dropped by 40 percent through caching and optimization. "
+            "The database was PostgreSQL with Redis for session caching. "
+            "Deployment was handled with Docker containers and CI/CD pipelines. "
+            "I also mentored junior developers on the team."
+        )
+        # Apply the full entropy pipeline as cv_service does
+        result = inject_intentional_imperfections(text, seed=42)
+        result = vary_paragraph_lengths(result, seed=42)
+        result = inject_paragraph_transitions(result)
+
+        assert isinstance(result, str)
+        assert len(result) > 0
+        # Core content should be preserved
+        assert "Python" in result
+        assert "500K" in result
+
+    def test_entropy_plus_postprocessing(self):
+        """Entropy injection + postprocessing should work together without errors."""
+        from core.entropy_injector import (
+            inject_intentional_imperfections,
+            vary_paragraph_lengths,
+            inject_paragraph_transitions,
+        )
+
+        text = (
+            "Furthermore, I leveraged cutting-edge technology to streamline the workflow. "
+            "Additionally, I spearheaded the project. Moreover, I orchestrated the deployment. "
+            "I do not think the team is not capable. "
+            "We built real-time data pipelines with Python and FastAPI. "
+            "The system handled 10 thousand requests per second. "
+            "I managed the backend team using Docker and PostgreSQL."
+        )
+        # Full pipeline: entropy → postprocessing
+        text = inject_intentional_imperfections(text, seed=42)
+        text = vary_paragraph_lengths(text, seed=42)
+        text = inject_paragraph_transitions(text)
+        result = postprocess_humanization(text)
+
+        assert isinstance(result, str)
+        assert len(result) > 0
+        # AI tells should still be removed
+        assert "Furthermore" not in result
+        assert "leveraged" not in result

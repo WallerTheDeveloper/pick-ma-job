@@ -56,7 +56,7 @@ def test_default_cv_models():
     assert DEFAULT_CV_MODELS.optimize.model == "claude-haiku-4-5-20251001"
     assert DEFAULT_CV_MODELS.optimize.temperature == 0
     assert DEFAULT_CV_MODELS.humanize.model == "claude-sonnet-4-20250514"
-    assert DEFAULT_CV_MODELS.humanize.temperature == 0.3
+    assert DEFAULT_CV_MODELS.humanize.temperature == 0.85
     assert DEFAULT_CV_MODELS.keyword_audit.model == "claude-haiku-4-5-20251001"
     assert DEFAULT_CV_MODELS.keyword_audit.temperature == 0
 
@@ -251,7 +251,7 @@ def test_from_json_file_actual_settings():
     assert settings.cv_models.optimize.temperature == 0
     assert settings.cv_models.humanize.provider == "anthropic"
     assert settings.cv_models.humanize.model == "claude-sonnet-4-20250514"
-    assert settings.cv_models.humanize.temperature == 0.3
+    assert settings.cv_models.humanize.temperature == 0.85
     assert settings.cv_models.keyword_audit.provider == "anthropic"
     assert settings.cv_models.keyword_audit.model == "claude-haiku-4-5-20251001"
     assert settings.cv_models.keyword_audit.temperature == 0
